@@ -1,0 +1,8 @@
+pg:
+  host: "localhost"
+  port: 5432
+  user: "itchan"
+  password: "pass"
+  dbname: "itchan"
+  initpath: "path1"
+jwt_ttl: 100
