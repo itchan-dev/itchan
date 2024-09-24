@@ -6,5 +6,5 @@ type Board struct {
 	Name      string
 	ShortName string
 	Threads   []Thread
-	createdAt timestamp
+	CreatedAt timestamp
 }

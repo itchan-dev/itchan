@@ -4,9 +4,10 @@ type Attachment struct {
 }
 
 type Message struct {
-	author      User
-	Text        string
-	createdAt   timestamp
 	Id          int64
+	Author      User
+	Text        string
+	CreatedAt   timestamp
 	Attachments []Attachment
+	Thread      *Thread
 }
