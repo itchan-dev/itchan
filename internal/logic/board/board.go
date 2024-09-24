@@ -5,44 +5,44 @@ import (
 )
 
 type Board struct {
-	storage     Storage
-	nameChecker NameChecker
+	storage   Storage
+	validator Validator
 }
 
 type Storage interface {
-	CreateBoard(name, shortName string) (*domain.Board, error)
+	CreateBoard(name, shortName string) error
 	GetBoard(shortName string) (*domain.Board, error)
 	DeleteBoard(shortName string) error
 }
 
-type NameChecker interface {
-	Check(name string) error
-	CheckShort(name string) error
+type Validator interface {
+	Name(name string) error
+	ShortName(name string) error
 }
 
-func New(storage Storage, nameChecker NameChecker) *Board {
-	return &Board{storage, nameChecker}
+func New(storage Storage, validator Validator) *Board {
+	return &Board{storage, validator}
 }
 
-func (b *Board) Create(name, shortName string) (*domain.Board, error) {
-	err := b.nameChecker.Check(name)
+func (b *Board) Create(name, shortName string) error {
+	err := b.validator.Name(name)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = b.nameChecker.CheckShort(shortName)
+	err = b.validator.ShortName(shortName)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	board, err := b.storage.CreateBoard(name, shortName)
+	err = b.storage.CreateBoard(name, shortName)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return board, nil
+	return nil
 }
 
 func (b *Board) Get(shortName string) (*domain.Board, error) {
-	err := b.nameChecker.CheckShort(shortName)
+	err := b.validator.ShortName(shortName)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (b *Board) Get(shortName string) (*domain.Board, error) {
 }
 
 func (b *Board) Delete(shortName string) error {
-	err := b.nameChecker.CheckShort(shortName)
+	err := b.validator.ShortName(shortName)
 	if err != nil {
 		return err
 	}
