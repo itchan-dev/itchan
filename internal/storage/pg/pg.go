@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/itchan-dev/itchan/internal/config"
 
@@ -18,12 +17,6 @@ type Storage struct {
 func New(cfg config.Pg) (*Storage, error) {
 	log.Print("Connecting to db")
 	db, err := Connect(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Print("Initializing db")
-	err = Init(db, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -46,20 +39,6 @@ func Connect(cfg config.Pg) (*sql.DB, error) {
 	}
 
 	return db, nil
-}
-
-func Init(db *sql.DB, cfg config.Pg) error {
-	query, err := os.ReadFile(cfg.InitPath)
-	if err != nil {
-		return err
-	}
-
-	_, err = db.Exec(string(query))
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (s *Storage) Cleanup() error {

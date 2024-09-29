@@ -1,8 +1,8 @@
 pg:
-  host: "localhost"
+  host: "postgres"
   port: 5432
   user: "itchan"
   password: "itchan"
   dbname: "itchan"
-  initpath: "../../internal/storage/pg/init.pgsql"
+  initpath: "./internal/storage/pg/init.pgsql"
 jwt_ttl: 2629800000000000
