@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  itchan:
+    container_name: itchan
+    build:
+        dockerfile: ./build/package/Dockerfile
+        context: ./
+    ports:
+      - 8080:8080
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+  db:
+    container_name: postgres
+    image: postgres:13.4-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=itchan
+      - POSTGRES_PASSWORD=itchan
+      - POSTGRES_DB=itchan
+    ports:
+      - 5432:5432
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - ./internal/storage/pg/init:/docker-entrypoint-initdb.d
+    healthcheck:
+          test: ["CMD-SHELL", "pg_isready -h localhost -U itchan -d itchan"]
+          interval: 10s
+          retries: 5
+          start_period: 30s
+          timeout: 10s

@@ -1,2 +1,2 @@
 config/private.yaml
-build/package/pgdata
+pgdata

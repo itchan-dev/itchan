@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/itchan-dev/itchan/internal/config"
 	"github.com/itchan-dev/itchan/internal/handler"
@@ -20,7 +21,7 @@ func main() {
 	log.SetFlags(log.Lshortfile)
 
 	var configFolder string
-	flag.StringVar(&configFolder, "config_folder", "../../config", "path to folder with configs")
+	flag.StringVar(&configFolder, "config_folder", "config", "path to folder with configs")
 	flag.Parse()
 	// to do, move all init to different place
 	cfg := config.MustLoad(configFolder)
@@ -59,7 +60,11 @@ func main() {
 	// r.HandleFunc("/{board}/{thread}/{message}", middleware.Auth(handler.GetMessage)).Methods("GET")
 	// r.HandleFunc("/{board}/{thread}/{message}", middleware.AdminOnly(handler.DeleteMessage)).Methods("DELETE")
 
-	// start the server on port 8080
 	log.Print("Server started")
-	log.Fatal(http.ListenAndServe(":5010", r))
+	httpPort := os.Getenv("PORT")
+	if httpPort == "" {
+		httpPort = "8080"
+	}
+
+	log.Fatal(http.ListenAndServe(":"+httpPort, r))
 }
