@@ -20,6 +20,7 @@ func (j *Jwt) NewToken(user *domain.User) (string, error) {
 	claims := jwt.MapClaims{}
 	claims["uid"] = user.Id
 	claims["email"] = user.Email
+	claims["admin"] = user.Admin
 	claims["exp"] = time.Now().Add(j.ttl).Unix()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

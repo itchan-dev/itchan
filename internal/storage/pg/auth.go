@@ -23,10 +23,10 @@ func (s *Storage) SaveUser(email string, passHash []byte) (int64, error) {
 //
 // If user doesn't exist, return error
 func (s *Storage) User(email string) (*domain.User, error) {
-	result := s.db.QueryRow("SELECT id, email, pass_hash FROM users WHERE email = $1", email)
+	result := s.db.QueryRow("SELECT id, email, pass_hash, is_admin FROM users WHERE email = $1", email)
 
 	var user domain.User
-	err := result.Scan(&user.Id, &user.Email, &user.PassHash)
+	err := result.Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin)
 	if err != nil {
 		return nil, err
 	}

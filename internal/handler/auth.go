@@ -60,6 +60,7 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
+		Path:     "/",
 		Name:     "accessToken",
 		Value:    "",
 		MaxAge:   0,
