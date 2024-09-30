@@ -43,10 +43,11 @@ func main() {
 
 	r.HandleFunc("/auth/signup", h.Signup).Methods("POST")
 	r.HandleFunc("/auth/login", h.Login).Methods("POST")
-	r.Handle("/auth/logout", middleware.NewAuth(http.HandlerFunc(h.Logout), *cfg, *jwt)).Methods("POST")
+	r.Handle("/auth/logout", middleware.NeedAuth(h.Logout, *jwt)).Methods("POST")
 
-	r.Handle("/auth/test_auth", middleware.NewAuth(http.HandlerFunc(h.Test), *cfg, *jwt)).Methods("GET")
-	r.Handle("/test_auth", middleware.NewAuth(http.HandlerFunc(h.Test), *cfg, *jwt)).Methods("GET")
+	r.Handle("/auth/test_auth", middleware.NeedAuth(h.Test, *jwt)).Methods("GET")
+	r.Handle("/test_auth", middleware.NeedAuth(h.Test, *jwt)).Methods("GET")
+	r.Handle("/test_admin", middleware.AdminOnly(h.Test, *jwt)).Methods("GET")
 
 	// r.HandleFunc("/create_board", middleware.AdminOnly(handler.CreateBoard)).Methods("POST")
 	// r.HandleFunc("/{board}", middleware.Auth(handler.GetBoard)).Methods("GET")
