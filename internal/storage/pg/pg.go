@@ -11,7 +11,8 @@ import (
 )
 
 type Storage struct {
-	db *sql.DB
+	db  *sql.DB
+	cfg *config.Pg
 }
 
 func New(cfg config.Pg) (*Storage, error) {
@@ -21,7 +22,7 @@ func New(cfg config.Pg) (*Storage, error) {
 		return nil, err
 	}
 
-	return &Storage{db}, nil
+	return &Storage{db, &cfg}, nil
 }
 
 func Connect(cfg config.Pg) (*sql.DB, error) {

@@ -5,13 +5,13 @@ import (
 )
 
 type Board struct {
-	storage   Storage
-	validator Validator
+	storage       Storage
+	nameValidator Validator
 }
 
 type Storage interface {
 	CreateBoard(name, shortName string) error
-	GetBoard(shortName string) (*domain.Board, error)
+	GetBoard(shortName string, page int) (*domain.Board, error)
 	DeleteBoard(shortName string) error
 }
 
@@ -25,11 +25,11 @@ func New(storage Storage, validator Validator) *Board {
 }
 
 func (b *Board) Create(name, shortName string) error {
-	err := b.validator.Name(name)
+	err := b.nameValidator.Name(name)
 	if err != nil {
 		return err
 	}
-	err = b.validator.ShortName(shortName)
+	err = b.nameValidator.ShortName(shortName)
 	if err != nil {
 		return err
 	}
@@ -41,13 +41,13 @@ func (b *Board) Create(name, shortName string) error {
 	return nil
 }
 
-func (b *Board) Get(shortName string) (*domain.Board, error) {
-	err := b.validator.ShortName(shortName)
+func (b *Board) Get(shortName string, page int) (*domain.Board, error) {
+	err := b.nameValidator.ShortName(shortName)
 	if err != nil {
 		return nil, err
 	}
 
-	board, err := b.storage.GetBoard(shortName)
+	board, err := b.storage.GetBoard(shortName, page)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (b *Board) Get(shortName string) (*domain.Board, error) {
 }
 
 func (b *Board) Delete(shortName string) error {
-	err := b.validator.ShortName(shortName)
+	err := b.nameValidator.ShortName(shortName)
 	if err != nil {
 		return err
 	}

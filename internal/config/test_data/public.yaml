@@ -5,4 +5,5 @@ pg:
   password: "pass"
   dbname: "itchan"
   initpath: "path1"
+  threads_per_page: 20
 jwt_ttl: 100
