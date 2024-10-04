@@ -19,12 +19,13 @@ type Public struct {
 }
 
 type Pg struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Dbname   string `yaml:"dbname"`
-	InitPath string `yaml:"initpath"`
+	Host           string `yaml:"host"`
+	Port           int    `yaml:"port"`
+	User           string `yaml:"user"`
+	Password       string `yaml:"password"`
+	Dbname         string `yaml:"dbname"`
+	InitPath       string `yaml:"initpath"`
+	ThreadsPerPage int    `yaml:"threads_per_page"`
 }
 
 type Private struct {

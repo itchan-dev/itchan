@@ -27,6 +27,9 @@ func TestMustLoad(t *testing.T) {
 	if cfg.Public.Pg.InitPath != "path1" {
 		t.Errorf("pg.InitPath, got: %s, want: %s", cfg.Public.Pg.InitPath, "path1")
 	}
+	if cfg.Public.Pg.ThreadsPerPage != 20 {
+		t.Errorf("pg.ThreadsPerPage, got: %s, want: %s", fmt.Sprint(cfg.Public.Pg.ThreadsPerPage), "20")
+	}
 	if cfg.JwtTTL() != time.Duration(100) {
 		t.Errorf("JwtTTL, got: %s, want: %s", fmt.Sprint(cfg.JwtTTL()), "100")
 	}

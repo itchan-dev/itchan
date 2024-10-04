@@ -1,13 +1,12 @@
 package domain
 
-type Attachment struct {
-}
+type Attachment string
 
 type Message struct {
 	Id          int64
 	Author      User
 	Text        string
-	CreatedAt   timestamp
-	Attachments []Attachment
-	Thread      *Thread
+	CreatedAt   int64
+	Attachments []*Attachment
+	ThreadId    int
 }

@@ -12,19 +12,20 @@ CREATE TABLE IF NOT EXISTS boards(
     created     timestamp default current_timestamp
 );
 
+-- metainfo in first thread message
+-- thread id is first msg id
 CREATE TABLE IF NOT EXISTS threads(
     id          int PRIMARY KEY,
     title       text NOT NULL,
-    created     timestamp default current_timestamp,
-    board       varchar(10) REFERENCES boards
+    board       varchar(10) REFERENCES boards ON DELETE CASCADE
 );
 
--- if thread_id is null -> message is started new thread
 CREATE TABLE IF NOT EXISTS messages(
     id          serial PRIMARY KEY, 
     author_id   int NOT NULL REFERENCES users,
     text        text NOT NULL,
     created     timestamp default current_timestamp,
     attachments text[],
-    thread_id   int REFERENCES threads
+    thread_id   int REFERENCES threads ON DELETE CASCADE,
+    op          boolean NOT NULL default false
 );
