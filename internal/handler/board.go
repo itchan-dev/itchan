@@ -29,17 +29,21 @@ func (h *handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("created"))
+	w.Write([]byte("Created"))
 }
 
 func (h *handler) GetBoard(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	shortName := mux.Vars(r)["board"]
+	pageQuery := r.URL.Query().Get("page")
+	if pageQuery == "" {
+		pageQuery = "1"
+	}
+	page, err := strconv.Atoi(pageQuery)
 	if err != nil {
 		log.Print(err.Error())
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	shortName := mux.Vars(r)["board"]
 
 	board, err := h.board.Get(shortName, page)
 	if err != nil {

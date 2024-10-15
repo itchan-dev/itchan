@@ -12,7 +12,7 @@ type Thread struct {
 }
 
 type Storage interface {
-	CreateThread(title string, msg domain.Message) (*domain.Thread, error)
+	CreateThread(title, board string, msg *domain.Message) (*domain.Thread, error)
 	GetThread(id int64) (*domain.Thread, error)
 	DeleteThread(id int64) error
 }
@@ -25,13 +25,13 @@ func New(storage Storage, validator Validator) *Thread {
 	return &Thread{storage, validator}
 }
 
-func (b *Thread) Create(title string, msg domain.Message) (*domain.Thread, error) {
+func (b *Thread) Create(title string, board string, msg *domain.Message) (*domain.Thread, error) {
 	err := b.validator.Title(title)
 	if err != nil {
 		return nil, err
 	}
 
-	thread, err := b.storage.CreateThread(title, msg)
+	thread, err := b.storage.CreateThread(title, board, msg)
 	if err != nil {
 		return nil, err
 	}

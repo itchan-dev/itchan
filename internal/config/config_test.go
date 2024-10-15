@@ -30,6 +30,9 @@ func TestMustLoad(t *testing.T) {
 	if cfg.Public.Pg.ThreadsPerPage != 20 {
 		t.Errorf("pg.ThreadsPerPage, got: %s, want: %s", fmt.Sprint(cfg.Public.Pg.ThreadsPerPage), "20")
 	}
+	if cfg.Public.Pg.NLastMsg != 5 {
+		t.Errorf("pg.NLastMsg, got: %s, want: %s", fmt.Sprint(cfg.Public.Pg.NLastMsg), "5")
+	}
 	if cfg.JwtTTL() != time.Duration(100) {
 		t.Errorf("JwtTTL, got: %s, want: %s", fmt.Sprint(cfg.JwtTTL()), "100")
 	}

@@ -5,4 +5,6 @@ pg:
   password: "itchan"
   dbname: "itchan"
   initpath: "./internal/storage/pg/init.pgsql"
+  threads_per_page: 20
+  n_last_msg: 5
 jwt_ttl: 2629800000000000

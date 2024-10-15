@@ -40,3 +40,12 @@ func (e *BoardNameValidator) ShortName(name string) error {
 func New() *BoardNameValidator {
 	return &BoardNameValidator{}
 }
+
+type ThreadTitleValidator struct{}
+
+func (e *ThreadTitleValidator) Title(name string) error {
+	if utf8.RuneCountInString(name) > 50 {
+		return errors.New("name is too long")
+	}
+	return nil
+}
