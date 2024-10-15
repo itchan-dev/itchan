@@ -11,6 +11,7 @@ import (
 	"github.com/itchan-dev/itchan/internal/middleware"
 	"github.com/itchan-dev/itchan/internal/models/auth"
 	"github.com/itchan-dev/itchan/internal/models/board"
+	"github.com/itchan-dev/itchan/internal/models/thread"
 	"github.com/itchan-dev/itchan/internal/scripts"
 	"github.com/itchan-dev/itchan/internal/scripts/email"
 	"github.com/itchan-dev/itchan/internal/scripts/jwt"
@@ -40,9 +41,10 @@ func main() {
 
 	auth := auth.New(storage, email, jwt)
 	board := board.New(storage, &scripts.BoardNameValidator{})
+	thread := thread.New(storage, &scripts.ThreadTitleValidator{})
 
 	r := mux.NewRouter()
-	h := handler.New(auth, board, cfg)
+	h := handler.New(auth, board, thread, cfg, jwt)
 
 	r.HandleFunc("/auth/signup/", h.Signup).Methods("POST")
 	r.HandleFunc("/auth/login/", h.Login).Methods("POST")
@@ -56,9 +58,9 @@ func main() {
 	r.HandleFunc("/{board}/", middleware.NeedAuth(h.GetBoard, *jwt)).Methods("GET")
 	r.HandleFunc("/{board}/", middleware.AdminOnly(h.DeleteBoard, *jwt)).Methods("DELETE")
 
-	// r.HandleFunc("/{board}/create_thread", middleware.Auth(handler.CreateThread)).Methods("POST")
-	// r.HandleFunc("/{board}/thread/{thread}", middleware.Auth(handler.GetThread)).Methods("GET")
-	// r.HandleFunc("/{board}/thread/{thread}", middleware.AdminOnly(handler.DeleteThread)).Methods("DELETE")
+	r.HandleFunc("/{board}/create_thread", middleware.AdminOnly(h.CreateThread, *jwt)).Methods("POST")
+	r.HandleFunc("/{board}/t/{thread}", middleware.AdminOnly(h.GetThread, *jwt)).Methods("GET")
+	r.HandleFunc("/{board}/t/{thread}", middleware.AdminOnly(h.DeleteThread, *jwt)).Methods("DELETE")
 
 	// r.HandleFunc("/{board}/{thread}/reply", middleware.Auth(handler.CreateMessage)).Methods("POST")
 	// r.HandleFunc("/{board}/{thread}/{message}", middleware.Auth(handler.GetMessage)).Methods("GET")

@@ -26,6 +26,7 @@ type Pg struct {
 	Dbname         string `yaml:"dbname"`
 	InitPath       string `yaml:"initpath"`
 	ThreadsPerPage int    `yaml:"threads_per_page"`
+	NLastMsg       int    `yaml:"n_last_msg"`
 }
 
 type Private struct {

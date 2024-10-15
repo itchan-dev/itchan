@@ -25,25 +25,21 @@ func New(storage Storage, validator Validator) *Board {
 }
 
 func (b *Board) Create(name, shortName string) error {
-	err := b.nameValidator.Name(name)
-	if err != nil {
+	if err := b.nameValidator.Name(name); err != nil {
 		return err
 	}
-	err = b.nameValidator.ShortName(shortName)
-	if err != nil {
+	if err := b.nameValidator.ShortName(shortName); err != nil {
+		return err
+	}
+	if err := b.storage.CreateBoard(name, shortName); err != nil {
 		return err
 	}
 
-	err = b.storage.CreateBoard(name, shortName)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 func (b *Board) Get(shortName string, page int) (*domain.Board, error) {
-	err := b.nameValidator.ShortName(shortName)
-	if err != nil {
+	if err := b.nameValidator.ShortName(shortName); err != nil {
 		return nil, err
 	}
 
@@ -55,8 +51,7 @@ func (b *Board) Get(shortName string, page int) (*domain.Board, error) {
 }
 
 func (b *Board) Delete(shortName string) error {
-	err := b.nameValidator.ShortName(shortName)
-	if err != nil {
+	if err := b.nameValidator.ShortName(shortName); err != nil {
 		return err
 	}
 

@@ -7,6 +7,6 @@ type Message struct {
 	Author      User
 	Text        string
 	CreatedAt   int64
-	Attachments []*Attachment
-	ThreadId    int
+	Attachments []Attachment
+	ThreadId    int64
 }
