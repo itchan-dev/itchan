@@ -25,7 +25,7 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	}
 	accessCookie, err := r.Cookie("accessToken")
 	if err != nil {
-		http.Error(w, "please sign-in", http.StatusUnauthorized)
+		http.Error(w, "can't get accessToken cookie", http.StatusUnauthorized)
 		return
 	}
 	jwtClaims, err := h.jwt.DecodeToken(accessCookie.Value)
@@ -70,7 +70,7 @@ func (h *handler) GetThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
-	// board := mux.Vars(r)["board"]
+	board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
@@ -78,7 +78,7 @@ func (h *handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.thread.Delete(int64(threadId)); err != nil {
+	if err := h.thread.Delete(board, int64(threadId)); err != nil {
 		log.Print(err.Error())
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return

@@ -11,6 +11,7 @@ import (
 	"github.com/itchan-dev/itchan/internal/middleware"
 	"github.com/itchan-dev/itchan/internal/models/auth"
 	"github.com/itchan-dev/itchan/internal/models/board"
+	"github.com/itchan-dev/itchan/internal/models/message"
 	"github.com/itchan-dev/itchan/internal/models/thread"
 	"github.com/itchan-dev/itchan/internal/scripts"
 	"github.com/itchan-dev/itchan/internal/scripts/email"
@@ -42,9 +43,10 @@ func main() {
 	auth := auth.New(storage, email, jwt)
 	board := board.New(storage, &scripts.BoardNameValidator{})
 	thread := thread.New(storage, &scripts.ThreadTitleValidator{})
+	message := message.New(storage, &scripts.MessageValidator{})
 
 	r := mux.NewRouter()
-	h := handler.New(auth, board, thread, cfg, jwt)
+	h := handler.New(auth, board, thread, message, cfg, jwt)
 
 	r.HandleFunc("/auth/signup/", h.Signup).Methods("POST")
 	r.HandleFunc("/auth/login/", h.Login).Methods("POST")
@@ -58,13 +60,13 @@ func main() {
 	r.HandleFunc("/{board}/", middleware.NeedAuth(h.GetBoard, *jwt)).Methods("GET")
 	r.HandleFunc("/{board}/", middleware.AdminOnly(h.DeleteBoard, *jwt)).Methods("DELETE")
 
-	r.HandleFunc("/{board}/create_thread", middleware.AdminOnly(h.CreateThread, *jwt)).Methods("POST")
-	r.HandleFunc("/{board}/t/{thread}", middleware.AdminOnly(h.GetThread, *jwt)).Methods("GET")
+	r.HandleFunc("/{board}/create_thread", middleware.NeedAuth(h.CreateThread, *jwt)).Methods("POST")
+	r.HandleFunc("/{board}/t/{thread}", middleware.NeedAuth(h.GetThread, *jwt)).Methods("GET")
 	r.HandleFunc("/{board}/t/{thread}", middleware.AdminOnly(h.DeleteThread, *jwt)).Methods("DELETE")
 
-	// r.HandleFunc("/{board}/{thread}/reply", middleware.Auth(handler.CreateMessage)).Methods("POST")
-	// r.HandleFunc("/{board}/{thread}/{message}", middleware.Auth(handler.GetMessage)).Methods("GET")
-	// r.HandleFunc("/{board}/{thread}/{message}", middleware.AdminOnly(handler.DeleteMessage)).Methods("DELETE")
+	r.HandleFunc("/{board}/{thread}/reply", middleware.NeedAuth(h.CreateMessage, *jwt)).Methods("POST")
+	r.HandleFunc("/{board}/t/{thread}/{message}", middleware.NeedAuth(h.GetMessage, *jwt)).Methods("GET")
+	r.HandleFunc("/{board}/t/{thread}/{message}", middleware.AdminOnly(h.DeleteMessage, *jwt)).Methods("DELETE")
 
 	log.Print("Server started")
 	httpPort := os.Getenv("PORT")

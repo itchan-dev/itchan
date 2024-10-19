@@ -14,7 +14,7 @@ type Thread struct {
 type Storage interface {
 	CreateThread(title, board string, msg *domain.Message) (*domain.Thread, error)
 	GetThread(id int64) (*domain.Thread, error)
-	DeleteThread(id int64) error
+	DeleteThread(board string, id int64) error
 }
 
 type Validator interface {
@@ -46,6 +46,6 @@ func (b *Thread) Get(id int64) (*domain.Thread, error) {
 	return thread, nil
 }
 
-func (b *Thread) Delete(id int64) error {
-	return b.storage.DeleteThread(id)
+func (b *Thread) Delete(board string, id int64) error {
+	return b.storage.DeleteThread(board, id)
 }

@@ -45,3 +45,7 @@ func Connect(cfg config.Pg) (*sql.DB, error) {
 func (s *Storage) Cleanup() error {
 	return s.db.Close()
 }
+
+func get_view_name(boardName string) string {
+	return fmt.Sprintf("board_%s_view", boardName)
+}

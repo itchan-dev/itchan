@@ -28,6 +28,13 @@ func (s *Storage) CreateThread(title, board string, msg *domain.Message) (*domai
 	if err != nil {
 		return nil, err
 	}
+
+	view_name := get_view_name(board)
+	_, err = tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY $1", view_name)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -98,7 +105,7 @@ func (s *Storage) GetThread(id int64) (*domain.Thread, error) {
 }
 
 // cascade delete
-func (s *Storage) DeleteThread(id int64) error {
+func (s *Storage) DeleteThread(board string, id int64) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -110,5 +117,14 @@ func (s *Storage) DeleteThread(id int64) error {
 		return err
 	}
 
+	view_name := get_view_name(board)
+	_, err = tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY $1", view_name)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 	return nil
 }
