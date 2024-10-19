@@ -1,15 +1,9 @@
 package pg
 
 import (
-	"fmt"
-
 	"github.com/itchan-dev/itchan/internal/domain"
 	_ "github.com/lib/pq"
 )
-
-func get_view_name(shortName string) string {
-	return fmt.Sprintf("board_%s_view", shortName)
-}
 
 // transactional
 func (s *Storage) CreateBoard(name, shortName string) error {

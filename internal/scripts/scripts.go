@@ -49,3 +49,12 @@ func (e *ThreadTitleValidator) Title(name string) error {
 	}
 	return nil
 }
+
+type MessageValidator struct{}
+
+func (e *MessageValidator) Text(name string) error {
+	if utf8.RuneCountInString(name) > 10_000 {
+		return errors.New("text is too long")
+	}
+	return nil
+}
