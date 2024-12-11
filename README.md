@@ -1,10 +1,4 @@
-/build for docker and other infra
-/cmd/itchan for short main.go func
-/config for config files
-/internal/config for config parsers etc
-/internal/hander for web request handlers
-/internal/middleware for handling middleware
-/internal/models for objects reusable in several other folders (user/thread etc)
-/internal/scripts basically utils
-/internal/services - business logic. All inputs already validated
-/internal/storage - wrapper for storage (postgres in our case)
+/shared - for scripts and data structs common for both frontend and backend
+/backend/internal/handlers - handle http request and pass it to service
+/backend/internal/services - business logic, get request from http and do something with storage
+/backend/internal/storage - all interactions with databases. Gets called from services
