@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ .Title }}</title>
+</head>
+<body>
+    <h1>{{ .Title }}</h1>
+    {{ range .Messages }}
+        <p>[{{ .Author.Id }}]: {{ .Text }}</p>
+    {{ end }}
+    <a href="/b/{{ .Board }}">Back to /{{ .Board }}/</a> <br>
+    <a href="/">Main page</a>
+</body>
+</html>
