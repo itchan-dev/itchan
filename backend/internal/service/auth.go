@@ -1,6 +1,8 @@
 package service
 
 import (
+	"log"
+
 	"github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"golang.org/x/crypto/bcrypt"
@@ -53,6 +55,7 @@ func (a *Auth) Signup(email, password string) (int64, error) {
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
+		log.Print(err.Error())
 		return 0, err
 	}
 
@@ -82,11 +85,13 @@ func (a *Auth) Login(email, password string) (string, error) {
 
 	err = bcrypt.CompareHashAndPassword(user.PassHash, []byte(password))
 	if err != nil {
-		return "", errors.WrongPassword
+		log.Print(err.Error())
+		return "", &errors.ErrorWithStatusCode{Message: "Wrong password", StatusCode: 400}
 	}
 
 	token, err := a.jwt.NewToken(user)
 	if err != nil {
+		log.Print(err.Error())
 		return "", err
 	}
 

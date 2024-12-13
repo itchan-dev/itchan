@@ -15,7 +15,7 @@ func (e *Email) Confirm(email string) error { // to do
 func (e *Email) IsCorrect(email string) error {
 	_, err := mail.ParseAddress(email)
 	if err != nil {
-		return &errors.ValidationError{Message: err.Error()}
+		return &errors.ErrorWithStatusCode{Message: err.Error(), StatusCode: 400}
 	}
 	return nil
 }

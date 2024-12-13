@@ -12,9 +12,9 @@ import (
 
 func (h handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	type bodyJson struct {
-		Title       string              `json:"title"`
-		Text        string              `json:"text"`
-		Attachments []domain.Attachment `json:"attachments"`
+		Title       string              `validate:"required" json:"title"`
+		Text        string              `validate:"required" json:"text"`
+		Attachments []domain.Attachment `validate:"required" json:"attachments"`
 	}
 	var body bodyJson
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

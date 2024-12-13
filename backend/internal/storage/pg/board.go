@@ -76,7 +76,7 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 		// in case any other query yield ErrNoRows, i want that to be internal error
 		// so this is the way to distinguish errors in handler lvl
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, internal_errors.NotFound
+			return nil, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
 		}
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (s *Storage) DeleteBoard(shortName string) error {
 		return err
 	}
 	if deleted == 0 {
-		return internal_errors.NotFound
+		return &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
 	}
 	if _, err := tx.Exec("DELETE FROM messages USING threads WHERE COALESCE(messages.thread_id, messages.id) = threads.id AND threads.board = $1", shortName); err != nil {
 		return err

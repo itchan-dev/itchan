@@ -1,8 +1,11 @@
 package pg
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
+	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
 	_ "github.com/lib/pq"
 )
@@ -35,6 +38,9 @@ func (s *Storage) User(email string) (*domain.User, error) {
 	var user domain.User
 	err := s.db.QueryRow("SELECT id, email, pass_hash, is_admin FROM users WHERE email = $1", email).Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
+		}
 		return nil, err
 	}
 	return &user, nil
