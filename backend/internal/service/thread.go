@@ -6,6 +6,12 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
+type ThreadService interface {
+	Create(title string, board string, msg *domain.Message) (*domain.Thread, error)
+	Get(id int64) (*domain.Thread, error)
+	Delete(board string, id int64) error
+}
+
 type Thread struct {
 	storage   ThreadStorage
 	validator ThreadValidator
@@ -21,7 +27,7 @@ type ThreadValidator interface {
 	Title(title string) error
 }
 
-func NewThread(storage ThreadStorage, validator ThreadValidator) *Thread {
+func NewThread(storage ThreadStorage, validator ThreadValidator) ThreadService {
 	return &Thread{storage, validator}
 }
 

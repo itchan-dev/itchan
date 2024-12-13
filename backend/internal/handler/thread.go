@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -13,14 +12,13 @@ import (
 
 func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	type bodyJson struct {
-		Title       string              `json:"title"`
-		Text        string              `json:"text"`
-		Attachments []domain.Attachment `json:"attachments"`
+		Title       string              `validate:"required" json:"title"`
+		Text        string              `validate:"required" json:"text"`
+		Attachments []domain.Attachment `validate:"required" json:"attachments"`
 	}
 	var body bodyJson
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		log.Print(err.Error())
-		http.Error(w, "Bad request", http.StatusBadRequest)
+	if err := loadAndValidateRequestBody(r, &body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	accessCookie, err := r.Cookie("accessToken")
@@ -28,21 +26,16 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "can't get accessToken cookie", http.StatusUnauthorized)
 		return
 	}
-	jwtClaims, err := h.jwt.DecodeToken(accessCookie.Value)
+	uid, err := getFieldFromCookie[int64](h, accessCookie, "uid")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, "Cant parse cookie", http.StatusInternalServerError)
 		return
 	}
-	uid, ok := jwtClaims["uid"].(int64)
-	if !ok {
-		http.Error(w, "Cant find uid in jwtClaim", http.StatusInternalServerError)
-		return
-	}
-	op_msg := domain.Message{Author: domain.User{Id: uid}, Text: body.Text, Attachments: body.Attachments}
+	op_msg := domain.Message{Author: domain.User{Id: *uid}, Text: body.Text, Attachments: body.Attachments}
+
 	_, err = h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
 	if err != nil {
-		log.Print(err.Error())
-		http.Error(w, "Bad request", http.StatusInternalServerError)
+		http.Error(w, "tmp", http.StatusInternalServerError)
 		return
 	}
 

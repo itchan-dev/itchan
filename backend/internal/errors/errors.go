@@ -1,25 +1,24 @@
 package errors
 
 import (
-	"errors"
 	"fmt"
 )
 
-var NotFound = errors.New("Not found")
-var WrongPassword = errors.New("Bad password")
+// // Check if err is instance of T for custom error types
+// func Is[T error](err error) bool {
+// 	if _, ok := err.(T); ok {
+// 		return true
+// 	}
+// 	return false
+// }
 
-// Check if err is instance of T for custom error types
-func Is[T error](err error) bool {
-	if _, ok := err.(T); ok {
-		return true
-	}
-	return false
+// default error is internal service error at handler level
+// if error has different status code use ErrorWithStatusCode
+type ErrorWithStatusCode struct {
+	Message    string
+	StatusCode int
 }
 
-type ValidationError struct {
-	Message string
-}
-
-func (e *ValidationError) Error() string {
+func (e *ErrorWithStatusCode) Error() string {
 	return fmt.Sprintf("Validation error: %s", e.Message)
 }

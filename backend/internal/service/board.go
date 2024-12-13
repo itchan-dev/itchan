@@ -46,6 +46,8 @@ func (b *Board) Create(name, shortName string) error {
 }
 
 func (b *Board) Get(shortName string, page int) (*domain.Board, error) {
+	page = max(1, page)
+
 	if err := b.nameValidator.ShortName(shortName); err != nil {
 		return nil, err
 	}

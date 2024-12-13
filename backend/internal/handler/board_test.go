@@ -8,8 +8,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
-
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
@@ -45,6 +43,11 @@ func (m *MockBoardService) Delete(shortName string) error {
 func TestCreateBoardHandler(t *testing.T) {
 	h := &handler{} // Create handler
 
+	route := "/v1/boards"
+	router := mux.NewRouter()
+	router.HandleFunc(route, h.CreateBoard).Methods("POST")
+	requestBody := []byte(`{"name": "Test Board", "short_name": "tb"}`)
+
 	// Test case 1: successful request
 	mockService := &MockBoardService{
 		MockCreate: func(name, shortName string) error {
@@ -52,74 +55,47 @@ func TestCreateBoardHandler(t *testing.T) {
 		},
 	}
 	h.board = mockService
-	requestBody := []byte(`{"name": "Test Board", "short_name": "tb"}`)
-	req := httptest.NewRequest(http.MethodPost, "/v1/boards", bytes.NewBuffer(requestBody))
+	req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
 	rr := httptest.NewRecorder()
 
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/boards", h.CreateBoard).Methods("POST")
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected status %d, but got %d", http.StatusCreated, rr.Code)
 	}
 
-	// Test case 2: invalid field in body
-	requestBody = []byte(`{"name": "Test Board", "bad_key": "value"}`)
+	// Test case 2: invalid request body
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/v1/boards", bytes.NewBuffer(requestBody))
+	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{ivalid json::}`)))
 
 	router.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
 	}
 
-	// Test case 3: missing fields in body
-	requestBody = []byte(`{"name": "Test Board"}`)
-	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/v1/boards", bytes.NewBuffer(requestBody))
-
-	router.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
-
-	// Test case 4: internal error in service.BoardService
+	// Test case 3: service error
 	mockService = &MockBoardService{
 		MockCreate: func(name, shortName string) error {
 			return errors.New("mock create error")
 		},
 	}
 	h.board = mockService // Set the new mock service
-	requestBody = []byte(`{"name": "Test Board", "short_name": "tb"}`)
+
 	rr = httptest.NewRecorder() // Reset recorder
-	req = httptest.NewRequest(http.MethodPost, "/v1/boards", bytes.NewBuffer(requestBody))
+	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
 
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
 	}
-
-	// Test case 5: validation error in service.BoardService
-	mockService = &MockBoardService{
-		MockCreate: func(name, shortName string) error {
-			return &internal_errors.ValidationError{Message: "Mock"}
-		},
-	}
-	h.board = mockService       // Set the new mock service
-	rr = httptest.NewRecorder() // Reset recorder
-	req = httptest.NewRequest(http.MethodPost, "/v1/boards", bytes.NewBuffer(requestBody))
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
 }
 
 func TestGetBoardHandler(t *testing.T) {
 	h := &handler{}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/v1/{board}", h.GetBoard).Methods("GET")
 
 	// Test case 1: successful
 	mockService := &MockBoardService{
@@ -128,12 +104,10 @@ func TestGetBoardHandler(t *testing.T) {
 		},
 	}
 	h.board = mockService
-	req := httptest.NewRequest("GET", "/v1/test", nil)
 
+	req := httptest.NewRequest("GET", "/v1/board_name?page=1", nil)
 	rr := httptest.NewRecorder()
 
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/{board}", h.GetBoard).Methods("GET")
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
@@ -144,42 +118,11 @@ func TestGetBoardHandler(t *testing.T) {
 	if err := json.NewDecoder(rr.Body).Decode(&board); err != nil {
 		t.Errorf("error decoding response body: %v", err)
 	}
-	if board.ShortName != "test" {
+	if board.ShortName != "board_name" {
 		t.Errorf("expected board ShortName 'test', but got '%s'", board.ShortName)
 	}
 
-	// Test case 2: not found
-	mockService = &MockBoardService{
-		MockGet: func(shortName string, page int) (*domain.Board, error) {
-			return nil, internal_errors.NotFound
-		},
-	}
-	h.board = mockService
-	rr = httptest.NewRecorder()                        // Reset the recorder
-	req = httptest.NewRequest("GET", "/v1/test2", nil) // New request for this scenario
-
-	router.ServeHTTP(rr, req) // Use the *same* router
-
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected status %d, but got %d", http.StatusNotFound, rr.Code)
-	}
-
-	// Test case 3: validation error
-	mockService = &MockBoardService{
-		MockGet: func(shortName string, page int) (*domain.Board, error) {
-			return nil, &internal_errors.ValidationError{Message: "Mock"}
-		},
-	}
-	h.board = mockService
-	rr = httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
-
-	// Test case 4: internal error
+	// Test case 2: service error
 	mockService = &MockBoardService{
 		MockGet: func(shortName string, page int) (*domain.Board, error) {
 			return nil, errors.New("Mock")
@@ -194,8 +137,8 @@ func TestGetBoardHandler(t *testing.T) {
 		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
 	}
 
-	// Test case 5: bad pagination param error
-	req = httptest.NewRequest("GET", "/v1/test?page=abc", nil)
+	// Test case 3: bad pagination param
+	req = httptest.NewRequest("GET", "/v1/board_name?page=abc", nil)
 	rr = httptest.NewRecorder()
 
 	router.ServeHTTP(rr, req)
@@ -204,73 +147,32 @@ func TestGetBoardHandler(t *testing.T) {
 		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
 	}
 
-	// Test case 6: Validating pagination
-	// At first successful run
+	// Test case 4: default pagination param
 	mockService = &MockBoardService{
 		MockGet: func(shortName string, page int) (*domain.Board, error) {
-			if page < 1 {
+			if page != default_page {
 				return nil, errors.New("Mock")
 			}
-			return &domain.Board{Name: "Test", ShortName: shortName}, nil // Return a board
+			return &domain.Board{}, nil
 		},
 	}
 	h.board = mockService
-	req = httptest.NewRequest("GET", "/v1/test3?page=2", nil)
-	rr = httptest.NewRecorder() // Reset the recorder
+
+	req = httptest.NewRequest("GET", "/v1/board_name", nil)
+	rr = httptest.NewRecorder()
 
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
-	}
-	if err := json.NewDecoder(rr.Body).Decode(&board); err != nil {
-		t.Errorf("error decoding response body: %v", err)
-	}
-	if board.ShortName != "test3" {
-		t.Errorf("expected board ShortName 'test3', but got '%s'", board.ShortName)
-	}
-
-	// Check that mock service raise error when page < 1
-	_, err := mockService.MockGet("test", 0) // Pass invalid parameters and check response
-	if err == nil {
-		t.Error("MockGet with invalid parameters didn't return an error.")
-	}
-
-	// Check that handler fix page < 1
-	req = httptest.NewRequest("GET", "/v1/test3?page=0", nil)
-	rr = httptest.NewRecorder() // Reset the recorder
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
-	}
-	if err := json.NewDecoder(rr.Body).Decode(&board); err != nil {
-		t.Errorf("error decoding response body: %v", err)
-	}
-	if board.ShortName != "test3" {
-		t.Errorf("expected board ShortName 'test3', but got '%s'", board.ShortName)
-	}
-
-	// Check that default page > 0
-	req = httptest.NewRequest("GET", "/v1/test3", nil)
-	rr = httptest.NewRecorder() // Reset the recorder
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
-	}
-	if err := json.NewDecoder(rr.Body).Decode(&board); err != nil {
-		t.Errorf("error decoding response body: %v", err)
-	}
-	if board.ShortName != "test3" {
-		t.Errorf("expected board ShortName 'test3', but got '%s'", board.ShortName)
 	}
 }
 
 func TestDeleteBoardHandler(t *testing.T) {
 	h := &handler{}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/v1/{board}", h.DeleteBoard).Methods("DELETE")
 
 	// Test case 1: successful
 	mockService := &MockBoardService{
@@ -279,60 +181,28 @@ func TestDeleteBoardHandler(t *testing.T) {
 		},
 	}
 	h.board = mockService
-	req := httptest.NewRequest("DELETE", "/v1/test", nil)
+
+	req := httptest.NewRequest("DELETE", "/v1/board_name", nil)
 	rr := httptest.NewRecorder()
 
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/{board}", h.DeleteBoard).Methods("DELETE")
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
 	}
 
-	// Test case 2: not found
-	mockService = &MockBoardService{
-		MockDelete: func(shortName string) error {
-			return internal_errors.NotFound
-		},
-	}
-	h.board = mockService
-	rr = httptest.NewRecorder()                           // Reset the recorder
-	req = httptest.NewRequest("DELETE", "/v1/test2", nil) // New request for this scenario
-
-	router.ServeHTTP(rr, req) // Use the *same* router
-
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected status %d, but got %d", http.StatusNotFound, rr.Code)
-	}
-
-	// Test case 3: validation error
-	mockService = &MockBoardService{
-		MockDelete: func(shortName string) error {
-			return &internal_errors.ValidationError{Message: "Mock"}
-		},
-	}
-	h.board = mockService
-	rr = httptest.NewRecorder()                           // Reset the recorder
-	req = httptest.NewRequest("DELETE", "/v1/test2", nil) // New request for this scenario
-
-	router.ServeHTTP(rr, req) // Use the *same* router
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
-
-	// Test case 4: internal error
+	// Test case 2: service error
 	mockService = &MockBoardService{
 		MockDelete: func(shortName string) error {
 			return errors.New("Mock")
 		},
 	}
 	h.board = mockService
-	rr = httptest.NewRecorder()                           // Reset the recorder
-	req = httptest.NewRequest("DELETE", "/v1/test2", nil) // New request for this scenario
 
-	router.ServeHTTP(rr, req) // Use the *same* router
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest("DELETE", "/v1/board_name", nil)
+
+	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)

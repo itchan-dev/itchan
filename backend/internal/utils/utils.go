@@ -20,20 +20,20 @@ type BoardNameValidator struct{}
 
 func (e *BoardNameValidator) Name(name string) error {
 	if utf8.RuneCountInString(name) > 10 {
-		return &errors.ValidationError{Message: "name is too long"}
+		return &errors.ErrorWithStatusCode{Message: "Name is too long", StatusCode: 400}
 	}
 	if !IsLetter(name) {
-		return &errors.ValidationError{Message: "name should contain only letters"}
+		return &errors.ErrorWithStatusCode{Message: "Name should contain only letters", StatusCode: 400}
 	}
 	return nil
 }
 
 func (e *BoardNameValidator) ShortName(name string) error {
 	if utf8.RuneCountInString(name) > 2 {
-		return &errors.ValidationError{Message: "name is too long"}
+		return &errors.ErrorWithStatusCode{Message: "Name is too long", StatusCode: 400}
 	}
 	if !IsLetter(name) {
-		return &errors.ValidationError{Message: "name should contain only letters"}
+		return &errors.ErrorWithStatusCode{Message: "Name should contain only letters", StatusCode: 400}
 	}
 	return nil
 }
@@ -46,7 +46,7 @@ type ThreadTitleValidator struct{}
 
 func (e *ThreadTitleValidator) Title(name string) error {
 	if utf8.RuneCountInString(name) > 50 {
-		return &errors.ValidationError{Message: "name is too long"}
+		return &errors.ErrorWithStatusCode{Message: "Name is too long", StatusCode: 400}
 	}
 	return nil
 }
@@ -55,7 +55,7 @@ type MessageValidator struct{}
 
 func (e *MessageValidator) Text(name string) error {
 	if utf8.RuneCountInString(name) > 10_000 {
-		return &errors.ValidationError{Message: "text is too long"}
+		return &errors.ErrorWithStatusCode{Message: "Text is too long", StatusCode: 400}
 	}
 	return nil
 }

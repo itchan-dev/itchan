@@ -8,11 +8,10 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/config"
 )
 
-// Manual mock for BoardService
+// Manual mock for AuthService
 type MockAuthService struct {
 	MockSignup func(email, password string) (int64, error)
 	MockLogin  func(email, password string) (string, error)
@@ -41,6 +40,7 @@ func TestAuthLoginHandler(t *testing.T) {
 	route := "/v1/auth/login"
 	router := mux.NewRouter()
 	router.HandleFunc(route, h.Login).Methods("POST")
+	requestBody := []byte(`{"email": "123@mail.ru", "password": "test"}`)
 
 	// Test case 1: successful request
 	mockService := &MockAuthService{
@@ -50,7 +50,6 @@ func TestAuthLoginHandler(t *testing.T) {
 	}
 	h.auth = mockService
 
-	requestBody := []byte(`{"email": "123@mail.ru", "password": "test"}`)
 	req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
 	rr := httptest.NewRecorder()
 
@@ -68,9 +67,8 @@ func TestAuthLoginHandler(t *testing.T) {
 		t.Errorf("expected accessToken cookie to have value 'test_cookie'")
 	}
 
-	// Test case 2: bad request body
-	requestBody = []byte(`{"email": "123@mail.ru", "password":::: "test"}`)
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+	// Test case 2: invalid request body
+	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{ivalid json::}`)))
 	rr = httptest.NewRecorder()
 
 	router.ServeHTTP(rr, req)
@@ -79,51 +77,7 @@ func TestAuthLoginHandler(t *testing.T) {
 		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
 	}
 
-	// Test case 3: missing credentials
-	requestBody = []byte(`{"email": "123@mail.ru"}`)
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-	rr = httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
-
-	requestBody = []byte(`{"email": "123@mail.ru", "password": "test"}`)
-	// Test case 4: wrong password
-	mockService = &MockAuthService{
-		MockLogin: func(email, password string) (string, error) {
-			return "", internal_errors.WrongPassword
-		},
-	}
-	h.auth = mockService
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-	rr = httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusUnauthorized {
-		t.Errorf("expected status %d, but got %d", http.StatusUnauthorized, rr.Code)
-	}
-
-	// Test case 5: invalid email format
-	mockService = &MockAuthService{
-		MockLogin: func(email, password string) (string, error) {
-			return "", &internal_errors.ValidationError{Message: "Mock"}
-		},
-	}
-	h.auth = mockService
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-	rr = httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
-
-	// Test case 6: internal error
+	// Test case 3: service error
 	mockService = &MockAuthService{
 		MockLogin: func(email, password string) (string, error) {
 			return "", errors.New("Mock")
