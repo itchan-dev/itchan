@@ -1,8 +1,11 @@
 package pg
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 
+	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
 
 	_ "github.com/lib/pq"
@@ -18,12 +21,15 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 
 	var n, createdTs int64
 	err = tx.QueryRow(`
-	UPDATE thread_reply_counter 
-	SET n = n + 1, last_reply_ts = now() 
+	UPDATE threads 
+	SET n_replies = n + 1, last_reply_ts = now() 
 	WHERE id = $1
 	RETURNING n, last_reply_ts
 	`, thread_id).Scan(&n, &createdTs)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
+		}
 		return 0, err
 	}
 
@@ -63,6 +69,9 @@ func (s *Storage) GetMessage(id int64) (*domain.Message, error) {
 	FROM messages
 	WHERE id = $1`, id).Scan(&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt, &msg.Attachments, &msg.ThreadId)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &internal_errors.ErrorWithStatusCode{Message: "Message not found", StatusCode: 404}
+		}
 		return nil, err
 	}
 	return &msg, nil
@@ -76,7 +85,7 @@ func (s *Storage) DeleteMessage(board string, id int64) error {
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
-	_, err = tx.Exec(`
+	result, err := tx.Exec(`
 	UPDATE messages SET
 		text = 'msg deleted',
 		attachments = []
@@ -84,7 +93,13 @@ func (s *Storage) DeleteMessage(board string, id int64) error {
 	if err != nil {
 		return err
 	}
-
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if deleted == 0 {
+		return &internal_errors.ErrorWithStatusCode{Message: "Message not found", StatusCode: 404}
+	}
 	view_name := get_view_name(board)
 	_, err = tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY $1", view_name)
 	if err != nil {
