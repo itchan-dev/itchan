@@ -4,6 +4,12 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
+type MessageService interface {
+	Create(board string, author *domain.User, text string, attachments []domain.Attachment, thread_id int64) (int64, error)
+	Get(id int64) (*domain.Message, error)
+	Delete(board string, id int64) error
+}
+
 type Message struct {
 	storage   MessageStorage
 	validator MessageValidator
@@ -19,7 +25,7 @@ type MessageValidator interface {
 	Text(text string) error
 }
 
-func NewMessage(storage MessageStorage, validator MessageValidator) *Message {
+func NewMessage(storage MessageStorage, validator MessageValidator) MessageService {
 	return &Message{storage, validator}
 }
 
