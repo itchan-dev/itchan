@@ -7,7 +7,7 @@ import (
 )
 
 type ThreadService interface {
-	Create(title string, board string, msg *domain.Message) (*domain.Thread, error)
+	Create(title string, board string, msg *domain.Message) error
 	Get(id int64) (*domain.Thread, error)
 	Delete(board string, id int64) error
 }
@@ -18,7 +18,7 @@ type Thread struct {
 }
 
 type ThreadStorage interface {
-	CreateThread(title, board string, msg *domain.Message) (*domain.Thread, error)
+	CreateThread(title, board string, msg *domain.Message) error
 	GetThread(id int64) (*domain.Thread, error)
 	DeleteThread(board string, id int64) error
 }
@@ -31,17 +31,13 @@ func NewThread(storage ThreadStorage, validator ThreadValidator) ThreadService {
 	return &Thread{storage, validator}
 }
 
-func (b *Thread) Create(title string, board string, msg *domain.Message) (*domain.Thread, error) {
+func (b *Thread) Create(title string, board string, msg *domain.Message) error {
 	err := b.validator.Title(title)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	thread, err := b.storage.CreateThread(title, board, msg)
-	if err != nil {
-		return nil, err
-	}
-	return thread, nil
+	return b.storage.CreateThread(title, board, msg)
 }
 
 func (b *Thread) Get(id int64) (*domain.Thread, error) {

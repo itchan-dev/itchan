@@ -19,7 +19,7 @@ func (s *Storage) CreateBoard(name, shortName string) error {
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
 	_, err = tx.Exec("INSERT INTO boards(name, short_name) VALUES($1, $2)", name, shortName)
-	if err != nil {
+	if err != nil { // catch unique violation error and raise "user already exists"
 		return err
 	}
 
@@ -73,8 +73,6 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 	var m metadata
 	err := s.db.QueryRow("SELECT name, short_name, created FROM boards WHERE short_name = $1", shortName).Scan(&m.name, &m.shortName, &m.createdAt)
 	if err != nil {
-		// in case any other query yield ErrNoRows, i want that to be internal error
-		// so this is the way to distinguish errors in handler lvl
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
 		}

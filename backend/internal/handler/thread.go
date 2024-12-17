@@ -18,24 +18,25 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	}
 	var body bodyJson
 	if err := loadAndValidateRequestBody(r, &body); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeErrorAndStatusCode(w, err)
 		return
 	}
-	accessCookie, err := r.Cookie("accessToken")
-	if err != nil {
-		http.Error(w, "can't get accessToken cookie", http.StatusUnauthorized)
+	uidCtx := r.Context().Value("uid")
+	if uidCtx == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	uid, err := getFieldFromCookie[int64](h, accessCookie, "uid")
-	if err != nil {
-		http.Error(w, "Cant parse cookie", http.StatusInternalServerError)
+	uid, ok := uidCtx.(int64)
+	if !ok {
+		log.Printf("Cant parse uid %v", uidCtx)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	op_msg := domain.Message{Author: domain.User{Id: *uid}, Text: body.Text, Attachments: body.Attachments}
+	op_msg := domain.Message{Author: domain.User{Id: uid}, Text: body.Text, Attachments: body.Attachments}
 
-	_, err = h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
+	err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
 	if err != nil {
-		http.Error(w, "tmp", http.StatusInternalServerError)
+		writeErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -48,14 +49,14 @@ func (h *handler) GetThread(w http.ResponseWriter, r *http.Request) {
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
+		log.Println(err.Error())
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
 	thread, err := h.thread.Get(int64(threadId))
 	if err != nil {
-		log.Print(err.Error())
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		writeErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -67,16 +68,15 @@ func (h *handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
+		log.Println(err.Error())
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.thread.Delete(board, int64(threadId)); err != nil {
-		log.Print(err.Error())
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		writeErrorAndStatusCode(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("deleted"))
 }

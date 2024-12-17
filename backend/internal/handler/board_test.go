@@ -12,7 +12,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-// Manual mock for BoardService
 type MockBoardService struct {
 	MockCreate func(name, shortName string) error
 	MockGet    func(shortName string, page int) (*domain.Board, error)
