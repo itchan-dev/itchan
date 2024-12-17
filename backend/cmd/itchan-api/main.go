@@ -57,7 +57,7 @@ func main() {
 	r.HandleFunc("/v1/{board}", middleware.NeedAuth(h.GetBoard, *jwt)).Methods("GET")
 	r.HandleFunc("/v1/{board}", middleware.AdminOnly(h.DeleteBoard, *jwt)).Methods("DELETE")
 
-	r.HandleFunc("/v1/{board}", middleware.NeedAuth(h.CreateThread, *jwt)).Methods("POST")
+	r.HandleFunc("/v1/{board}", middleware.NeedAuth(middleware.ExtractUserId(h.CreateThread, *jwt), *jwt)).Methods("POST")
 	r.HandleFunc("/v1/{board}/{thread}", middleware.NeedAuth(h.GetThread, *jwt)).Methods("GET")
 	r.HandleFunc("/v1/{board}/{thread}", middleware.AdminOnly(h.DeleteThread, *jwt)).Methods("DELETE")
 

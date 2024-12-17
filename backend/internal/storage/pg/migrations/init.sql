@@ -15,15 +15,11 @@ CREATE TABLE IF NOT EXISTS boards(
 -- metainfo in first thread message
 -- thread id is first msg id
 CREATE TABLE IF NOT EXISTS threads(
-    id          int PRIMARY KEY REFERENCES messages ON DELETE CASCADE,
-    title       text NOT NULL,
-    board       varchar(10) REFERENCES boards ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS thread_reply_counter(
-    id            int PRIMARY KEY REFERENCES threads ON DELETE CASCADE,
-    n             int NOT NULL default 1,
-    last_reply_ts timestamp NOT NULL default now()
+    id            int PRIMARY KEY REFERENCES messages ON DELETE CASCADE,
+    title         text NOT NULL,
+    board         varchar(10) REFERENCES boards ON DELETE CASCADE,
+	n_replies     int NOT NULL default 0,
+	last_reply_ts timestamp NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS messages(

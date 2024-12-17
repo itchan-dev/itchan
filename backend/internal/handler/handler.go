@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"errors"
-	"fmt"
 	"net/http"
 
 	"encoding/json"
@@ -31,20 +29,6 @@ func New(auth service.AuthService, board service.BoardService, thread service.Th
 func (h *handler) Test(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("TESTING"))
-}
-
-// would be cool to implement as a handler method, but generic methods isnt allowed in golang
-func getFieldFromCookie[T any](h *handler, cookie *http.Cookie, field string) (*T, error) {
-	jwtClaims, err := h.jwt.DecodeToken(cookie.Value)
-	if err != nil {
-		log.Print(err.Error())
-		return nil, errors.New("Can't decode accessToken cookie")
-	}
-	value, ok := jwtClaims[field].(T)
-	if !ok {
-		return nil, errors.New(fmt.Sprintf("Cant find %s in jwtClaim", field))
-	}
-	return &value, nil
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
