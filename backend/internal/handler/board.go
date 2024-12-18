@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/backend/internal/utils"
 )
 
 const default_page int = 1
@@ -17,13 +18,13 @@ func (h *handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	}
 	var body bodyJson
 	if err := loadAndValidateRequestBody(r, &body); err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
 	err := h.board.Create(body.Name, body.ShortName)
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -47,7 +48,7 @@ func (h *handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 
 	board, err := h.board.Get(shortName, page)
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -59,7 +60,7 @@ func (h *handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 
 	err := h.board.Delete(shortName)
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 

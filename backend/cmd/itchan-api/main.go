@@ -47,23 +47,23 @@ func main() {
 
 	r.HandleFunc("/v1/auth/signup", h.Signup).Methods("POST")
 	r.HandleFunc("/v1/auth/login", h.Login).Methods("POST")
-	r.Handle("/v1/auth/logout", middleware.NeedAuth(h.Logout, *jwt)).Methods("POST")
+	r.HandleFunc("/v1/auth/logout", middleware.NeedAuth(jwt)(h.Logout)).Methods("POST")
 
-	r.Handle("/v1/auth/test_auth", middleware.NeedAuth(h.Test, *jwt)).Methods("GET")
-	r.Handle("/v1/test_auth", middleware.NeedAuth(h.Test, *jwt)).Methods("GET")
-	r.Handle("/v1/test_admin", middleware.AdminOnly(h.Test, *jwt)).Methods("GET")
+	r.HandleFunc("/v1/auth/test_auth", middleware.NeedAuth(jwt)(h.Test)).Methods("GET")
+	r.HandleFunc("/v1/test_auth", middleware.NeedAuth(jwt)(h.Test)).Methods("GET")
+	r.HandleFunc("/v1/test_admin", middleware.AdminOnly(jwt)(h.Test)).Methods("GET")
 
-	r.HandleFunc("/v1/boards", middleware.AdminOnly(h.CreateBoard, *jwt)).Methods("POST")
-	r.HandleFunc("/v1/{board}", middleware.NeedAuth(h.GetBoard, *jwt)).Methods("GET")
-	r.HandleFunc("/v1/{board}", middleware.AdminOnly(h.DeleteBoard, *jwt)).Methods("DELETE")
+	r.HandleFunc("/v1/boards", middleware.AdminOnly(jwt)(h.CreateBoard)).Methods("POST")
+	r.HandleFunc("/v1/{board}", middleware.NeedAuth(jwt)(h.GetBoard)).Methods("GET")
+	r.HandleFunc("/v1/{board}", middleware.AdminOnly(jwt)(h.DeleteBoard)).Methods("DELETE")
 
-	r.HandleFunc("/v1/{board}", middleware.NeedAuth(middleware.ExtractUserId(h.CreateThread, *jwt), *jwt)).Methods("POST")
-	r.HandleFunc("/v1/{board}/{thread}", middleware.NeedAuth(h.GetThread, *jwt)).Methods("GET")
-	r.HandleFunc("/v1/{board}/{thread}", middleware.AdminOnly(h.DeleteThread, *jwt)).Methods("DELETE")
+	r.HandleFunc("/v1/{board}", middleware.NeedAuth(jwt)(h.CreateThread)).Methods("POST")
+	r.HandleFunc("/v1/{board}/{thread}", middleware.NeedAuth(jwt)(h.GetThread)).Methods("GET")
+	r.HandleFunc("/v1/{board}/{thread}", middleware.AdminOnly(jwt)(h.DeleteThread)).Methods("DELETE")
 
-	r.HandleFunc("/v1/{board}/{thread}", middleware.NeedAuth(middleware.ExtractUserId(h.CreateMessage, *jwt), *jwt)).Methods("POST")
-	r.HandleFunc("/v1/{board}/{thread}/{message}", middleware.NeedAuth(h.GetMessage, *jwt)).Methods("GET")
-	r.HandleFunc("/v1/{board}/{thread}/{message}", middleware.AdminOnly(h.DeleteMessage, *jwt)).Methods("DELETE")
+	r.HandleFunc("/v1/{board}/{thread}", middleware.NeedAuth(jwt)(h.CreateMessage)).Methods("POST")
+	r.HandleFunc("/v1/{board}/{thread}/{message}", middleware.NeedAuth(jwt)(h.GetMessage)).Methods("GET")
+	r.HandleFunc("/v1/{board}/{thread}/{message}", middleware.AdminOnly(jwt)(h.DeleteMessage)).Methods("DELETE")
 
 	log.Print("Server started")
 	httpPort := os.Getenv("PORT")

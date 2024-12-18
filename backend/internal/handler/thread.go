@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
@@ -18,7 +19,7 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	}
 	var body bodyJson
 	if err := loadAndValidateRequestBody(r, &body); err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 	uidCtx := r.Context().Value("uid")
@@ -36,7 +37,7 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 
 	err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -56,7 +57,7 @@ func (h *handler) GetThread(w http.ResponseWriter, r *http.Request) {
 
 	thread, err := h.thread.Get(int64(threadId))
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -74,7 +75,7 @@ func (h *handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.thread.Delete(board, int64(threadId)); err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 

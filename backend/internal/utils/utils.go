@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"net/http"
 	"unicode"
 	"unicode/utf8"
 
@@ -58,4 +59,12 @@ func (e *MessageValidator) Text(name string) error {
 		return &errors.ErrorWithStatusCode{Message: "Text is too long", StatusCode: 400}
 	}
 	return nil
+}
+
+func WriteErrorAndStatusCode(w http.ResponseWriter, err error) {
+	if e, ok := err.(*errors.ErrorWithStatusCode); ok {
+		http.Error(w, err.Error(), e.StatusCode)
+	}
+	// default error is 500
+	http.Error(w, "Internal server error", http.StatusInternalServerError)
 }

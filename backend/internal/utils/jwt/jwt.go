@@ -1,9 +1,14 @@
 package jwt
 
 import (
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
@@ -26,37 +31,29 @@ func (j *Jwt) NewToken(user *domain.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(j.secretKey))
 	if err != nil {
-		return "", err
+		log.Print(err.Error())
+		return "", errors.New("Can't create token")
 	}
 
 	return tokenString, nil
 }
 
-func (j *Jwt) DecodeToken(jwtStr string) (jwt.MapClaims, error) {
-	claims := jwt.MapClaims{}
-	_, err := jwt.ParseWithClaims(jwtStr, &claims, func(token *jwt.Token) (interface{}, error) {
+func (j *Jwt) DecodeToken(jwtStr string) (*jwt.Token, error) {
+	token, err := jwt.Parse(jwtStr, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing algorithm
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, &internal_errors.ErrorWithStatusCode{Message: fmt.Sprintf("Unexpected signing method: %v", token.Header["alg"]), StatusCode: http.StatusUnauthorized}
+		}
 		return []byte(j.secretKey), nil
 	})
 	if err != nil {
-		return claims, err
+		log.Println(err)
+		return nil, &internal_errors.ErrorWithStatusCode{Message: "Invalid token signature", StatusCode: http.StatusUnauthorized}
 	}
-	return claims, nil
-}
 
-// func IsExpired(jwtToken, jwtKey string) error {
-// 	claims := jwt.MapClaims{}
-// 	_, err := jwt.ParseWithClaims(jwtToken, &claims, func(token *jwt.Token) (interface{}, error) {
-// 		return []byte(jwtKey), nil
-// 	})
-// 	if err != nil {
-// 		return err
-// 	}
-// 	expTime, success := claims["exp"].(int64)
-// 	if success {
-// 		return fmt.Errorf("error parsing accessToken")
-// 	}
-// 	if time.Now().Unix() < expTime {
-// 		return fmt.Errorf("accessToken expired")
-// 	}
-// 	return nil
-// }
+	if !token.Valid {
+		return nil, &internal_errors.ErrorWithStatusCode{Message: "Invalid access token", StatusCode: http.StatusUnauthorized}
+	}
+
+	return token, nil
+}

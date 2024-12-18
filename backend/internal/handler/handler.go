@@ -55,11 +55,3 @@ func loadAndValidateRequestBody(r *http.Request, body any) error {
 	}
 	return nil
 }
-
-func writeErrorAndStatusCode(w http.ResponseWriter, err error) {
-	if e, ok := err.(*internal_errors.ErrorWithStatusCode); ok {
-		http.Error(w, err.Error(), e.StatusCode)
-	}
-	// default error is 500
-	http.Error(w, "Internal server error", http.StatusInternalServerError)
-}

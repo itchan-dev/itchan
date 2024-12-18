@@ -49,9 +49,8 @@ func TestWriteJSON(t *testing.T) {
 
 			// Check status code
 			if status := rr.Code; status != tt.status {
-				t.Errorf("handler returned wrong status code: got %v want %v",
+				t.Fatalf("handler returned wrong status code: got %v want %v",
 					status, tt.status)
-				return
 			}
 			// Check content type header
 			if ct := rr.Header().Get("Content-Type"); tt.checkContentType && ct != "application/json" {

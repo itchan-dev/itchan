@@ -148,8 +148,7 @@ func TestGetMessageHandler(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
-		return
+		t.Fatalf("expected status %d, but got %d", http.StatusOK, rr.Code)
 	}
 
 	var msg domain.Message
@@ -209,8 +208,7 @@ func TestDeleteMessageHandler(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
-		return
+		t.Fatalf("expected status %d, but got %d", http.StatusOK, rr.Code)
 	}
 
 	// Test case 2: bad message id
@@ -220,8 +218,7 @@ func TestDeleteMessageHandler(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-		return
+		t.Fatalf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
 	}
 
 	// Test case 3: service error
@@ -239,6 +236,5 @@ func TestDeleteMessageHandler(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
-		return
 	}
 }
