@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
@@ -24,7 +25,7 @@ func (h *handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	var body bodyJson
 	if err := loadAndValidateRequestBody(r, &body); err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 	uidCtx := r.Context().Value("uid")
@@ -41,7 +42,7 @@ func (h *handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 
 	_, err = h.message.Create(board, &domain.User{Id: uid}, body.Text, body.Attachments, int64(threadId))
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -59,7 +60,7 @@ func (h *handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 
 	msg, err := h.message.Get(int64(msgId))
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -76,7 +77,7 @@ func (h *handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.message.Delete(board, int64(msgId)); err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 

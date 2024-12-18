@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+
+	"github.com/itchan-dev/itchan/backend/internal/utils"
 )
 
 type credentials struct {
@@ -12,13 +14,13 @@ type credentials struct {
 func (h *handler) Signup(w http.ResponseWriter, r *http.Request) {
 	var creds credentials
 	if err := loadAndValidateRequestBody(r, &creds); err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
 	_, err := h.auth.Signup(creds.Email, creds.Password)
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -29,13 +31,13 @@ func (h *handler) Signup(w http.ResponseWriter, r *http.Request) {
 func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 	var creds credentials
 	if err := loadAndValidateRequestBody(r, &creds); err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
 	accessToken, err := h.auth.Login(creds.Email, creds.Password)
 	if err != nil {
-		writeErrorAndStatusCode(w, err)
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 	cookie := &http.Cookie{

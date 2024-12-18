@@ -136,8 +136,7 @@ func TestGetThreadHandler(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
-		return
+		t.Fatalf("expected status %d, but got %d", http.StatusOK, rr.Code)
 	}
 
 	var thread domain.Thread
@@ -196,8 +195,7 @@ func TestDeleteThreadHandler(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Errorf("expected status %d, but got %d", http.StatusOK, rr.Code)
-		return
+		t.Fatalf("expected status %d, but got %d", http.StatusOK, rr.Code)
 	}
 
 	// Test case 2: bad thread id
@@ -207,8 +205,7 @@ func TestDeleteThreadHandler(t *testing.T) {
 	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-		return
+		t.Fatalf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
 	}
 
 	// Test case 3: service error
@@ -225,6 +222,5 @@ func TestDeleteThreadHandler(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
-		return
 	}
 }
