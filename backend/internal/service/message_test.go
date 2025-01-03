@@ -6,6 +6,8 @@ import (
 
 	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock structs
@@ -58,34 +60,32 @@ func TestMessageCreate(t *testing.T) {
 	attachments := domain.Attachments{}
 	thread_id := int64(1)
 
-	// Test successful creation
-	createdId, err := service.Create(board, author, text, &attachments, thread_id)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if createdId != 1 {
-		t.Errorf("Unexpected id: got %d, expected %d", createdId, 1)
-	}
+	t.Run("Successful creation", func(t *testing.T) {
+		createdId, err := service.Create(board, author, text, &attachments, thread_id)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), createdId)
+	})
 
-	// Test storage error
-	mockError := errors.New("Mock CreateMessageFunc")
-	storage.CreateMessageFunc = func(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
-		return 0, mockError
-	}
-	_, err = service.Create(board, author, text, &attachments, thread_id)
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Expected %v, got: %v", mockError, err)
-	}
+	t.Run("Storage error", func(t *testing.T) {
+		mockError := errors.New("Mock CreateMessageFunc")
+		storage.CreateMessageFunc = func(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+			return 0, mockError
+		}
+		_, err := service.Create(board, author, text, &attachments, thread_id)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
 
-	// Test validation error
-	validator.TextFunc = func(text string) error {
-		return &internal_errors.ErrorWithStatusCode{Message: "Invalid text", StatusCode: 400}
-	}
-	_, err = service.Create(board, author, text, &attachments, thread_id)
-	if err == nil || err.Error() != "Invalid text" {
-		t.Errorf("Expected validation error 'Invalid text', got: %v", err)
-	}
+	t.Run("Validation error", func(t *testing.T) {
+		validator.TextFunc = func(text string) error {
+			return &internal_errors.ErrorWithStatusCode{Message: "Invalid text", StatusCode: 400}
+		}
+		_, err := service.Create(board, author, text, &attachments, thread_id)
+		require.Error(t, err)
+		assert.Equal(t, "Invalid text", err.Error())
+	})
 }
+
 func TestMessageGet(t *testing.T) {
 	storage := &MockMessageStorage{}
 	validator := &MockMessageValidator{} // Not used in Get, but needed for constructor
@@ -93,30 +93,26 @@ func TestMessageGet(t *testing.T) {
 
 	id := int64(1)
 
-	// Test successful get
-	expectedMessage := &domain.Message{Id: id, Text: "test_text"}
-	storage.GetMessageFunc = func(i int64) (*domain.Message, error) {
-		if i != id {
-			t.Errorf("Unexpected id: got %d, expected %d", i, id)
+	t.Run("Successful get", func(t *testing.T) {
+		expectedMessage := &domain.Message{Id: id, Text: "test_text"}
+		storage.GetMessageFunc = func(i int64) (*domain.Message, error) {
+			assert.Equal(t, id, i)
+			return expectedMessage, nil
 		}
-		return expectedMessage, nil
-	}
 
-	message, err := service.Get(id)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if message.Id != expectedMessage.Id || message.Text != expectedMessage.Text {
-		t.Errorf("Unexpected message: got %+v, expected %+v", message, expectedMessage)
-	}
+		message, err := service.Get(id)
+		require.NoError(t, err)
+		assert.Equal(t, expectedMessage.Id, message.Id)
+		assert.Equal(t, expectedMessage.Text, message.Text)
+	})
 
-	// Test storage error
-	mockError := errors.New("Mock GetMessageFunc")
-	storage.GetMessageFunc = func(id int64) (*domain.Message, error) { return nil, mockError }
-	_, err = service.Get(id)
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Unexpected message: got %+v, expected %+v", err, mockError)
-	}
+	t.Run("Storage error", func(t *testing.T) {
+		mockError := errors.New("Mock GetMessageFunc")
+		storage.GetMessageFunc = func(id int64) (*domain.Message, error) { return nil, mockError }
+		_, err := service.Get(id)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
 }
 
 func TestMessageDelete(t *testing.T) {
@@ -127,15 +123,13 @@ func TestMessageDelete(t *testing.T) {
 	board := "test_board"
 	id := int64(1)
 
-	// Test successful delete
-	storage.DeleteMessageFunc = func(b string, i int64) error {
-		if b != board || i != id {
-			t.Errorf("Unexpected board or id: got %s, %d, expected %s, %d", b, i, board, id)
+	t.Run("Successful delete", func(t *testing.T) {
+		storage.DeleteMessageFunc = func(b string, i int64) error {
+			assert.Equal(t, board, b)
+			assert.Equal(t, id, i)
+			return nil
 		}
-		return nil
-	}
-	err := service.Delete(board, id)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
+		err := service.Delete(board, id)
+		require.NoError(t, err)
+	})
 }
