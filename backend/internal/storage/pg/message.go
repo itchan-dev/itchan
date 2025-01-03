@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -12,25 +13,26 @@ import (
 )
 
 // Saves message to db
-func (s *Storage) CreateMessage(board string, author *domain.User, text string, attachments []domain.Attachment, thread_id int64) (int64, error) {
+func (s *Storage) CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
-	var n, createdTs int64
+	var n int64
+	createdTs := time.Now().UTC()
 	err = tx.QueryRow(`
-	UPDATE threads 
-	SET n_replies = n + 1, last_reply_ts = now() 
-	WHERE id = $1
-	RETURNING n, last_reply_ts
-	`, thread_id).Scan(&n, &createdTs)
+	UPDATE threads
+	SET reply_count = reply_count + 1, last_bump_ts = CASE WHEN reply_count > $1 THEN last_bump_ts ELSE $2 END -- if reply_count over bump limit then dont update last_bump_ts
+	WHERE id = $3
+	RETURNING reply_count
+	`, s.cfg.BumpLimit, createdTs, thread_id).Scan(&n)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
+			return -1, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
 		}
-		return 0, err
+		return -1, err
 	}
 
 	var id int64
@@ -40,17 +42,17 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 	RETURNING id`,
 		author.Id, text, createdTs, attachments, thread_id, n).Scan(&id)
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 
-	view_name := get_view_name(board)
-	_, err = tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY $1", view_name)
+	view_name := getViewName(board)
+	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return 0, err
+		return -1, err
 	}
 
 	return id, nil
@@ -88,7 +90,7 @@ func (s *Storage) DeleteMessage(board string, id int64) error {
 	result, err := tx.Exec(`
 	UPDATE messages SET
 		text = 'msg deleted',
-		attachments = []
+		attachments = NULL
 	WHERE id = $1`, id)
 	if err != nil {
 		return err
@@ -100,8 +102,8 @@ func (s *Storage) DeleteMessage(board string, id int64) error {
 	if deleted == 0 {
 		return &internal_errors.ErrorWithStatusCode{Message: "Message not found", StatusCode: 404}
 	}
-	view_name := get_view_name(board)
-	_, err = tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY $1", view_name)
+	view_name := getViewName(board)
+	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
 	if err != nil {
 		return err
 	}

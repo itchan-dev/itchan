@@ -20,7 +20,7 @@ services:
   #     - 8081:8081
   db:
     container_name: postgres
-    image: postgres:13.4-alpine
+    image: postgres:15.3-alpine
     restart: unless-stopped
     environment:
       - POSTGRES_USER=itchan

@@ -11,7 +11,18 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func createRequest(t *testing.T, method, url string, body []byte, cookies ...*http.Cookie) *http.Request {
+	t.Helper()
+	req := httptest.NewRequest(method, url, bytes.NewBuffer(body))
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	return req
+}
 
 func TestWriteJSON(t *testing.T) {
 	tests := []struct {
@@ -48,21 +59,15 @@ func TestWriteJSON(t *testing.T) {
 			writeJSON(rr, tt.input)
 
 			// Check status code
-			if status := rr.Code; status != tt.status {
-				t.Fatalf("handler returned wrong status code: got %v want %v",
-					status, tt.status)
-			}
+			assert.Equal(t, tt.status, rr.Code, "handler returned wrong status code")
+
 			// Check content type header
-			if ct := rr.Header().Get("Content-Type"); tt.checkContentType && ct != "application/json" {
-				t.Errorf("handler returned wrong content type: got %v want %v",
-					ct, "application/json")
+			if tt.checkContentType {
+				assert.Equal(t, "application/json", rr.Header().Get("Content-Type"), "handler returned wrong content type")
 			}
 
 			// Check response body
-			if rr.Body.String() != tt.expected+"\n" { // Note: NewEncoder adds a newline.
-				t.Errorf("handler returned unexpected body: got %v want %v",
-					rr.Body.String(), tt.expected+"\n")
-			}
+			assert.Equal(t, tt.expected+"\n", rr.Body.String(), "handler returned unexpected body")
 
 		})
 	}
@@ -127,22 +132,12 @@ func TestLoadAndValidateRequestBody(t *testing.T) {
 			err := loadAndValidateRequestBody(req, tt.target)
 
 			if tt.expectedErr == nil {
-				if err != nil {
-					t.Errorf("Expected no error, but got %v", err)
-				}
+				assert.NoError(t, err, "Expected no error")
 			} else {
-
-				if err == nil {
-					t.Errorf("Expected error %v, but got nil", tt.expectedErr)
-
-				} else {
-					e, ok := err.(*internal_errors.ErrorWithStatusCode)
-					if !ok || (e.Message != tt.expectedErr.Message || e.StatusCode != tt.expectedErr.StatusCode) {
-						t.Errorf("Expected error %+v but got %+v", tt.expectedErr, err)
-					}
-
-				}
-
+				e, ok := err.(*internal_errors.ErrorWithStatusCode)
+				require.True(t, ok, "Error should be ErrorWithStatusCode")
+				assert.Equal(t, tt.expectedErr.Message, e.Message, "Error message mismatch")
+				assert.Equal(t, tt.expectedErr.StatusCode, e.StatusCode, "Status code mismatch")
 			}
 		})
 	}

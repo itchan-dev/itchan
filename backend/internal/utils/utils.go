@@ -30,7 +30,7 @@ func (e *BoardNameValidator) Name(name string) error {
 }
 
 func (e *BoardNameValidator) ShortName(name string) error {
-	if utf8.RuneCountInString(name) > 2 {
+	if utf8.RuneCountInString(name) > 3 {
 		return &errors.ErrorWithStatusCode{Message: "Name is too long", StatusCode: 400}
 	}
 	if !IsLetter(name) {
@@ -57,6 +57,9 @@ type MessageValidator struct{}
 func (e *MessageValidator) Text(name string) error {
 	if utf8.RuneCountInString(name) > 10_000 {
 		return &errors.ErrorWithStatusCode{Message: "Text is too long", StatusCode: 400}
+	}
+	if len(name) == 0 {
+		return &errors.ErrorWithStatusCode{Message: "Text is too short", StatusCode: 400}
 	}
 	return nil
 }

@@ -15,7 +15,7 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	type bodyJson struct {
 		Title       string              `validate:"required" json:"title"`
 		Text        string              `validate:"required" json:"text"`
-		Attachments []domain.Attachment `validate:"required" json:"attachments"`
+		Attachments *domain.Attachments `json:"attachments"`
 	}
 	var body bodyJson
 	if err := loadAndValidateRequestBody(r, &body); err != nil {
@@ -35,7 +35,7 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	}
 	op_msg := domain.Message{Author: domain.User{Id: uid}, Text: body.Text, Attachments: body.Attachments}
 
-	err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
+	_, err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

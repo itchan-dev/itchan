@@ -14,19 +14,19 @@ type Config struct {
 }
 
 type Public struct {
-	Pg     Pg            `yaml:"pg"`
-	JwtTTL time.Duration `yaml:"jwt_ttl"`
+	Pg             Pg            `yaml:"pg"`
+	JwtTTL         time.Duration `yaml:"jwt_ttl"`
+	ThreadsPerPage int           `yaml:"threads_per_page"`
+	NLastMsg       int           `yaml:"n_last_msg"` // number of last messages shown in board preview (materialized view)
+	BumpLimit      int           `yaml:"bump_limit"` // if thread have more messages it will not get "bumped"
 }
 
 type Pg struct {
-	Host           string `yaml:"host"`
-	Port           int    `yaml:"port"`
-	User           string `yaml:"user"`
-	Password       string `yaml:"password"`
-	Dbname         string `yaml:"dbname"`
-	InitPath       string `yaml:"initpath"`
-	ThreadsPerPage int    `yaml:"threads_per_page"`
-	NLastMsg       int    `yaml:"n_last_msg"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Dbname   string `yaml:"dbname"`
 }
 
 type Private struct {
