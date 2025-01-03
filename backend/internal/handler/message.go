@@ -10,7 +10,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-func (h *handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := strconv.Atoi(threadIdStr)
@@ -49,7 +49,7 @@ func (h *handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *handler) GetMessage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 	// board := mux.Vars(r)["board"]
 	msgIdStr := mux.Vars(r)["message"]
 	msgId, err := strconv.Atoi(msgIdStr)
@@ -67,7 +67,7 @@ func (h *handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, msg)
 }
 
-func (h *handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
 	msgIdStr := mux.Vars(r)["message"]
 	msgId, err := strconv.Atoi(msgIdStr)

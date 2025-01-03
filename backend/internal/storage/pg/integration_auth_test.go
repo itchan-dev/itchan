@@ -3,6 +3,9 @@ package pg
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	// Assuming this is your internal errors package
 	// Assuming this is your domain package
 	"github.com/itchan-dev/itchan/backend/internal/errors"
@@ -11,66 +14,46 @@ import (
 
 func TestSaveUser(t *testing.T) {
 	id, err := storage.SaveUser("test@example.com", []byte("password"))
-	if err != nil {
-		t.Fatalf("SaveUser failed: %v", err)
-	}
-	if id <= 0 {
-		t.Errorf("Expected ID > 0, got %d", id)
-	}
-	if _, err := storage.SaveUser("test@example.com", []byte("password")); err == nil {
-		t.Errorf("Saving user twice should be error")
-	}
+	require.NoError(t, err, "SaveUser should not return an error")
+	assert.Greater(t, id, int64(0), "Expected ID > 0")
+
+	_, err = storage.SaveUser("test@example.com", []byte("password"))
+	assert.Error(t, err, "Saving user twice should return an error")
 }
 
 func TestUser(t *testing.T) {
 	_, err := storage.SaveUser("testuser@example.com", []byte("password"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "SaveUser should not return an error")
 
 	user, err := storage.User("testuser@example.com")
-	if err != nil {
-		t.Fatalf("User retrieval failed: %v", err)
-	}
-	if user.Email != "testuser@example.com" || string(user.PassHash) != "password" { // Fixed comparison
-		t.Errorf("Unexpected user data: %+v", user)
-	}
+	require.NoError(t, err, "User retrieval should not return an error")
+	assert.Equal(t, "testuser@example.com", user.Email, "Unexpected user email")
+	assert.Equal(t, "password", string(user.PassHash), "Unexpected user password hash")
 
 	_, err = storage.User("nonexistent@example.com")
-	if err == nil {
-		t.Fatal("Expected error for nonexistent user, got nil")
-	}
+	require.Error(t, err, "Expected error for nonexistent user")
 	e, ok := err.(*errors.ErrorWithStatusCode)
-	if !ok || e.StatusCode != 404 {
-		t.Errorf("Expected ErrorWithStatusCode 404, got %T", err)
-	}
+	require.True(t, ok, "Expected ErrorWithStatusCode")
+	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
 }
 
 func TestDeleteUser(t *testing.T) {
 	username := "deleteuser@example.com"
 	_, err := storage.SaveUser(username, []byte("password"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err, "SaveUser should not return an error")
 
-	if err := storage.DeleteUser(username); err != nil {
-		t.Errorf("Cant delete user")
-	}
+	err = storage.DeleteUser(username)
+	require.NoError(t, err, "DeleteUser should not return an error")
+
 	_, err = storage.User(username)
-	if err == nil {
-		t.Fatal("Expected error for nonexistent user, got nil")
-	}
+	require.Error(t, err, "Expected error for deleted user")
 	e, ok := err.(*errors.ErrorWithStatusCode)
-	if !ok || e.StatusCode != 404 {
-		t.Errorf("Expected ErrorWithStatusCode 404, got %T", err)
-	}
+	require.True(t, ok, "Expected ErrorWithStatusCode")
+	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
 
 	err = storage.DeleteUser("nonexistent@example.com")
-	if err == nil {
-		t.Errorf("Delete  nonexisting user should raise error")
-	}
+	require.Error(t, err, "DeleteUser should return an error for nonexistent user")
 	e, ok = err.(*errors.ErrorWithStatusCode)
-	if !ok || e.StatusCode != 404 {
-		t.Errorf("Expected ErrorWithStatusCode 404, got %T", err)
-	}
+	require.True(t, ok, "Expected ErrorWithStatusCode")
+	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
 }

@@ -9,24 +9,22 @@ import (
 	"github.com/go-playground/validator/v10"
 	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/backend/internal/service"
-	"github.com/itchan-dev/itchan/backend/internal/utils/jwt"
 	"github.com/itchan-dev/itchan/shared/config"
 )
 
-type handler struct {
+type Handler struct {
 	auth    service.AuthService
 	board   service.BoardService
 	thread  service.ThreadService
 	message service.MessageService
 	cfg     *config.Config
-	jwt     jwt.JwtService
 }
 
-func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, cfg *config.Config, jwt jwt.JwtService) *handler {
-	return &handler{auth, board, thread, message, cfg, jwt}
+func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, cfg *config.Config) *Handler {
+	return &Handler{auth, board, thread, message, cfg}
 }
 
-func (h *handler) Test(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("TESTING"))
 }

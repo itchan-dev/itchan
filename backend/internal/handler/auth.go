@@ -11,7 +11,7 @@ type credentials struct {
 	Password string `validate:"required" json:"password"`
 }
 
-func (h *handler) Signup(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
 	var creds credentials
 	if err := loadAndValidateRequestBody(r, &creds); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
@@ -28,7 +28,7 @@ func (h *handler) Signup(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Created. You can login now"))
 }
 
-func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var creds credentials
 	if err := loadAndValidateRequestBody(r, &creds); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
@@ -53,7 +53,7 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("You logged in"))
 }
 
-func (h handler) Logout(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		Path:     "/",
 		Name:     "accessToken",

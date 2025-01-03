@@ -11,7 +11,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	type bodyJson struct {
 		Title       string              `validate:"required" json:"title"`
 		Text        string              `validate:"required" json:"text"`
@@ -45,7 +45,7 @@ func (h *handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Created"))
 }
 
-func (h *handler) GetThread(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 	// board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := strconv.Atoi(threadIdStr)
@@ -64,7 +64,7 @@ func (h *handler) GetThread(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, thread)
 }
 
-func (h *handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := strconv.Atoi(threadIdStr)

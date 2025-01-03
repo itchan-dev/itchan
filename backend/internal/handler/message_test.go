@@ -43,7 +43,7 @@ func (m *MockMessageService) Delete(board string, id int64) error {
 }
 
 func TestCreateMessageHandler(t *testing.T) {
-	h := &handler{}
+	h := &Handler{}
 	route := "/b/1"
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}/{thread}", h.CreateMessage).Methods("POST")
@@ -121,7 +121,7 @@ func TestCreateMessageHandler(t *testing.T) {
 }
 
 func TestGetMessageHandler(t *testing.T) {
-	h := &handler{}
+	h := &Handler{}
 	route := "/b/123/321"
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods("GET")
@@ -174,7 +174,7 @@ func TestGetMessageHandler(t *testing.T) {
 }
 
 func TestDeleteMessageHandler(t *testing.T) {
-	h := &handler{}
+	h := &Handler{}
 	route := "/b/123/321"
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}/{thread}/{message}", h.DeleteMessage).Methods("DELETE")
