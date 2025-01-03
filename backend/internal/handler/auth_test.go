@@ -33,7 +33,7 @@ func (m *MockAuthService) Login(email, password string) (string, error) {
 
 func TestAuthLoginHandler(t *testing.T) {
 	cfg := config.Config{Public: config.Public{JwtTTL: 999999999999}}
-	h := &handler{cfg: &cfg}
+	h := &Handler{cfg: &cfg}
 
 	route := "/v1/auth/login"
 	router := mux.NewRouter()
@@ -90,7 +90,7 @@ func TestAuthLoginHandler(t *testing.T) {
 }
 
 func TestAuthLogoutHandler(t *testing.T) {
-	h := &handler{}
+	h := &Handler{}
 
 	route := "/v1/auth/logout"
 	router := mux.NewRouter()

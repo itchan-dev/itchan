@@ -4,6 +4,6 @@ import (
 	"net/http"
 )
 
-func (h handler) GetMainPage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetMainPage(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Моя домашняя страница!"))
 }

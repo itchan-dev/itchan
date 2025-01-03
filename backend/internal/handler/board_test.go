@@ -41,7 +41,7 @@ func (m *MockBoardService) Delete(shortName string) error {
 }
 
 func TestCreateBoardHandler(t *testing.T) {
-	h := &handler{} // Create handler
+	h := &Handler{} // Create handler
 
 	route := "/v1/boards"
 	router := mux.NewRouter()
@@ -89,7 +89,7 @@ func TestCreateBoardHandler(t *testing.T) {
 }
 
 func TestGetBoardHandler(t *testing.T) {
-	h := &handler{}
+	h := &Handler{}
 
 	router := mux.NewRouter()
 	router.HandleFunc("/v1/{board}", h.GetBoard).Methods("GET")
@@ -160,7 +160,7 @@ func TestGetBoardHandler(t *testing.T) {
 }
 
 func TestDeleteBoardHandler(t *testing.T) {
-	h := &handler{}
+	h := &Handler{}
 
 	router := mux.NewRouter()
 	router.HandleFunc("/v1/{board}", h.DeleteBoard).Methods("DELETE")

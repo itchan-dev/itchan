@@ -11,7 +11,7 @@ import (
 
 const default_page int = 1
 
-func (h *handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	type bodyJson struct {
 		Name      string `validate:"required" json:"name"`
 		ShortName string `validate:"required" json:"short_name"`
@@ -31,7 +31,7 @@ func (h *handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *handler) GetBoard(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	shortName := mux.Vars(r)["board"]
 	pageQuery := r.URL.Query().Get("page")
 	var page int
@@ -55,7 +55,7 @@ func (h *handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, board)
 }
 
-func (h *handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 	shortName := mux.Vars(r)["board"]
 
 	err := h.board.Delete(shortName)
