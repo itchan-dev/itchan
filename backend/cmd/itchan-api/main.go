@@ -27,7 +27,7 @@ func main() {
 	// to do, move all init to different place
 	cfg := config.MustLoad(configFolder)
 
-	storage, err := pg.New(cfg.Public.Pg)
+	storage, err := pg.New(cfg.Public)
 	if err != nil {
 		log.Fatal(err)
 	}

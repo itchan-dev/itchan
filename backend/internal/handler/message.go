@@ -21,7 +21,7 @@ func (h *handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 
 	type bodyJson struct {
 		Text        string              `validate:"required" json:"text"`
-		Attachments []domain.Attachment `validate:"required" json:"attachments"`
+		Attachments *domain.Attachments `json:"attachments"`
 	}
 	var body bodyJson
 	if err := loadAndValidateRequestBody(r, &body); err != nil {

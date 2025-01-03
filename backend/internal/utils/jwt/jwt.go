@@ -12,12 +12,17 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
+type JwtService interface {
+	NewToken(user *domain.User) (string, error)
+	DecodeToken(jwtStr string) (*jwt.Token, error)
+}
+
 type Jwt struct {
 	secretKey string
 	ttl       time.Duration
 }
 
-func New(secretKey string, ttl time.Duration) *Jwt {
+func New(secretKey string, ttl time.Duration) JwtService {
 	return &Jwt{secretKey, ttl}
 }
 

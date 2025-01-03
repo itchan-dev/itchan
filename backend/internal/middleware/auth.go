@@ -16,7 +16,7 @@ type key int
 
 const userClaimsKey key = 0
 
-func Auth(jwtService *jwt_internal.Jwt, adminOnly bool) func(http.HandlerFunc) http.HandlerFunc {
+func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			accessCookie, err := r.Cookie("accessToken")
@@ -61,11 +61,11 @@ func Auth(jwtService *jwt_internal.Jwt, adminOnly bool) func(http.HandlerFunc) h
 }
 
 // Helper functions for admin and regular auth
-func AdminOnly(jwtService *jwt_internal.Jwt) func(http.HandlerFunc) http.HandlerFunc {
+func AdminOnly(jwtService jwt_internal.JwtService) func(http.HandlerFunc) http.HandlerFunc {
 	return Auth(jwtService, true)
 }
 
-func NeedAuth(jwtService *jwt_internal.Jwt) func(http.HandlerFunc) http.HandlerFunc {
+func NeedAuth(jwtService jwt_internal.JwtService) func(http.HandlerFunc) http.HandlerFunc {
 	return Auth(jwtService, false)
 }
 

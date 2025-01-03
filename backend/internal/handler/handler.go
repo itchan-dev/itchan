@@ -19,10 +19,10 @@ type handler struct {
 	thread  service.ThreadService
 	message service.MessageService
 	cfg     *config.Config
-	jwt     *jwt.Jwt
+	jwt     jwt.JwtService
 }
 
-func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, cfg *config.Config, jwt *jwt.Jwt) *handler {
+func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, cfg *config.Config, jwt jwt.JwtService) *handler {
 	return &handler{auth, board, thread, message, cfg, jwt}
 }
 

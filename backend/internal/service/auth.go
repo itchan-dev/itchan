@@ -97,28 +97,3 @@ func (a *Auth) Login(email, password string) (string, error) {
 
 	return token, nil
 }
-
-// // Logout deletes user with given email from the system.
-// //
-// // If user exists, but password is incorrect, returns error.
-// // If user doesn't exist, returns error.
-// func (a *Auth) Logout(email, password string) error {
-// 	var err error
-
-// 	err = a.email.IsCorrect(email)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	user, err := a.storage.User(email)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	err = bcrypt.CompareHashAndPassword(user.PassHash, []byte(password))
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return a.storage.DeleteUser(email)
-// }

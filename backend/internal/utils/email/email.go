@@ -1,5 +1,7 @@
 package email
 
+// placeholder code
+
 import (
 	"net/mail"
 

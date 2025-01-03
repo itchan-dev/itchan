@@ -39,7 +39,7 @@ func (s *Storage) User(email string) (*domain.User, error) {
 	err := s.db.QueryRow("SELECT id, email, pass_hash, is_admin FROM users WHERE email = $1", email).Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
+			return nil, &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: 404}
 		}
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (s *Storage) DeleteUser(email string) error {
 		return err
 	}
 	if rowsDeleted == 0 {
-		return fmt.Errorf("no such user: %s", email)
+		return &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: 404}
 	}
 
 	if err := tx.Commit(); err != nil {

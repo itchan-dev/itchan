@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -11,35 +12,36 @@ import (
 )
 
 // transactional
-func (s *Storage) CreateThread(title, board string, msg *domain.Message) error {
+func (s *Storage) CreateThread(title, board string, msg *domain.Message) (int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return err
+		return -1, err
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
-	var id, createdTs int64
+	var id int64
+	var createdTs time.Time
 	err = tx.QueryRow("INSERT INTO messages(author_id, text, attachments) VALUES($1, $2, $3) RETURNING id, created", msg.Author.Id, msg.Text, msg.Attachments).Scan(&id, &createdTs)
 	if err != nil { // catch unique violation error and raise "user already exists"
-		return err
+		return -1, err
 	}
 
-	_, err = tx.Exec("INSERT INTO threads(id, title, board, last_reply_ts) VALUES($1, $2, $3, $4)", id, title, board, createdTs)
+	_, err = tx.Exec("INSERT INTO threads(id, title, board, last_bump_ts) VALUES($1, $2, $3, $4)", id, title, board, createdTs)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
-	view_name := get_view_name(board)
-	_, err = tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY $1", view_name)
+	view_name := getViewName(board)
+	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return -1, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return nil
+	return id, nil
 }
 
 func (s *Storage) GetThread(id int64) (*domain.Thread, error) {
@@ -47,16 +49,18 @@ func (s *Storage) GetThread(id int64) (*domain.Thread, error) {
 		title      string
 		board      string
 		numReplies uint
+		lastBumped time.Time
 	}
 
 	err := s.db.QueryRow(`
     SELECT 
         title,
         board,
-        n_replies
+        reply_count,
+		last_bump_ts
     FROM threads
     WHERE id = $1
-    `, id).Scan(&metadata.title, &metadata.board, &metadata.numReplies)
+    `, id).Scan(&metadata.title, &metadata.board, &metadata.numReplies, &metadata.lastBumped)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
@@ -94,7 +98,7 @@ func (s *Storage) GetThread(id int64) (*domain.Thread, error) {
 		return nil, err
 	}
 
-	return &domain.Thread{Title: metadata.title, Messages: messages, Board: metadata.board, NumReplies: metadata.numReplies}, nil
+	return &domain.Thread{Title: metadata.title, Messages: messages, Board: metadata.board, NumReplies: metadata.numReplies, LastBumped: metadata.lastBumped}, nil
 }
 
 // cascade delete
@@ -116,8 +120,8 @@ func (s *Storage) DeleteThread(board string, id int64) error {
 	if deleted == 0 {
 		return &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
 	}
-	view_name := get_view_name(board)
-	_, err = tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY $1", view_name)
+	view_name := getViewName(board)
+	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
 	if err != nil {
 		return err
 	}

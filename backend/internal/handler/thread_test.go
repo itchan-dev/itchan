@@ -11,19 +11,21 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type MockThreadService struct {
-	MockCreate func(title string, board string, msg *domain.Message) error
+	MockCreate func(title string, board string, msg *domain.Message) (int64, error)
 	MockGet    func(id int64) (*domain.Thread, error)
 	MockDelete func(board string, id int64) error
 }
 
-func (m *MockThreadService) Create(title string, board string, msg *domain.Message) error {
+func (m *MockThreadService) Create(title string, board string, msg *domain.Message) (int64, error) {
 	if m.MockCreate != nil {
 		return m.MockCreate(title, board, msg)
 	}
-	return nil // Default behavior
+	return 1, nil // Default behavior
 }
 
 func (m *MockThreadService) Get(id int64) (*domain.Thread, error) {
@@ -42,185 +44,179 @@ func (m *MockThreadService) Delete(board string, id int64) error {
 
 func TestCreateThreadHandler(t *testing.T) {
 	h := &handler{}
-
 	route := "/b"
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}", h.CreateThread).Methods("POST")
 	requestBody := []byte(`{"title": "thread title", "text": "test text", "attachments": ["one", "two"]}`)
 
-	// Test case 1: successful request
-	mockService := &MockThreadService{
-		MockCreate: func(title string, board string, msg *domain.Message) error {
-			return nil
-		},
-	}
-	h.thread = mockService
-	req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-	ctx := context.WithValue(req.Context(), "uid", int64(123))
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
+	t.Run("successful request", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockCreate: func(title string, board string, msg *domain.Message) (int64, error) {
+				return 1, nil
+			},
+		}
+		h.thread = mockService
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusCreated {
-		t.Errorf("expected status %d, but got %d", http.StatusCreated, rr.Code)
-	}
+		assert.Equal(t, http.StatusCreated, rr.Code)
+	})
 
-	// Test case 2: invalid request body
-	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{ivalid json::}`)))
+	t.Run("successful request no attachments", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{"title": "thread title", "text": "test text"}`)))
+		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
+		router.ServeHTTP(rr, req)
 
-	// Test case 3: no uid in context
-	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+		assert.Equal(t, http.StatusCreated, rr.Code)
+	})
 
-	router.ServeHTTP(rr, req)
-	if rr.Code != http.StatusUnauthorized {
-		t.Errorf("expected status %d, but got %d", http.StatusUnauthorized, rr.Code)
-	}
+	t.Run("invalid request body", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{ivalid json::}`)))
 
-	// Test case 4: bad uid type in context
-	rr = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-	ctx = context.WithValue(req.Context(), "uid", "abc")
-	req = req.WithContext(ctx)
+		router.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
 
-	router.ServeHTTP(rr, req)
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
-	}
+	t.Run("no uid in context", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
 
-	// Test case 5: service error
-	mockService = &MockThreadService{
-		MockCreate: func(title string, board string, msg *domain.Message) error {
-			return errors.New("Mock error")
-		},
-	}
-	h.thread = mockService
+		router.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
 
-	req = httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-	ctx = context.WithValue(req.Context(), "uid", int64(123))
-	req = req.WithContext(ctx)
-	rr = httptest.NewRecorder()
+	t.Run("bad uid type in context", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+		ctx := context.WithValue(req.Context(), "uid", "abc")
+		req = req.WithContext(ctx)
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
-	}
+	t.Run("service error", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockCreate: func(title string, board string, msg *domain.Message) (int64, error) {
+				return -1, errors.New("Mock error")
+			},
+		}
+		h.thread = mockService
+
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
 }
 
 func TestGetThreadHandler(t *testing.T) {
 	h := &handler{}
-
 	route := "/b/123"
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}/{thread}", h.GetThread).Methods("GET")
 
-	// Test case 1: successful
-	mockService := &MockThreadService{
-		MockGet: func(id int64) (*domain.Thread, error) {
-			return &domain.Thread{Messages: []*domain.Message{{Id: id}}}, nil
-		},
-	}
-	h.thread = mockService
+	t.Run("successful", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockGet: func(id int64) (*domain.Thread, error) {
+				return &domain.Thread{Messages: []*domain.Message{{Id: id}}}, nil
+			},
+		}
+		h.thread = mockService
 
-	req := httptest.NewRequest("GET", route, nil)
-	rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", route, nil)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status %d, but got %d", http.StatusOK, rr.Code)
-	}
+		require.Equal(t, http.StatusOK, rr.Code)
 
-	var thread domain.Thread
-	if err := json.NewDecoder(rr.Body).Decode(&thread); err != nil {
-		t.Errorf("error decoding response body: %v", err)
-	}
-	if thread.Messages[0].Id != 123 {
-		t.Errorf("expected thread id '123', but got '%d'", thread.Messages[0].Id)
-	}
+		var thread domain.Thread
+		err := json.NewDecoder(rr.Body).Decode(&thread)
+		require.NoError(t, err, "error decoding response body")
+		assert.Equal(t, int64(123), thread.Messages[0].Id, "expected thread id '123'")
+	})
 
-	// Test case 2: bad thread id
-	req = httptest.NewRequest("GET", "/b/abc", nil)
-	rr = httptest.NewRecorder()
+	t.Run("bad thread id", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/b/abc", nil)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
 
-	// Test case 3: service error
-	mockService = &MockThreadService{
-		MockGet: func(id int64) (*domain.Thread, error) {
-			return nil, errors.New("Mock")
-		},
-	}
-	h.thread = mockService
-	req = httptest.NewRequest("GET", route, nil)
-	rr = httptest.NewRecorder()
+	t.Run("service error", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockGet: func(id int64) (*domain.Thread, error) {
+				return nil, errors.New("Mock")
+			},
+		}
+		h.thread = mockService
+		req := httptest.NewRequest("GET", route, nil)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
-	}
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
 }
 
 func TestDeleteThreadHandler(t *testing.T) {
 	h := &handler{}
-
 	route := "/b/123"
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}/{thread}", h.DeleteThread).Methods("DELETE")
 
-	// Test case 1: successful
-	mockService := &MockThreadService{
-		MockDelete: func(board string, id int64) error {
-			return nil
-		},
-	}
-	h.thread = mockService
+	t.Run("successful", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockDelete: func(board string, id int64) error {
+				return nil
+			},
+		}
+		h.thread = mockService
 
-	req := httptest.NewRequest("DELETE", route, nil)
-	rr := httptest.NewRecorder()
+		req := httptest.NewRequest("DELETE", route, nil)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status %d, but got %d", http.StatusOK, rr.Code)
-	}
+		require.Equal(t, http.StatusOK, rr.Code)
+	})
 
-	// Test case 2: bad thread id
-	req = httptest.NewRequest("DELETE", "/b/abc", nil)
-	rr = httptest.NewRecorder()
+	t.Run("bad thread id", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/b/abc", nil)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("expected status %d, but got %d", http.StatusBadRequest, rr.Code)
-	}
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+	})
 
-	// Test case 3: service error
-	mockService = &MockThreadService{
-		MockDelete: func(board string, id int64) error {
-			return errors.New("Mock")
-		},
-	}
-	h.thread = mockService
-	req = httptest.NewRequest("DELETE", route, nil)
-	rr = httptest.NewRecorder()
+	t.Run("service error", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockDelete: func(board string, id int64) error {
+				return errors.New("Mock")
+			},
+		}
+		h.thread = mockService
+		req := httptest.NewRequest("DELETE", route, nil)
+		rr := httptest.NewRecorder()
 
-	router.ServeHTTP(rr, req)
+		router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected status %d, but got %d", http.StatusInternalServerError, rr.Code)
-	}
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
 }
