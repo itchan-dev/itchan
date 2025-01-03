@@ -9,6 +9,8 @@ import (
 
 	jwt_internal "github.com/itchan-dev/itchan/backend/internal/utils/jwt"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuth(t *testing.T) {
@@ -71,21 +73,14 @@ func TestAuth(t *testing.T) {
 			rr := httptest.NewRecorder()
 			handler := Auth(jwtService, tt.adminOnly)(func(w http.ResponseWriter, r *http.Request) {
 				user := GetUserFromContext(r)
-				if user == nil {
-					t.Fatal("Auth should always propagate user thru context")
-				}
-				if user == nil || user.Id != tt.expectedUser.Id || user.Email != tt.expectedUser.Email || user.Admin != tt.expectedUser.Admin {
-					t.Errorf("Expected user: %+v, got: %+v", tt.expectedUser, user)
-				}
+				require.NotNil(t, user, "Auth should always propagate user thru context")
+				assert.Equal(t, tt.expectedUser, user)
 
 				w.WriteHeader(http.StatusOK)
 			})
 			handler(rr, req)
 
-			if status := rr.Code; status != tt.expectedStatus {
-				t.Errorf("handler returned status code %v, want %v", status, tt.expectedStatus)
-			}
-
+			assert.Equal(t, tt.expectedStatus, rr.Code, "handler returned wrong status code")
 		})
 	}
 }
@@ -98,14 +93,10 @@ func TestGetUserFromContext(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	retrievedUser := GetUserFromContext(req)
-	if retrievedUser == nil || retrievedUser.Id != user.Id || retrievedUser.Email != user.Email || retrievedUser.Admin != user.Admin {
-		t.Errorf("Expected user: %+v, got: %+v", user, retrievedUser)
-	}
+	assert.Equal(t, user, retrievedUser)
 
 	req = httptest.NewRequest("GET", "http://example.com", nil)
 	retrievedUser = GetUserFromContext(req)
 
-	if retrievedUser != nil {
-		t.Errorf("Expected user: nil, got: %+v", retrievedUser)
-	}
+	assert.Nil(t, retrievedUser, "Expected user to be nil")
 }
