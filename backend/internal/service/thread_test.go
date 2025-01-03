@@ -6,6 +6,8 @@ import (
 
 	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Mock ThreadStorage for testing
@@ -57,26 +59,24 @@ func TestThreadCreate(t *testing.T) {
 	board := "test board"
 	msg := &domain.Message{}
 
-	// Test successful creation
-	storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
-		if tt != title || b != board {
-			t.Errorf("Unexpected title or board: got %s, %s, expected %s, %s", tt, b, title, board)
+	t.Run("Successful creation", func(t *testing.T) {
+		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+			assert.Equal(t, title, tt)
+			assert.Equal(t, board, b)
+			return 1, nil
 		}
-		return 1, nil
-	}
-	_, err := service.Create(title, board, msg)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
+		_, err := service.Create(title, board, msg)
+		require.NoError(t, err)
+	})
 
-	// Test validation error
-	validator.TitleFunc = func(t string) error {
-		return &internal_errors.ErrorWithStatusCode{Message: "Invalid title", StatusCode: 400}
-	}
-	_, err = service.Create(title, board, msg)
-	if err == nil || err.Error() != "Invalid title" {
-		t.Errorf("Expected validation error, got %v", err)
-	}
+	t.Run("Validation error", func(t *testing.T) {
+		validator.TitleFunc = func(t string) error {
+			return &internal_errors.ErrorWithStatusCode{Message: "Invalid title", StatusCode: 400}
+		}
+		_, err := service.Create(title, board, msg)
+		require.Error(t, err)
+		assert.Equal(t, "Invalid title", err.Error())
+	})
 }
 
 func TestThreadGet(t *testing.T) {
@@ -86,29 +86,25 @@ func TestThreadGet(t *testing.T) {
 
 	id := int64(1)
 
-	// Test successful get
-	expectedThread := &domain.Thread{Title: "test title", Messages: []*domain.Message{{Id: id}}}
-	storage.GetThreadFunc = func(i int64) (*domain.Thread, error) {
-		if i != id {
-			t.Errorf("Unexpected id: got %d, expected %d", i, id)
+	t.Run("Successful get", func(t *testing.T) {
+		expectedThread := &domain.Thread{Title: "test title", Messages: []*domain.Message{{Id: id}}}
+		storage.GetThreadFunc = func(i int64) (*domain.Thread, error) {
+			assert.Equal(t, id, i)
+			return expectedThread, nil
 		}
-		return expectedThread, nil
-	}
-	thread, err := service.Get(id)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if thread.Id() != expectedThread.Id() || thread.Title != expectedThread.Title {
-		t.Errorf("Unexpected thread: got %+v, expected %+v", thread, expectedThread)
-	}
+		thread, err := service.Get(id)
+		require.NoError(t, err)
+		assert.Equal(t, expectedThread.Id(), thread.Id())
+		assert.Equal(t, expectedThread.Title, thread.Title)
+	})
 
-	// Test storage error
-	var mockError error = errors.New("Mock GetThreadFunc")
-	storage.GetThreadFunc = func(i int64) (*domain.Thread, error) { return nil, mockError }
-	_, err = service.Get(id)
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Unexpected message: got %+v, expected %+v", err, mockError)
-	}
+	t.Run("Storage error", func(t *testing.T) {
+		mockError := errors.New("Mock GetThreadFunc")
+		storage.GetThreadFunc = func(i int64) (*domain.Thread, error) { return nil, mockError }
+		_, err := service.Get(id)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
 }
 
 func TestThreadDelete(t *testing.T) {
@@ -119,16 +115,13 @@ func TestThreadDelete(t *testing.T) {
 	board := "test board"
 	id := int64(1)
 
-	// Test successful deletion
-	storage.DeleteThreadFunc = func(b string, i int64) error {
-		if b != board || i != id {
-			t.Errorf("Unexpected board or id: got %s, %d, expected %s, %d", b, i, board, id)
+	t.Run("Successful deletion", func(t *testing.T) {
+		storage.DeleteThreadFunc = func(b string, i int64) error {
+			assert.Equal(t, board, b)
+			assert.Equal(t, id, i)
+			return nil
 		}
-		return nil
-	}
-	err := service.Delete(board, id)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-
+		err := service.Delete(board, id)
+		require.NoError(t, err)
+	})
 }

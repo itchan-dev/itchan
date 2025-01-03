@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -76,46 +78,43 @@ func TestSignup(t *testing.T) {
 	jwt := &MockJwt{} // Not used in Signup, but needed for the constructor
 	service := NewAuth(storage, email, jwt)
 
-	// Test successful signup
-	email.IsCorrectFunc = func(e string) error { return nil }
-	uid, err := service.Signup("test@example.com", "password")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if uid != 1 { // Assuming mock storage returns 1
-		t.Errorf("Unexpected UID: got %d, expected %d", uid, 1)
-	}
+	t.Run("Successful signup", func(t *testing.T) {
+		email.IsCorrectFunc = func(e string) error { return nil }
+		uid, err := service.Signup("test@example.com", "password")
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), uid)
+	})
 
-	// Test 2: GenerateFromPassword fail due to long password
-	_, err = service.Signup("test@example.com", "passwordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpassword")
-	if err == nil {
-		t.Error("Expected error")
-	}
+	t.Run("GenerateFromPassword fail due to long password", func(t *testing.T) {
+		_, err := service.Signup("test@example.com", "passwordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpassword")
+		require.Error(t, err)
+	})
 
-	// Test 3: storage SaveUser error
-	var mockError error = errors.New("Mock SaveUserFunc")
-	storage.SaveUserFunc = func(email string, passHash []byte) (int64, error) { return 0, mockError }
-	uid, err = service.Signup("test@example.com", "password")
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Expected error %v, got %v", mockError, err)
-	}
+	t.Run("storage SaveUser error", func(t *testing.T) {
+		mockError := errors.New("Mock SaveUserFunc")
+		storage.SaveUserFunc = func(email string, passHash []byte) (int64, error) { return 0, mockError }
+		uid, err := service.Signup("test@example.com", "password")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+		assert.Equal(t, int64(0), uid)
+	})
 
-	// Test 4: invalid email
-	mockError = errors.New("Mock IsCorrectFunc")
-	email.IsCorrectFunc = func(e string) error { return mockError }
-	_, err = service.Signup("invalid_email", "password")
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Expected %v, got: %v", mockError, err)
-	}
+	t.Run("invalid email", func(t *testing.T) {
+		mockError := errors.New("Mock IsCorrectFunc")
+		email.IsCorrectFunc = func(e string) error { return mockError }
+		_, err := service.Signup("invalid_email", "password")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
 
-	// Test 5: email confirm error
-	mockError = errors.New("Mock ConfirmFunc")
-	email.IsCorrectFunc = func(e string) error { return nil }
-	email.ConfirmFunc = func(e string) error { return mockError }
-	_, err = service.Signup("test@example.com", "password")
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Expected %v, got: %v", mockError, err)
-	}
+	t.Run("email confirm error", func(t *testing.T) {
+		mockError := errors.New("Mock ConfirmFunc")
+		email.IsCorrectFunc = func(e string) error { return nil }
+		email.ConfirmFunc = func(e string) error { return mockError }
+		_, err := service.Signup("test@example.com", "password")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
 }
 
 func TestLogin(t *testing.T) {
@@ -126,47 +125,44 @@ func TestLogin(t *testing.T) {
 
 	email.IsCorrectFunc = func(e string) error { return nil }
 
-	// Test successful login
-	token, err := service.Login("test@example.com", "password")
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if token != "test_token" {
-		t.Errorf("Unexpected token: got %s, expected %s", token, "test_token")
-	}
+	t.Run("Successful login", func(t *testing.T) {
+		token, err := service.Login("test@example.com", "password")
+		require.NoError(t, err)
+		assert.Equal(t, "test_token", token)
+	})
 
-	// Test jwt new token error
-	mockError := errors.New("Mock UserFunc")
-	service.jwt = &MockJwt{NewTokenFunc: func(user *domain.User) (string, error) { return "", mockError }}
-	token, err = service.Login("test@example.com", "password")
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Expected error %v, got %v", mockError, err)
-	}
+	t.Run("jwt new token error", func(t *testing.T) {
+		mockError := errors.New("Mock UserFunc")
+		service.jwt = &MockJwt{NewTokenFunc: func(user *domain.User) (string, error) { return "", mockError }}
+		token, err := service.Login("test@example.com", "password")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+		assert.Equal(t, "", token)
+	})
 
-	// Test incorrect password
-	storage.UserFunc = func(email string) (*domain.User, error) {
-		return &domain.User{Id: 1, Email: email, PassHash: []byte("$2a$10$7LqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zO")}, nil // Incorrect hash
-	}
-	_, err = service.Login("test@example.com", "wrong_password")
-	if err == nil || err.Error() != "Wrong password" {
-		t.Error("Expected error for incorrect password, got nil")
-	}
+	t.Run("Incorrect password", func(t *testing.T) {
+		storage.UserFunc = func(email string) (*domain.User, error) {
+			return &domain.User{Id: 1, Email: email, PassHash: []byte("$2a$10$7LqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zO")}, nil // Incorrect hash
+		}
+		_, err := service.Login("test@example.com", "wrong_password")
+		require.Error(t, err)
+		assert.Equal(t, "Wrong password", err.Error())
+	})
 
-	// Test storage.User error
-	mockError = errors.New("Mock UserFunc")
-	storage.UserFunc = func(email string) (*domain.User, error) { return nil, mockError }
-	_, err = service.Login("invalid_email", "password")
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Expected %v, got: %v", mockError, err)
-	}
+	t.Run("storage.User error", func(t *testing.T) {
+		mockError := errors.New("Mock UserFunc")
+		storage.UserFunc = func(email string) (*domain.User, error) { return nil, mockError }
+		_, err := service.Login("invalid_email", "password")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
 
-	// Test email validation error
-	mockError = errors.New("Mock IsCorrectFunc")
-	email.IsCorrectFunc = func(e string) error { return mockError }
+	t.Run("email validation error", func(t *testing.T) {
+		mockError := errors.New("Mock IsCorrectFunc")
+		email.IsCorrectFunc = func(e string) error { return mockError }
 
-	_, err = service.Login("invalid_email", "password")
-	if err == nil || !errors.Is(err, mockError) {
-		t.Errorf("Expected %v, got: %v", mockError, err)
-	}
-
+		_, err := service.Login("invalid_email", "password")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
 }

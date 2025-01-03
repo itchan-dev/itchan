@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockBoardStorage mocks the BoardStorage interface.
@@ -95,13 +97,9 @@ func TestBoardCreate(t *testing.T) {
 			err := s.Create(tc.nameInput, tc.shortInput)
 
 			if tc.expectError {
-				if err == nil {
-					t.Errorf("Expected error, but got nil")
-				}
+				require.Error(t, err)
 			} else {
-				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
-				}
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -130,45 +128,25 @@ func TestBoardGet(t *testing.T) {
 
 	t.Run("ValidShortName", func(t *testing.T) {
 		board, err := s.Get("test", 1)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		if board == nil || board.ShortName != "test" {
-			t.Fatalf("Expected board 'test', but got: %v", board)
-
-		}
+		require.NoError(t, err)
+		assert.Equal(t, "test", board.ShortName)
 	})
 
 	t.Run("InvalidShortName", func(t *testing.T) {
 		_, err := s.Get("invalid_short_name", 1)
-		if err == nil {
-			t.Errorf("Expected error for invalid short name, but got nil")
-
-		}
+		require.Error(t, err)
 	})
 
 	t.Run("BoardNotFound", func(t *testing.T) {
-
 		_, err := s.Get("invalid", 1)
-		if err == nil {
-			t.Fatalf("Expected 'board not found' error, but got nil")
-
-		}
+		require.Error(t, err)
 	})
 
 	t.Run("PageLessThanOne", func(t *testing.T) {
 		board, err := s.Get("test", 0) // Simulate page less than 1
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err) // Check for unexpected errors
-
-		}
-		if board == nil || board.ShortName != "test" {
-			t.Fatalf("Expected board 'test', but got: %v", board) // Check correct board
-
-		}
-
+		require.NoError(t, err)
+		assert.Equal(t, "test", board.ShortName)
 	})
-
 }
 
 func TestBoardDelete(t *testing.T) {
@@ -201,9 +179,7 @@ func TestBoardDelete(t *testing.T) {
 			s := NewBoard(mockStorage, mockValidator)
 
 			err := s.Delete(tc.shortName)
-			if (err != nil) != tc.expectError {
-				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
-			}
+			assert.Equal(t, tc.expectError, err != nil)
 		})
 	}
 }
