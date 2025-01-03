@@ -28,7 +28,7 @@ func (m *MockThreadStorage) GetThread(id int64) (*domain.Thread, error) {
 	if m.GetThreadFunc != nil {
 		return m.GetThreadFunc(id)
 	}
-	return &domain.Thread{Messages: []*domain.Message{&domain.Message{Id: id}}}, nil
+	return &domain.Thread{Messages: []*domain.Message{{Id: id}}}, nil
 }
 
 func (m *MockThreadStorage) DeleteThread(board string, id int64) error {
