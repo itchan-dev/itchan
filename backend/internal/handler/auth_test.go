@@ -13,15 +13,23 @@ import (
 )
 
 type MockAuthService struct {
-	MockSignup func(email, password string) (int64, error)
-	MockLogin  func(email, password string) (string, error)
+	MockRegister              func(email, password string) (int64, error)
+	MockCheckConfirmationCode func(email, confirmationCode string) error
+	MockLogin                 func(email, password string) (string, error)
 }
 
-func (m *MockAuthService) Signup(email, password string) (int64, error) {
-	if m.MockSignup != nil {
-		return m.MockSignup(email, password)
+func (m *MockAuthService) Register(email, password string) (int64, error) {
+	if m.MockRegister != nil {
+		return m.MockRegister(email, password)
 	}
 	return 0, nil // Default behavior
+}
+
+func (m *MockAuthService) CheckConfirmationCode(email, confirmationCode string) error {
+	if m.MockCheckConfirmationCode != nil {
+		return m.MockCheckConfirmationCode(email, confirmationCode)
+	}
+	return nil // Default behavior
 }
 
 func (m *MockAuthService) Login(email, password string) (string, error) {

@@ -14,7 +14,7 @@ func New(deps *setup.Dependencies) *mux.Router {
 	h := deps.Handler
 	jwt := deps.Jwt
 
-	r.HandleFunc("/v1/auth/signup", h.Signup).Methods("POST")
+	r.HandleFunc("/v1/auth/register", h.Register).Methods("POST")
 	r.HandleFunc("/v1/auth/login", h.Login).Methods("POST")
 	r.HandleFunc("/v1/auth/logout", middleware.NeedAuth(jwt)(h.Logout)).Methods("POST")
 

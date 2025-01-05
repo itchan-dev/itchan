@@ -6,29 +6,30 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	// Assuming this is your internal errors package
-	// Assuming this is your domain package
 	"github.com/itchan-dev/itchan/backend/internal/errors"
+	"github.com/itchan-dev/itchan/shared/domain"
 	_ "github.com/lib/pq"
 )
 
 func TestSaveUser(t *testing.T) {
-	id, err := storage.SaveUser("test@example.com", []byte("password"))
+	user := domain.User{Email: "saveuser@example.com", PassHash: "password"}
+	id, err := storage.SaveUser(&user)
 	require.NoError(t, err, "SaveUser should not return an error")
 	assert.Greater(t, id, int64(0), "Expected ID > 0")
 
-	_, err = storage.SaveUser("test@example.com", []byte("password"))
+	_, err = storage.SaveUser(&user)
 	assert.Error(t, err, "Saving user twice should return an error")
 }
 
-func TestUser(t *testing.T) {
-	_, err := storage.SaveUser("testuser@example.com", []byte("password"))
+func TestGetUser(t *testing.T) {
+	user := domain.User{Email: "getuser@example.com", PassHash: "password"}
+	_, err := storage.SaveUser(&user)
 	require.NoError(t, err, "SaveUser should not return an error")
 
-	user, err := storage.User("testuser@example.com")
+	userFromDb, err := storage.User(user.Email)
 	require.NoError(t, err, "User retrieval should not return an error")
-	assert.Equal(t, "testuser@example.com", user.Email, "Unexpected user email")
-	assert.Equal(t, "password", string(user.PassHash), "Unexpected user password hash")
+	assert.Equal(t, user.Email, userFromDb.Email, "Unexpected user email")
+	assert.Equal(t, user.PassHash, userFromDb.PassHash, "Unexpected user password hash")
 
 	_, err = storage.User("nonexistent@example.com")
 	require.Error(t, err, "Expected error for nonexistent user")
@@ -38,14 +39,14 @@ func TestUser(t *testing.T) {
 }
 
 func TestDeleteUser(t *testing.T) {
-	username := "deleteuser@example.com"
-	_, err := storage.SaveUser(username, []byte("password"))
+	user := domain.User{Email: "deleteuser@example.com", PassHash: "password"}
+	_, err := storage.SaveUser(&user)
 	require.NoError(t, err, "SaveUser should not return an error")
 
-	err = storage.DeleteUser(username)
+	err = storage.DeleteUser(user.Email)
 	require.NoError(t, err, "DeleteUser should not return an error")
 
-	_, err = storage.User(username)
+	_, err = storage.User(user.Email)
 	require.Error(t, err, "Expected error for deleted user")
 	e, ok := err.(*errors.ErrorWithStatusCode)
 	require.True(t, ok, "Expected ErrorWithStatusCode")

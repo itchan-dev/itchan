@@ -19,12 +19,12 @@ type Dependencies struct {
 
 // SetupDependencies initializes all dependencies required for the application.
 func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
-	storage, err := pg.New(cfg.Public)
+	storage, err := pg.New(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	email := email.New()
+	email := email.New(&cfg.Private.Email)
 	jwt := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
 
 	auth := service.NewAuth(storage, email, jwt)

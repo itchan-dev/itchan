@@ -203,7 +203,7 @@ func TestBoardWorkflow(t *testing.T) {
 
 	// check bump limit
 	// spam thread to bump limit
-	for i := 0; i < storage.cfg.BumpLimit+10; i++ {
+	for i := 0; i < storage.cfg.Public.BumpLimit+10; i++ {
 		_, err = storage.CreateMessage(boardShortName, &domain.User{Id: 1}, "test", nil, thread2)
 		require.NoError(t, err, "CreateMessage should not return an error")
 	}
@@ -254,7 +254,7 @@ func TestBoardInvariants(t *testing.T) {
 
 	threads := []int64{thread1, thread2, thread3, thread4}
 	// Fill threads with messages
-	n_messages := (storage.cfg.BumpLimit * len(threads)) + 10 // atleast 1 thread will go into bump limit
+	n_messages := (storage.cfg.Public.BumpLimit * len(threads)) + 10 // atleast 1 thread will go into bump limit
 	for i := 0; i < n_messages; i++ {
 		th := threads[rand.Intn(len(threads))]
 		m := messages[rand.Intn(len(messages))]
@@ -265,7 +265,7 @@ func TestBoardInvariants(t *testing.T) {
 		require.NoError(t, err, "GetBoard should not return an error")
 
 		// Check for threads per page
-		require.LessOrEqual(t, len(board.Threads), storage.cfg.ThreadsPerPage, "Num Threads should not exceed %d", storage.cfg.ThreadsPerPage)
+		require.LessOrEqual(t, len(board.Threads), storage.cfg.Public.ThreadsPerPage, "Num Threads should not exceed %d", storage.cfg.Public.ThreadsPerPage)
 
 		// Check lastBumped correct order (desc)
 		lastBumped := time.Now().Add(time.Hour)
@@ -274,7 +274,7 @@ func TestBoardInvariants(t *testing.T) {
 			lastBumped = thread.LastBumped
 
 			// Check NLastMsg (op msg doesnt count)
-			require.LessOrEqual(t, len(thread.Messages), (storage.cfg.NLastMsg + 1), "Wrong msg count. Messages: %v", thread.Messages)
+			require.LessOrEqual(t, len(thread.Messages), (storage.cfg.Public.NLastMsg + 1), "Wrong msg count. Messages: %v", thread.Messages)
 
 			// Check message correct order (asc)
 			msgCreated := thread.Messages[0].CreatedAt.Add(-time.Hour)

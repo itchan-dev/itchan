@@ -11,7 +11,7 @@ import (
 )
 
 // Saves user to db
-func (s *Storage) SaveUser(email string, passHash []byte) (int64, error) {
+func (s *Storage) SaveUser(user *domain.User) (int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return 0, err
@@ -19,7 +19,8 @@ func (s *Storage) SaveUser(email string, passHash []byte) (int64, error) {
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
 	var id int64
-	err = tx.QueryRow("INSERT INTO users(email, pass_hash) VALUES($1, $2) RETURNING id", email, string(passHash)).Scan(&id)
+	err = tx.QueryRow("INSERT INTO users(email, pass_hash, is_admin, confirmation_code_hash, confirmation_expires, is_confirmed) VALUES($1, $2, $3, $4, $5, $6) RETURNING id",
+		user.Email, user.PassHash, user.Admin, user.ConfirmationCodeHash, user.ConfirmationExpires, user.IsConfirmed).Scan(&id)
 	if err != nil {
 		return 0, err
 	}

@@ -1,10 +1,4 @@
-pg:
-  host: "postgres"
-  port: 5432
-  user: "itchan"
-  password: "itchan"
-  dbname: "itchan"
-  initpath: "./internal/storage/pg/init.pgsql"
-  threads_per_page: 20
-  n_last_msg: 5
+threads_per_page: 50
+n_last_msg: 3
+bump_limit: 450
 jwt_ttl: 2629800000000000

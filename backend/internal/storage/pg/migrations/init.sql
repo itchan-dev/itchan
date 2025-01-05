@@ -1,9 +1,12 @@
 CREATE TABLE IF NOT EXISTS users(
-    id          serial PRIMARY KEY, 
-    email       varchar(254) NOT NULL UNIQUE,
-    pass_hash   varchar(80) NOT NULL,
-    is_admin    boolean default false,
-    created     timestamp default (now() at time zone 'utc')
+    id                     serial PRIMARY KEY, 
+    email                  varchar(254) NOT NULL UNIQUE,
+    pass_hash              varchar(80) NOT NULL,
+    is_admin               boolean default false,
+    confirmation_code_hash varchar(6) default '',
+    confirmation_expires   timestamp default (now() at time zone 'utc'),
+    is_confirmed           boolean default false,
+    created                timestamp default (now() at time zone 'utc')
 );
 
 CREATE TABLE IF NOT EXISTS messages(
@@ -28,6 +31,6 @@ CREATE TABLE IF NOT EXISTS threads(
     id            int PRIMARY KEY REFERENCES messages ON DELETE CASCADE,
     title         text NOT NULL,
     board         varchar(10) REFERENCES boards ON DELETE CASCADE,
-	reply_count     int NOT NULL default 0,
+	reply_count   int NOT NULL default 0,
 	last_bump_ts  timestamp NOT NULL 
 );
