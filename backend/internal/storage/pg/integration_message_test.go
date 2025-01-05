@@ -121,7 +121,7 @@ func TestBumpLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Send messages up to the bump limit
-	for i := 0; i <= storage.cfg.BumpLimit; i++ {
+	for i := 0; i <= storage.cfg.Public.BumpLimit; i++ {
 		_, err = storage.CreateMessage(boardShortName, &domain.User{Id: 2}, "Test message", nil, threadID)
 		require.NoError(t, err)
 	}

@@ -5,6 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/itchan-dev/itchan/backend/internal/errors"
 )
 
@@ -70,4 +71,9 @@ func WriteErrorAndStatusCode(w http.ResponseWriter, err error) {
 	}
 	// default error is 500
 	http.Error(w, "Internal server error", http.StatusInternalServerError)
+}
+
+func GenerateConfirmationCode(len int) string {
+	code := uuid.NewString()
+	return code[:len]
 }

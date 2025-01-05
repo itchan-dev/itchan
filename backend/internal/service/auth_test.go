@@ -5,6 +5,7 @@ package service
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
@@ -13,14 +14,14 @@ import (
 )
 
 type MockAuthStorage struct {
-	SaveUserFunc   func(email string, passHash []byte) (int64, error)
+	SaveUserFunc   func(user *domain.User) (int64, error)
 	UserFunc       func(email string) (*domain.User, error)
 	DeleteUserFunc func(email string) error
 }
 
-func (m *MockAuthStorage) SaveUser(email string, passHash []byte) (int64, error) {
+func (m *MockAuthStorage) SaveUser(user *domain.User) (int64, error) {
 	if m.SaveUserFunc != nil {
-		return m.SaveUserFunc(email, passHash)
+		return m.SaveUserFunc(user)
 	}
 	return 1, nil
 }
@@ -30,7 +31,7 @@ func (m *MockAuthStorage) User(email string) (*domain.User, error) {
 		return m.UserFunc(email)
 	}
 	passHash, _ := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
-	return &domain.User{Id: 1, Email: email, PassHash: passHash}, nil
+	return &domain.User{Id: 1, Email: email, PassHash: string(passHash)}, nil
 }
 
 func (m *MockAuthStorage) DeleteUser(email string) error {
@@ -42,13 +43,13 @@ func (m *MockAuthStorage) DeleteUser(email string) error {
 
 // later swap to real email implementation
 type MockEmail struct {
-	ConfirmFunc   func(email string) error
+	SendFunc      func(recipientEmail, subject, body string) error
 	IsCorrectFunc func(email string) error
 }
 
-func (m *MockEmail) Confirm(email string) error {
-	if m.ConfirmFunc != nil {
-		return m.ConfirmFunc(email)
+func (m *MockEmail) Send(recipientEmail, subject, body string) error {
+	if m.SendFunc != nil {
+		return m.SendFunc(recipientEmail, subject, body)
 	}
 	return nil
 }
@@ -71,49 +72,112 @@ func (m *MockJwt) NewToken(user *domain.User) (string, error) {
 	return "test_token", nil
 }
 
-// TestSignup tests the Signup method of the Auth service.
-func TestSignup(t *testing.T) {
+func TestRegister(t *testing.T) {
 	storage := &MockAuthStorage{}
 	email := &MockEmail{}
-	jwt := &MockJwt{} // Not used in Signup, but needed for the constructor
+	jwt := &MockJwt{}
 	service := NewAuth(storage, email, jwt)
 
-	t.Run("Successful signup", func(t *testing.T) {
+	t.Run("Successful registration", func(t *testing.T) {
 		email.IsCorrectFunc = func(e string) error { return nil }
-		uid, err := service.Signup("test@example.com", "password")
+		email.SendFunc = func(recipientEmail, subject, body string) error { return nil }
+		storage.SaveUserFunc = func(user *domain.User) (int64, error) { return 1, nil }
+
+		uid, err := service.Register("test@example.com", "password")
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), uid)
 	})
 
-	t.Run("GenerateFromPassword fail due to long password", func(t *testing.T) {
-		_, err := service.Signup("test@example.com", "passwordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpasswordpassword")
-		require.Error(t, err)
-	})
-
-	t.Run("storage SaveUser error", func(t *testing.T) {
-		mockError := errors.New("Mock SaveUserFunc")
-		storage.SaveUserFunc = func(email string, passHash []byte) (int64, error) { return 0, mockError }
-		uid, err := service.Signup("test@example.com", "password")
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, mockError))
-		assert.Equal(t, int64(0), uid)
-	})
-
-	t.Run("invalid email", func(t *testing.T) {
+	t.Run("email.IsCorrect error", func(t *testing.T) {
 		mockError := errors.New("Mock IsCorrectFunc")
 		email.IsCorrectFunc = func(e string) error { return mockError }
-		_, err := service.Signup("invalid_email", "password")
+
+		_, err := service.Register("invalid_email", "password")
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, mockError))
 	})
 
-	t.Run("email confirm error", func(t *testing.T) {
-		mockError := errors.New("Mock ConfirmFunc")
+	t.Run("email.Send error", func(t *testing.T) {
 		email.IsCorrectFunc = func(e string) error { return nil }
-		email.ConfirmFunc = func(e string) error { return mockError }
-		_, err := service.Signup("test@example.com", "password")
+		mockError := errors.New("Mock SendFunc")
+		email.SendFunc = func(recipientEmail, subject, body string) error { return mockError }
+
+		_, err := service.Register("test@example.com", "password")
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, mockError))
+	})
+
+	t.Run("storage.SaveUser error", func(t *testing.T) {
+		email.IsCorrectFunc = func(e string) error { return nil }
+		email.SendFunc = func(recipientEmail, subject, body string) error { return nil }
+		mockError := errors.New("Mock SaveUserFunc")
+		storage.SaveUserFunc = func(user *domain.User) (int64, error) { return 0, mockError }
+
+		_, err := service.Register("test@example.com", "password")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
+}
+
+func TestCheckConfirmationCode(t *testing.T) {
+	storage := &MockAuthStorage{}
+	email := &MockEmail{}
+	jwt := &MockJwt{}
+	service := NewAuth(storage, email, jwt)
+
+	t.Run("Successful confirmation", func(t *testing.T) {
+		confirmationCode := "123456"
+		confirmationCodeHash, _ := bcrypt.GenerateFromPassword([]byte(confirmationCode), bcrypt.DefaultCost)
+		email.IsCorrectFunc = func(e string) error { return nil }
+		storage.UserFunc = func(email string) (*domain.User, error) {
+			return &domain.User{Id: 1, Email: email, ConfirmationCodeHash: string(confirmationCodeHash), ConfirmationExpires: time.Now().Add(5 * time.Minute)}, nil
+		}
+
+		err := service.CheckConfirmationCode("test@example.com", confirmationCode)
+		require.NoError(t, err)
+	})
+
+	t.Run("email.IsCorrect error", func(t *testing.T) {
+		mockError := errors.New("Mock IsCorrectFunc")
+		email.IsCorrectFunc = func(e string) error { return mockError }
+
+		err := service.CheckConfirmationCode("invalid_email", "123456")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
+
+	t.Run("storage.User error", func(t *testing.T) {
+		email.IsCorrectFunc = func(e string) error { return nil }
+		mockError := errors.New("Mock UserFunc")
+		storage.UserFunc = func(email string) (*domain.User, error) { return nil, mockError }
+
+		err := service.CheckConfirmationCode("test@example.com", "123456")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
+
+	t.Run("Confirmation time expired", func(t *testing.T) {
+		email.IsCorrectFunc = func(e string) error { return nil }
+		storage.UserFunc = func(email string) (*domain.User, error) {
+			return &domain.User{Id: 1, Email: email, ConfirmationCodeHash: "hash", ConfirmationExpires: time.Now().Add(-5 * time.Minute)}, nil
+		}
+
+		err := service.CheckConfirmationCode("test@example.com", "123456")
+		require.Error(t, err)
+		assert.Equal(t, "Confirmation time expired", err.Error())
+	})
+
+	t.Run("Wrong confirmation code", func(t *testing.T) {
+		confirmationCode := "123456"
+		confirmationCodeHash, _ := bcrypt.GenerateFromPassword([]byte(confirmationCode), bcrypt.DefaultCost)
+		email.IsCorrectFunc = func(e string) error { return nil }
+		storage.UserFunc = func(email string) (*domain.User, error) {
+			return &domain.User{Id: 1, Email: email, ConfirmationCodeHash: string(confirmationCodeHash), ConfirmationExpires: time.Now().Add(5 * time.Minute)}, nil
+		}
+
+		err := service.CheckConfirmationCode("test@example.com", "wrong_code")
+		require.Error(t, err)
+		assert.Equal(t, "Wrong confirmation code", err.Error())
 	})
 }
 
@@ -142,7 +206,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("Incorrect password", func(t *testing.T) {
 		storage.UserFunc = func(email string) (*domain.User, error) {
-			return &domain.User{Id: 1, Email: email, PassHash: []byte("$2a$10$7LqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zO")}, nil // Incorrect hash
+			return &domain.User{Id: 1, Email: email, PassHash: "$2a$10$7LqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zLqN.zO"}, nil // Incorrect hash
 		}
 		_, err := service.Login("test@example.com", "wrong_password")
 		require.Error(t, err)

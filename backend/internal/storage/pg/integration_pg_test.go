@@ -62,7 +62,7 @@ func mustSetup(ctx context.Context) (*Storage, *postgres.PostgresContainer) {
 		log.Fatalf("failed to obtain container host: %s", err)
 	}
 
-	storage, err := New(config.Public{Pg: config.Pg{Host: host, Port: port, User: dbUser, Password: dbPassword, Dbname: dbName}, ThreadsPerPage: 3, NLastMsg: 3, BumpLimit: 15})
+	storage, err := New(&config.Config{Public: config.Public{ThreadsPerPage: 3, NLastMsg: 3, BumpLimit: 15}, Private: config.Private{Pg: config.Pg{Host: host, Port: port, User: dbUser, Password: dbPassword, Dbname: dbName}}})
 	if err != nil {
 		log.Fatalf("failed to connect to postgres container: %s", err)
 	}

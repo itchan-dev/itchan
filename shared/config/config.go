@@ -10,11 +10,10 @@ import (
 
 type Config struct {
 	Public  Public
-	private Private
+	Private Private
 }
 
 type Public struct {
-	Pg             Pg            `yaml:"pg"`
 	JwtTTL         time.Duration `yaml:"jwt_ttl"`
 	ThreadsPerPage int           `yaml:"threads_per_page"`
 	NLastMsg       int           `yaml:"n_last_msg"` // number of last messages shown in board preview (materialized view)
@@ -29,14 +28,27 @@ type Pg struct {
 	Dbname   string `yaml:"dbname"`
 }
 
+type Email struct {
+	SMTPServer         string        `yaml:"smtp_server"`
+	SMTPPort           int           `yaml:"smtp_port"`
+	Username           string        `yaml:"username"`
+	Password           string        `yaml:"password"`
+	SenderName         string        `yaml:"sender_name"`
+	Timeout            time.Duration `yaml:"timeout"`
+	UseTLS             bool          `yaml:"use_tls"`
+	InsecureSkipVerify bool          `yaml:"skip_verify"`
+}
+
 type Private struct {
+	Pg     Pg
+	Email  Email
 	JwtKey string `yaml:"jwt_key"`
 }
 
 // implementing logic.Config interface
 
 func (s *Config) JwtKey() string {
-	return s.private.JwtKey
+	return s.Private.JwtKey
 }
 
 func (s *Config) JwtTTL() time.Duration {

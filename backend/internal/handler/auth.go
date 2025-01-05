@@ -11,21 +11,39 @@ type credentials struct {
 	Password string `validate:"required" json:"password"`
 }
 
-func (h *Handler) Signup(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var creds credentials
 	if err := loadAndValidateRequestBody(r, &creds); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	_, err := h.auth.Signup(creds.Email, creds.Password)
+	_, err := h.auth.Register(creds.Email, creds.Password)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("Created. You can login now"))
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("The confirmation code has been sent by email"))
+}
+
+func (h *Handler) CheckConfirmationCode(w http.ResponseWriter, r *http.Request) {
+	var reqBody struct {
+		Email            string `validate:"required" json:"email"`
+		ConfirmationCode string `validate:"required" json:"confirmation_code"`
+	}
+	if err := loadAndValidateRequestBody(r, &reqBody); err != nil {
+		utils.WriteErrorAndStatusCode(w, err)
+		return
+	}
+
+	if err := h.auth.CheckConfirmationCode(reqBody.Email, reqBody.ConfirmationCode); err != nil {
+		utils.WriteErrorAndStatusCode(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {

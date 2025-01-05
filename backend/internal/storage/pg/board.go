@@ -70,7 +70,7 @@ func (s *Storage) CreateBoard(name, shortName string) error {
 		,dense_rank() over(order by last_bump_ts desc, thread_id) as thread_order  -- for pagination
 	FROM data
 	ORDER BY thread_order, created 
-	`, getViewName(shortName), shortName, shortName, s.cfg.NLastMsg)
+	`, getViewName(shortName), shortName, shortName, s.cfg.Public.NLastMsg)
 	_, err = tx.Exec(query)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 		*
 	FROM %s
 	WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
-	`, getViewName(shortName)), s.cfg.ThreadsPerPage, page)
+	`, getViewName(shortName)), s.cfg.Public.ThreadsPerPage, page)
 	if err != nil {
 		return nil, err
 	}

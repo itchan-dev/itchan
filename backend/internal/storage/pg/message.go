@@ -27,7 +27,7 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 	SET reply_count = reply_count + 1, last_bump_ts = CASE WHEN reply_count > $1 THEN last_bump_ts ELSE $2 END -- if reply_count over bump limit then dont update last_bump_ts
 	WHERE id = $3
 	RETURNING reply_count
-	`, s.cfg.BumpLimit, createdTs, thread_id).Scan(&n)
+	`, s.cfg.Public.BumpLimit, createdTs, thread_id).Scan(&n)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return -1, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
