@@ -13,16 +13,16 @@ import (
 )
 
 type MockAuthService struct {
-	MockRegister              func(email, password string) (int64, error)
+	MockRegister              func(email, password string) error
 	MockCheckConfirmationCode func(email, confirmationCode string) error
 	MockLogin                 func(email, password string) (string, error)
 }
 
-func (m *MockAuthService) Register(email, password string) (int64, error) {
+func (m *MockAuthService) Register(email, password string) error {
 	if m.MockRegister != nil {
 		return m.MockRegister(email, password)
 	}
-	return 0, nil // Default behavior
+	return nil // Default behavior
 }
 
 func (m *MockAuthService) CheckConfirmationCode(email, confirmationCode string) error {

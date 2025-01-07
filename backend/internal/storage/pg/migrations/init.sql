@@ -3,9 +3,14 @@ CREATE TABLE IF NOT EXISTS users(
     email                  varchar(254) NOT NULL UNIQUE,
     pass_hash              varchar(80) NOT NULL,
     is_admin               boolean default false,
+    created                timestamp default (now() at time zone 'utc')
+);
+
+CREATE TABLE IF NOT EXISTS confirmation_data(
+    email                  varchar(254) PRIMARY KEY,
+    new_pass_hash          varchar(80) NOT NULL,
     confirmation_code_hash varchar(6) default '',
     confirmation_expires   timestamp default (now() at time zone 'utc'),
-    is_confirmed           boolean default false,
     created                timestamp default (now() at time zone 'utc')
 );
 

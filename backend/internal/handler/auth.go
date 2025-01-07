@@ -18,8 +18,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := h.auth.Register(creds.Email, creds.Password)
-	if err != nil {
+	if err := h.auth.Register(creds.Email, creds.Password); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

@@ -21,7 +21,7 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
 	var n int64
-	createdTs := time.Now().UTC()
+	createdTs := time.Now().UTC().Round(time.Microsecond) // database anyway round to microsecond
 	err = tx.QueryRow(`
 	UPDATE threads
 	SET reply_count = reply_count + 1, last_bump_ts = CASE WHEN reply_count > $1 THEN last_bump_ts ELSE $2 END -- if reply_count over bump limit then dont update last_bump_ts

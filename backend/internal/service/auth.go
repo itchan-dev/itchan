@@ -13,7 +13,7 @@ import (
 )
 
 type AuthService interface {
-	Register(email, password string) (int64, error)
+	Register(email, password string) error
 	CheckConfirmationCode(email, confirmationCode string) error
 	Login(email, password string) (string, error)
 }
@@ -27,7 +27,11 @@ type Auth struct {
 type AuthStorage interface {
 	SaveUser(user *domain.User) (int64, error)
 	User(email string) (*domain.User, error)
+	UpdatePassword(email, passHash string) error
 	DeleteUser(email string) error
+	SaveConfirmationData(newPassword *domain.ConfirmationData) error
+	ConfirmationData(email string) (*domain.ConfirmationData, error)
+	DeleteConfirmationData(email string) error
 }
 
 type Email interface {
@@ -44,13 +48,13 @@ func NewAuth(storage AuthStorage, email Email, jwt Jwt) *Auth {
 }
 
 // Generate and send confirmation code to destinated email
-// Saving email, passHash, confirmation code to database
-func (a *Auth) Register(email, password string) (int64, error) {
+// Save email, passHash, confirmation code to database
+func (a *Auth) Register(email, password string) error {
 	var err error
 
 	err = a.email.IsCorrect(email)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	confirmationCode := utils.GenerateConfirmationCode(6)
@@ -66,45 +70,46 @@ func (a *Auth) Register(email, password string) (int64, error) {
 
 	err = a.email.Send(email, "Please confirm your email address", emailBody)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Print(err.Error())
-		return 0, err
+		return err
 	}
 	confirmationCodeHash, err := bcrypt.GenerateFromPassword([]byte(confirmationCode), bcrypt.DefaultCost)
 	if err != nil {
 		log.Print(err.Error())
-		return 0, err
+		return err
 	}
 
-	uid, err := a.storage.SaveUser(&domain.User{Email: email, PassHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), ConfirmationExpires: time.Now().Add(5 * time.Minute)})
+	err = a.storage.SaveConfirmationData(&domain.ConfirmationData{Email: email, NewPassHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(5 * time.Minute)})
 	if err != nil {
-		return 0, err
+		return err
 	}
-
-	return uid, nil
+	return nil
 }
 
+// Confirm code sended via Register func and update user password
 func (a *Auth) CheckConfirmationCode(email, confirmationCode string) error {
-	err := a.email.IsCorrect(email)
-	if err != nil {
+	if err := a.email.IsCorrect(email); err != nil {
 		return err
 	}
 
-	user, err := a.storage.User(email)
+	data, err := a.storage.ConfirmationData(email)
 	if err != nil {
 		return err
 	}
-	if user.ConfirmationExpires.Before(time.Now()) {
+	if data.Expires.Before(time.Now()) {
 		return &errors.ErrorWithStatusCode{Message: "Confirmation time expired", StatusCode: http.StatusBadRequest}
 	}
-	err = bcrypt.CompareHashAndPassword([]byte(user.ConfirmationCodeHash), []byte(confirmationCode))
-	if err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(data.ConfirmationCodeHash), []byte(confirmationCode)); err != nil {
 		log.Print(err.Error())
 		return &errors.ErrorWithStatusCode{Message: "Wrong confirmation code", StatusCode: http.StatusBadRequest}
+	}
+	if err := a.storage.UpdatePassword(email, data.NewPassHash); err != nil {
+		return err
 	}
 	return nil
 }
