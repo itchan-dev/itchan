@@ -2,6 +2,7 @@ package pg
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +39,25 @@ func TestGetUser(t *testing.T) {
 	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
 }
 
+func TestUpdatePassword(t *testing.T) {
+	user := domain.User{Email: "updatepassword@example.com", PassHash: "password"}
+	_, err := storage.SaveUser(&user)
+	require.NoError(t, err, "SaveUser should not return an error")
+
+	err = storage.UpdatePassword(user.Email, "new_password")
+	require.NoError(t, err, "UpdatePassword should not return an error")
+
+	updatedUser, err := storage.User(user.Email)
+	require.NoError(t, err, "SaveUser should not return an error")
+	require.Equal(t, updatedUser.PassHash, "new_password")
+
+	err = storage.UpdatePassword("nonexisting@example.com", "new_password")
+	require.Error(t, err, "UpdatePassword should return an error for nonexistent user")
+	e, ok := err.(*errors.ErrorWithStatusCode)
+	require.True(t, ok, "Expected ErrorWithStatusCode")
+	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+}
+
 func TestDeleteUser(t *testing.T) {
 	user := domain.User{Email: "deleteuser@example.com", PassHash: "password"}
 	_, err := storage.SaveUser(&user)
@@ -54,6 +74,58 @@ func TestDeleteUser(t *testing.T) {
 
 	err = storage.DeleteUser("nonexistent@example.com")
 	require.Error(t, err, "DeleteUser should return an error for nonexistent user")
+	e, ok = err.(*errors.ErrorWithStatusCode)
+	require.True(t, ok, "Expected ErrorWithStatusCode")
+	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+}
+
+func TestSaveConfirmationData(t *testing.T) {
+	now := time.Now().UTC().Round(time.Second)
+	data := domain.ConfirmationData{Email: "saveuser@example.com", NewPassHash: "password", ConfirmationCodeHash: "cofirm", Expires: now}
+	err := storage.SaveConfirmationData(&data)
+	require.NoError(t, err, "SaveConfirmationData should not return an error")
+
+	err = storage.SaveConfirmationData(&data)
+	assert.Error(t, err, "Saving user twice should return an error")
+
+	dataFromPg, err := storage.ConfirmationData(data.Email)
+	require.Equal(t, data, *dataFromPg)
+}
+
+func TestGetConfirmationData(t *testing.T) {
+	now := time.Now().UTC().Round(time.Second)
+	data := domain.ConfirmationData{Email: "getconfirmationdata@example.com", NewPassHash: "password", ConfirmationCodeHash: "cofirm", Expires: now}
+	err := storage.SaveConfirmationData(&data)
+	require.NoError(t, err, "SaveConfirmationData should not return an error")
+
+	dataFromPg, err := storage.ConfirmationData(data.Email)
+	require.NoError(t, err, "ConfirmationData should not return an error")
+	require.Equal(t, data, *dataFromPg)
+
+	_, err = storage.ConfirmationData("nonexistent@example.com")
+	require.Error(t, err, "Expected error for nonexistent user")
+	e, ok := err.(*errors.ErrorWithStatusCode)
+	require.True(t, ok, "Expected ErrorWithStatusCode")
+	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+}
+
+func TestConfirmationData(t *testing.T) {
+	now := time.Now().UTC().Round(time.Second)
+	data := domain.ConfirmationData{Email: "deleteconfirmationdata@example.com", NewPassHash: "password", ConfirmationCodeHash: "cofirm", Expires: now}
+	err := storage.SaveConfirmationData(&data)
+	require.NoError(t, err, "SaveConfirmationData should not return an error")
+
+	err = storage.DeleteConfirmationData(data.Email)
+	require.NoError(t, err, "DeleteConfirmationData should not return an error")
+
+	_, err = storage.ConfirmationData(data.Email)
+	require.Error(t, err, "Expected error for deleted ConfirmationData")
+	e, ok := err.(*errors.ErrorWithStatusCode)
+	require.True(t, ok, "Expected ErrorWithStatusCode")
+	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+
+	err = storage.DeleteConfirmationData("nonexistent@example.com")
+	require.Error(t, err, "DeleteConfirmationData should return an error for nonexistent user")
 	e, ok = err.(*errors.ErrorWithStatusCode)
 	require.True(t, ok, "Expected ErrorWithStatusCode")
 	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
