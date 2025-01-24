@@ -9,17 +9,21 @@ import (
 
 	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
-	_ "github.com/lib/pq"
 )
 
-func (s *Storage) CreateBoard(name, shortName string) error {
+var emptyAllowedEmailsError = errors.New("allowedEmails should be either nil or not empty")
+
+func (s *Storage) CreateBoard(name, shortName string, allowedEmails *domain.Emails) error {
+	if allowedEmails != nil && len(*allowedEmails) == 0 {
+		return emptyAllowedEmailsError
+	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
-	_, err = tx.Exec("INSERT INTO boards(name, short_name) VALUES($1, $2)", name, shortName)
+	_, err = tx.Exec("INSERT INTO boards(name, short_name, allowed_emails) VALUES($1, $2, $3)", name, shortName, allowedEmails)
 	if err != nil { // catch unique violation error and raise "user already exists"
 		return err
 	}
@@ -85,12 +89,13 @@ func (s *Storage) CreateBoard(name, shortName string) error {
 func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 	// At first, get board metadata
 	type metadata struct {
-		name      string
-		shortName string
-		createdAt time.Time
+		name          string
+		shortName     string
+		allowedEmails *domain.Emails
+		createdAt     time.Time
 	}
 	var m metadata
-	err := s.db.QueryRow("SELECT name, short_name, created FROM boards WHERE short_name = $1", shortName).Scan(&m.name, &m.shortName, &m.createdAt)
+	err := s.db.QueryRow("SELECT name, short_name, allowed_emails, created FROM boards WHERE short_name = $1", shortName).Scan(&m.name, &m.shortName, &m.allowedEmails, &m.createdAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
@@ -147,7 +152,7 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 	if rows.Err() != nil {
 		return nil, err
 	}
-	board := domain.Board{Name: m.name, ShortName: m.shortName, Threads: threads, CreatedAt: m.createdAt}
+	board := domain.Board{Name: m.name, ShortName: m.shortName, Threads: threads, AllowedEmails: m.allowedEmails, CreatedAt: m.createdAt}
 	return &board, nil
 }
 
@@ -180,4 +185,29 @@ func (s *Storage) DeleteBoard(shortName string) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
+}
+
+func (s *Storage) GetBoardsAllowedEmails() ([]domain.Board, error) {
+	var boards []domain.Board
+	rows, err := s.db.Query(`
+	SELECT
+		name,
+		short_name,
+		allowed_emails
+	FROM boards
+	WHERE allowed_emails IS NOT NULL
+	ORDER BY created
+	`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		board := domain.Board{}
+		err = rows.Scan(&board.Name, &board.ShortName, &board.AllowedEmails)
+		if err != nil {
+			return nil, err
+		}
+		boards = append(boards, board)
+	}
+	return boards, nil
 }

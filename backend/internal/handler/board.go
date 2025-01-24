@@ -7,22 +7,24 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/backend/internal/utils"
+	"github.com/itchan-dev/itchan/shared/domain"
 )
 
 const default_page int = 1
 
 func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	type bodyJson struct {
-		Name      string `validate:"required" json:"name"`
-		ShortName string `validate:"required" json:"short_name"`
+		Name          string         `validate:"required" json:"name"`
+		ShortName     string         `validate:"required" json:"short_name"`
+		AllowedEmails *domain.Emails `json:"allowed_emails"`
 	}
 	var body bodyJson
-	if err := loadAndValidateRequestBody(r, &body); err != nil {
+	if err := LoadAndValidateRequestBody(r, &body); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	err := h.board.Create(body.Name, body.ShortName)
+	err := h.board.Create(body.Name, body.ShortName, body.AllowedEmails)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

@@ -11,14 +11,14 @@ import (
 
 // MockBoardStorage mocks the BoardStorage interface.
 type MockBoardStorage struct {
-	createBoardFunc func(name, shortName string) error
+	createBoardFunc func(name, shortName string, allowedEmails *domain.Emails) error
 	getBoardFunc    func(shortName string, page int) (*domain.Board, error)
 	deleteBoardFunc func(shortName string) error
 }
 
-func (m *MockBoardStorage) CreateBoard(name, shortName string) error {
+func (m *MockBoardStorage) CreateBoard(name, shortName string, allowedEmails *domain.Emails) error {
 	if m.createBoardFunc != nil {
-		return m.createBoardFunc(name, shortName)
+		return m.createBoardFunc(name, shortName, allowedEmails)
 	}
 	return nil
 }
@@ -74,7 +74,7 @@ func TestBoardCreate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockStorage := &MockBoardStorage{
-				createBoardFunc: func(name, shortName string) error {
+				createBoardFunc: func(name, shortName string, allowedEmails *domain.Emails) error {
 					return tc.mockError
 				},
 			}
@@ -94,7 +94,7 @@ func TestBoardCreate(t *testing.T) {
 			}
 
 			s := NewBoard(mockStorage, mockValidator)
-			err := s.Create(tc.nameInput, tc.shortInput)
+			err := s.Create(tc.nameInput, tc.shortInput, nil)
 
 			if tc.expectError {
 				require.Error(t, err)

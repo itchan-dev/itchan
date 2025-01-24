@@ -129,7 +129,7 @@ func TestLoadAndValidateRequestBody(t *testing.T) {
 			body := []byte(tt.requestBody)
 			req := httptest.NewRequest("POST", "/", bytes.NewReader(body))
 
-			err := loadAndValidateRequestBody(req, tt.target)
+			err := LoadAndValidateRequestBody(req, tt.target)
 
 			if tt.expectedErr == nil {
 				assert.NoError(t, err, "Expected no error")

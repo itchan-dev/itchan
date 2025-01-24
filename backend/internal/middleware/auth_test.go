@@ -85,18 +85,20 @@ func TestAuth(t *testing.T) {
 	}
 }
 
-// TestGetUserFromContext tests the GetUserFromContext function.
 func TestGetUserFromContext(t *testing.T) {
-	user := &domain.User{Id: 1, Email: "test@example.com", Admin: true}
-	req := httptest.NewRequest("GET", "http://example.com", nil)
-	ctx := context.WithValue(req.Context(), userClaimsKey, user)
-	req = req.WithContext(ctx)
+	// Test context without user
+	t.Run("no user in context", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/", nil)
+		assert.Nil(t, GetUserFromContext(req))
+	})
 
-	retrievedUser := GetUserFromContext(req)
-	assert.Equal(t, user, retrievedUser)
+	// Test context with user
+	t.Run("user in context", func(t *testing.T) {
+		user := &domain.User{Id: 1, Email: "test@example.com", Admin: true}
+		req := httptest.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), userClaimsKey, user)
+		req = req.WithContext(ctx)
 
-	req = httptest.NewRequest("GET", "http://example.com", nil)
-	retrievedUser = GetUserFromContext(req)
-
-	assert.Nil(t, retrievedUser, "Expected user to be nil")
+		assert.Equal(t, user, GetUserFromContext(req))
+	})
 }

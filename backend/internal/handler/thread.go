@@ -18,7 +18,7 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		Attachments *domain.Attachments `json:"attachments"`
 	}
 	var body bodyJson
-	if err := loadAndValidateRequestBody(r, &body); err != nil {
+	if err := LoadAndValidateRequestBody(r, &body); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

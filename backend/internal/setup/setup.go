@@ -1,7 +1,10 @@
 package setup
 
 import (
+	"time"
+
 	"github.com/itchan-dev/itchan/backend/internal/handler"
+	"github.com/itchan-dev/itchan/backend/internal/middleware/board_access"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/backend/internal/storage/pg"
 	"github.com/itchan-dev/itchan/backend/internal/utils"
@@ -12,9 +15,10 @@ import (
 
 // Dependencies struct to hold all initialized dependencies.
 type Dependencies struct {
-	Storage *pg.Storage
-	Handler *handler.Handler
-	Jwt     jwt.JwtService
+	Storage    *pg.Storage
+	Handler    *handler.Handler
+	accessData *board_access.BoardAccess
+	Jwt        jwt.JwtService
 }
 
 // SetupDependencies initializes all dependencies required for the application.
@@ -23,6 +27,9 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	accessData := board_access.New()
+	accessData.StartBackgroundUpdate(1*time.Minute, storage)
 
 	email := email.New(&cfg.Private.Email)
 	jwt := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
@@ -35,8 +42,9 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	h := handler.New(auth, board, thread, message, cfg)
 
 	return &Dependencies{
-		Storage: storage,
-		Handler: h,
-		Jwt:     jwt,
+		Storage:    storage,
+		Handler:    h,
+		accessData: accessData,
+		Jwt:        jwt,
 	}, nil
 }

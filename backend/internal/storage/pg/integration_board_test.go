@@ -1,287 +1,300 @@
 package pg
 
 import (
+	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
-	"math/rand"
-
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCreateBoard(t *testing.T) {
-	boardName := "testboard1"
-	boardShortName := "tb1"
+	boardName := "Test Board"
+	boardShortName := generateString(t)
 
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
+	t.Run("create new board", func(t *testing.T) {
+		err := storage.CreateBoard(boardName, boardShortName, nil)
+		require.NoError(t, err)
 
-	// Try to create a board with the same short name
-	err = storage.CreateBoard(boardName, boardShortName)
-	require.Error(t, err, "Expected error when creating duplicate board")
+	})
 
-	// Clean up
-	err = storage.DeleteBoard(boardShortName)
-	require.NoError(t, err, "Failed to clean up after test")
+	t.Cleanup(func() {
+		require.NoError(t, storage.DeleteBoard(boardShortName))
+	})
+
+	t.Run("duplicate short name should fail", func(t *testing.T) {
+		err := storage.CreateBoard(boardName, boardShortName, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("allowedEmails of 0 length forbidden", func(t *testing.T) {
+		err := storage.CreateBoard(boardName, boardShortName, &domain.Emails{})
+		require.ErrorIs(t, err, emptyAllowedEmailsError)
+	})
 }
 
 func TestGetBoard(t *testing.T) {
-	boardName := "testboard2"
-	boardShortName := "tb2"
+	boardName := "Test Board"
+	allowedEmails := domain.Emails{"@test.ru", "@test2.ru"}
+	boardShortName := generateString(t)
 
-	// Create a board
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
+	// Setup
+	require.NoError(t, storage.CreateBoard(boardName, boardShortName, &allowedEmails))
+	t.Cleanup(func() { require.NoError(t, storage.DeleteBoard(boardShortName)) })
 
-	// Get the board
-	board, err := storage.GetBoard(boardShortName, 1)
-	require.NoError(t, err, "GetBoard should not return an error")
-	require.Equal(t, boardName, board.Name, "Expected board name %s, got %s", boardName, board.Name)
-	require.Equal(t, boardShortName, board.ShortName, "Expected board short name %s, got %s", boardShortName, board.ShortName)
+	t.Run("get existing board", func(t *testing.T) {
+		board, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		require.Equal(t, boardName, board.Name)
+		require.Equal(t, boardShortName, board.ShortName)
+		require.Equal(t, allowedEmails, *board.AllowedEmails)
+	})
 
-	// Try to get a non-existent board
-	_, err = storage.GetBoard("nonexistent", 1)
-	require.Error(t, err, "Expected error when getting non-existent board")
-	e, ok := err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	require.Equal(t, 404, e.StatusCode, "Expected status code 404")
-
-	// Clean up
-	err = storage.DeleteBoard(boardShortName)
-	require.NoError(t, err, "Failed to clean up after test")
+	t.Run("non-existent board should 404", func(t *testing.T) {
+		_, err := storage.GetBoard("nonexistent", 1)
+		requireNotFoundError(t, err)
+	})
 }
 
 func TestDeleteBoard(t *testing.T) {
-	boardName := "testboard3"
-	boardShortName := "tb3"
+	boardShortName := generateString(t)
+	boardName := "Test Board"
 
-	// Create a board
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
+	// Setup
+	require.NoError(t, storage.CreateBoard(boardName, boardShortName, nil))
+	threadID := createTestThread(t, boardShortName, "Test Title", &domain.Message{
+		Author: domain.User{Id: 229},
+		Text:   "Test text",
+	})
+	msgID := createTestMessage(t, boardShortName, &domain.User{Id: 229}, "Test text 2", nil, threadID)
 
-	// Create thread and message
-	thread_id, err := storage.CreateThread("test_title", boardShortName, &domain.Message{Author: domain.User{Id: 229}, Text: "test text"})
-	require.NoError(t, err, "CreateThread should not return an error")
+	t.Run("delete existing board", func(t *testing.T) {
+		require.NoError(t, storage.DeleteBoard(boardShortName))
 
-	msg_id, err := storage.CreateMessage(boardShortName, &domain.User{Id: 229}, "test text 2", nil, thread_id)
-	require.NoError(t, err, "CreateMessage should not return an error")
+		t.Run("associated thread should be deleted", func(t *testing.T) {
+			_, err := storage.GetThread(threadID)
+			requireNotFoundError(t, err)
+		})
 
-	// Delete the board
-	err = storage.DeleteBoard(boardShortName)
-	require.NoError(t, err, "DeleteBoard should not return an error")
+		t.Run("associated messages should be deleted", func(t *testing.T) {
+			msg, err := storage.GetMessage(threadID)
+			require.Error(t, err)
+			require.Nil(t, msg)
+			requireNotFoundError(t, err)
 
-	// Check that thread also deleted
-	_, err = storage.GetThread(thread_id)
-	require.Error(t, err, "Expected error when getting thread from non-existent board")
-	e, ok := err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	require.Equal(t, 404, e.StatusCode, "Expected status code 404")
+			_, err = storage.GetMessage(msgID)
+			requireNotFoundError(t, err)
+		})
+	})
 
-	// Check that messages deleted
-	msg, err := storage.GetMessage(thread_id)
-	require.Error(t, err, "Expected error when getting message from non-existent board")
-	require.Nil(t, msg, "Expected message to be nil")
-	e, ok = err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	require.Equal(t, 404, e.StatusCode, "Expected status code 404")
-
-	_, err = storage.GetMessage(msg_id)
-	require.Error(t, err, "Expected error when getting message from non-existent board")
-	e, ok = err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	require.Equal(t, 404, e.StatusCode, "Expected status code 404")
-
-	// Try to delete a non-existent board
-	err = storage.DeleteBoard("nonexistent")
-	require.Error(t, err, "Expected error when deleting non-existent board")
-	e, ok = err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	require.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	t.Run("delete non-existent board should 404", func(t *testing.T) {
+		err := storage.DeleteBoard("nonexistent")
+		requireNotFoundError(t, err)
+	})
 }
 
 func TestBoardWorkflow(t *testing.T) {
-	boardName := "testboard4"
-	boardShortName := "tb4"
+	boardShortName := setupBoard(t)
 
-	// Create a board
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
-
-	// Get the board
-	board, err := storage.GetBoard(boardShortName, 1)
-	require.NoError(t, err, "GetBoard should not return an error")
-	require.Equal(t, boardName, board.Name, "Expected board name %s, got %s", boardName, board.Name)
-	require.Equal(t, boardShortName, board.ShortName, "Expected board short name %s, got %s", boardShortName, board.ShortName)
-
-	// Create several threads
-	_, err = storage.CreateThread("thread4", boardShortName, &domain.Message{Author: domain.User{Id: 229}, Text: "text 10"})
-	require.NoError(t, err, "CreateThread should not return an error")
-	_, err = storage.CreateThread("thread1", boardShortName, &domain.Message{Author: domain.User{Id: 228}, Text: "text 1"})
-	require.NoError(t, err, "CreateThread should not return an error")
-	thread2, err := storage.CreateThread("thread2", boardShortName, &domain.Message{Author: domain.User{Id: 229}, Text: "text 2"})
-	require.NoError(t, err, "CreateThread should not return an error")
-	thread3, err := storage.CreateThread("thread3", boardShortName, &domain.Message{Author: domain.User{Id: 229}, Text: "text 6"})
-	require.NoError(t, err, "CreateThread should not return an error")
-
-	// Fill threads with messages
-	messagesSample := []struct {
-		text        string
-		author      *domain.User
-		attachments domain.Attachments
-		threadId    int64
+	// Create test threads
+	threads := []struct {
+		title string
+		msg   domain.Message
 	}{
-		{
-			text:        "text 4",
-			author:      &domain.User{Id: 228},
-			attachments: nil,
-			threadId:    thread2,
-		},
-		{
-			text:        "text 5",
-			author:      &domain.User{Id: 300},
-			attachments: domain.Attachments{"file.txt", "file2.png"},
-			threadId:    thread2,
-		},
-		{
-			text:        "text 7",
-			author:      &domain.User{Id: 301},
-			attachments: nil,
-			threadId:    thread3,
-		},
-		{
-			text:        "text 8",
-			author:      &domain.User{Id: 303},
-			attachments: domain.Attachments{"file3.txt", "file4.png"},
-			threadId:    thread2,
-		},
-	}
-	for _, msg := range messagesSample {
-		_, err = storage.CreateMessage(boardShortName, msg.author, msg.text, &msg.attachments, msg.threadId)
-		require.NoError(t, err, "CreateMessage should not return an error")
+		{"thread1", domain.Message{Author: domain.User{Id: 228}, Text: "op1"}},
+		{"thread2", domain.Message{Author: domain.User{Id: 229}, Text: "op2"}},
+		{"thread3", domain.Message{Author: domain.User{Id: 229}, Text: "op3"}},
+		{"thread4", domain.Message{Author: domain.User{Id: 229}, Text: "op4"}},
+		{"thread5", domain.Message{Author: domain.User{Id: 229}, Text: "op5"}},
 	}
 
-	board, err = storage.GetBoard(boardShortName, 1)
-	require.NoError(t, err, "GetBoard should not return an error")
-
-	// check board metadata
-	require.Equal(t, "testboard4", board.Name, "Expected board.Name testboard4, got %s", board.Name)
-	require.Equal(t, "tb4", board.ShortName, "Expected board.ShortName tb4, got %s", board.ShortName)
-
-	// check thread order
-	threads := board.Threads
-	require.Len(t, threads, 3, "Expected 3 threads")
-	require.Equal(t, "thread2", threads[0].Title, "Expected thread2 to be first")
-	require.Equal(t, "thread3", threads[1].Title, "Expected thread3 to be second")
-	require.Equal(t, "thread1", threads[2].Title, "Expected thread1 to be third")
-
-	// check message order
-	messages := threads[0].Messages
-	require.Len(t, messages, 4, "Expected 4 messages in thread2")
-	require.Equal(t, "text 2", messages[0].Text, "Expected 'text 2' to be the first message in thread2")
-	require.Equal(t, "text 4", messages[1].Text, "Expected 'text 4' to be the second message in thread2")
-	require.Equal(t, "text 5", messages[2].Text, "Expected 'text 5' to be the third message in thread2")
-	require.Equal(t, "text 8", messages[3].Text, "Expected 'text 8' to be the fourth message in thread2")
-
-	messages = threads[1].Messages
-	require.Len(t, messages, 2, "Expected 2 messages in thread3")
-	require.Equal(t, "text 6", messages[0].Text, "Expected 'text 6' to be the first message in thread3")
-	require.Equal(t, "text 7", messages[1].Text, "Expected 'text 7' to be the second message in thread3")
-
-	messages = threads[2].Messages
-	require.Len(t, messages, 1, "Expected 1 message in thread1")
-	require.Equal(t, "text 1", messages[0].Text, "Expected 'text 1' to be the first message in thread1")
-
-	// check pagination
-	board, err = storage.GetBoard(boardShortName, 2)
-	require.NoError(t, err, "GetBoard2 should not return an error")
-	require.Len(t, board.Threads, 1, "Expected 1 thread on page 2")
-	require.Equal(t, "thread4", board.Threads[0].Title, "Expected thread4 on page 2")
-	require.Len(t, board.Threads[0].Messages, 1, "Expected 1 message in thread4 on page 2")
-	require.Equal(t, "text 10", board.Threads[0].Messages[0].Text, "Expected 'text 10' to be the first message in thread4 on page 2")
-
-	// check bump limit
-	// spam thread to bump limit
-	for i := 0; i < storage.cfg.Public.BumpLimit+10; i++ {
-		_, err = storage.CreateMessage(boardShortName, &domain.User{Id: 1}, "test", nil, thread2)
-		require.NoError(t, err, "CreateMessage should not return an error")
+	threadIds := make([]int64, len(threads))
+	for i, th := range threads {
+		threadIds[i] = createTestThread(t, boardShortName, th.title, &th.msg)
 	}
-	// bump another thread
-	_, err = storage.CreateMessage(boardShortName, &domain.User{Id: 1}, "test", nil, thread3)
-	require.NoError(t, err, "CreateMessage should not return an error")
-	// bump thread in bump limit
-	_, err = storage.CreateMessage(boardShortName, &domain.User{Id: 1}, "test", nil, thread2)
-	require.NoError(t, err, "CreateMessage should not return an error")
 
-	// check that thread in bump limit didnt get bumped
-	board, err = storage.GetBoard(boardShortName, 1)
-	require.NoError(t, err, "GetBoard should not return an error")
-	require.Equal(t, "thread3", board.Threads[0].Title, "Expected thread3 to be first")
-	require.Equal(t, "thread2", board.Threads[1].Title, "Expected thread2 to be second")
+	// Create test messages
+	messages := []struct {
+		threadId int64
+		text     string
+		authorID int64
+		files    domain.Attachments
+	}{
+		{1, "msg1", 228, nil},
+		{1, "msg2", 300, domain.Attachments{"file.txt", "file2.png"}},
+		{2, "msg3", 301, nil},
+		{1, "msg4", 303, domain.Attachments{"file3.txt", "file4.png"}},
+		{0, "msg5", 303, nil},
+		{3, "msg6", 303, nil},
+	}
 
-	// Delete the board
-	err = storage.DeleteBoard(boardShortName)
-	require.NoError(t, err, "DeleteBoard should not return an error")
+	for _, msg := range messages {
+		createTestMessage(t, boardShortName, &domain.User{Id: msg.authorID}, msg.text, &msg.files, threadIds[msg.threadId])
+	}
 
-	// Try to get the deleted board
-	_, err = storage.GetBoard(boardShortName, 1)
-	require.Error(t, err, "Expected error when getting deleted board")
-	e, ok := err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	require.Equal(t, 404, e.StatusCode, "Expected status code 404")
-}
+	t.Run("verify board structure", func(t *testing.T) {
+		board, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
 
-// Send new messages to several threads and check for invariants to be correct
-func TestBoardInvariants(t *testing.T) {
-	boardName := "testboard5"
-	boardShortName := "tb5"
+		require.Equal(t, boardShortName, board.ShortName)
+		require.Len(t, board.Threads, 3, "Page 1 should show 3 threads")
 
-	// Create a board
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
+		t.Run("thread order by last bump", func(t *testing.T) {
+			requireThreadOrder(t, board.Threads, []string{"thread4", "thread1", "thread2"})
+		})
 
-	messages := []domain.Message{{Author: domain.User{Id: 1}, Text: "test message1"}, {Author: domain.User{Id: 2}, Text: "test message2"}, {Author: domain.User{Id: 3}, Text: "test message3"}}
-	// Create several threads
-	thread1, err := storage.CreateThread("thread1", boardShortName, &messages[rand.Intn(len(messages))])
-	require.NoError(t, err, "CreateThread1 should not return an error")
-	thread2, err := storage.CreateThread("thread2", boardShortName, &messages[rand.Intn(len(messages))])
-	require.NoError(t, err, "CreateThread2 should not return an error")
-	thread3, err := storage.CreateThread("thread3", boardShortName, &messages[rand.Intn(len(messages))])
-	require.NoError(t, err, "CreateThread3 should not return an error")
-	thread4, err := storage.CreateThread("thread4", boardShortName, &messages[rand.Intn(len(messages))])
-	require.NoError(t, err, "CreateThread4 should not return an error")
+		t.Run("message order within threads", func(t *testing.T) {
+			requireMessageOrder(t, board.Threads[0].Messages, []string{"op4", "msg6"})
+			requireMessageOrder(t, board.Threads[1].Messages, []string{"op1", "msg5"})
+			requireMessageOrder(t, board.Threads[2].Messages, []string{"op2", "msg1", "msg2", "msg4"})
+		})
+	})
 
-	threads := []int64{thread1, thread2, thread3, thread4}
-	// Fill threads with messages
-	n_messages := (storage.cfg.Public.BumpLimit * len(threads)) + 10 // atleast 1 thread will go into bump limit
-	for i := 0; i < n_messages; i++ {
-		th := threads[rand.Intn(len(threads))]
-		m := messages[rand.Intn(len(messages))]
-		_, err := storage.CreateMessage(boardShortName, &m.Author, m.Text, m.Attachments, th)
-		require.NoError(t, err, "Message creation should not return an error")
+	t.Run("pagination", func(t *testing.T) {
+		board, err := storage.GetBoard(boardShortName, 2)
+		require.NoError(t, err)
+		require.Len(t, board.Threads, 2, "Page 2 should show 2 threads")
+
+		t.Run("thread order by last bump", func(t *testing.T) {
+			requireThreadOrder(t, board.Threads, []string{"thread3", "thread5"})
+		})
+
+		t.Run("message order within threads", func(t *testing.T) {
+			requireMessageOrder(t, board.Threads[0].Messages, []string{"op3", "msg3"})
+			requireMessageOrder(t, board.Threads[1].Messages, []string{"op5"})
+		})
+	})
+
+	t.Run("bump limit enforcement", func(t *testing.T) {
+		threadID := createTestThread(t, boardShortName, "Bump Test", &domain.Message{
+			Author: domain.User{Id: 1},
+			Text:   "Bump test",
+		})
+
+		// get thread to bump limit
+		for i := 0; i < storage.cfg.Public.BumpLimit+10; i++ {
+			createTestMessage(t, boardShortName, &domain.User{Id: 1}, "bump", nil, threadID)
+		}
+		// bump another threads
+		createTestMessage(t, boardShortName, &domain.User{Id: 1}, "bump", nil, threadIds[0]) // thread1
+		createTestMessage(t, boardShortName, &domain.User{Id: 1}, "bump", nil, threadIds[1]) // thread2
+
+		// bump thread with bump limit
+		createTestMessage(t, boardShortName, &domain.User{Id: 1}, "bump", nil, threadID)
 
 		board, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err, "GetBoard should not return an error")
+		require.NoError(t, err)
+		requireThreadOrder(t, board.Threads, []string{"thread2", "thread1", "Bump Test"})
+	})
+}
 
-		// Check for threads per page
-		require.LessOrEqual(t, len(board.Threads), storage.cfg.Public.ThreadsPerPage, "Num Threads should not exceed %d", storage.cfg.Public.ThreadsPerPage)
+func TestBoardInvariants(t *testing.T) {
+	boardShortName := setupBoard(t)
 
-		// Check lastBumped correct order (desc)
-		lastBumped := time.Now().Add(time.Hour)
-		for _, thread := range board.Threads {
-			require.False(t, thread.LastBumped.After(lastBumped), "Wrong thread order. LastBumped: %v, Title: %s, Threads: %v", lastBumped, thread.Title, board.Threads)
-			lastBumped = thread.LastBumped
+	// Create initial threads
+	messages := []domain.Message{
+		{Author: domain.User{Id: 1}, Text: "msg1"},
+		{Author: domain.User{Id: 2}, Text: "msg2"},
+		{Author: domain.User{Id: 3}, Text: "msg3"},
+	}
 
-			// Check NLastMsg (op msg doesnt count)
-			require.LessOrEqual(t, len(thread.Messages), (storage.cfg.Public.NLastMsg + 1), "Wrong msg count. Messages: %v", thread.Messages)
+	threads := make([]int64, 4)
+	for i := range threads {
+		threads[i] = createTestThread(t, boardShortName, "Thread"+strconv.Itoa(i+1), &messages[rand.Intn(len(messages))])
+	}
 
-			// Check message correct order (asc)
-			msgCreated := thread.Messages[0].CreatedAt.Add(-time.Hour)
-			for _, msg := range thread.Messages {
-				require.False(t, msg.CreatedAt.Before(msgCreated), "Wrong message order. Messages: %v", thread.Messages)
-				msgCreated = msg.CreatedAt
-			}
+	// Stress test with random messages
+	messageCount := storage.cfg.Public.BumpLimit*len(threads) + 10
+	for i := 0; i < messageCount; i++ {
+		thread := threads[rand.Intn(len(threads))]
+		msg := messages[rand.Intn(len(messages))]
+		createTestMessage(t, boardShortName, &msg.Author, msg.Text, msg.Attachments, thread)
+		checkBoardInvariants(t, boardShortName)
+	}
+}
+
+func TestGetBoardsAllowedEmails(t *testing.T) {
+
+	t.Run("returns boards with non-null allowed_emails", func(t *testing.T) {
+		toCreate := []domain.Board{
+			{Name: "Board 1", ShortName: "b1", AllowedEmails: nil},
+			{Name: "Board 2", ShortName: "b2", AllowedEmails: &domain.Emails{"@test1.ru", "@test2.ru"}},
+			{Name: "Board 3", ShortName: "b3", AllowedEmails: &domain.Emails{"@test3.ru"}},
+		}
+		for _, b := range toCreate {
+			require.NoError(t, storage.CreateBoard(b.Name, b.ShortName, b.AllowedEmails))
+			t.Cleanup(func() {
+				require.NoError(t, storage.DeleteBoard(b.ShortName), "board short name %s", b.ShortName)
+			})
+		}
+
+		boards, err := storage.GetBoardsAllowedEmails()
+		require.NoError(t, err)
+
+		require.Len(t, boards, 2)
+		require.Equal(t, boards[0], toCreate[1], "Got %v", boards)
+		require.Equal(t, boards[1], toCreate[2], "Got %v", boards)
+	})
+
+	t.Run("returns empty slice when no allowed emails", func(t *testing.T) {
+		toCreate := []domain.Board{
+			{Name: "Board 1", ShortName: "b1", AllowedEmails: nil},
+			{Name: "Board 2", ShortName: "b2", AllowedEmails: nil},
+			{Name: "Board 3", ShortName: "b3", AllowedEmails: nil},
+		}
+		for _, b := range toCreate {
+			require.NoError(t, storage.CreateBoard(b.Name, b.ShortName, b.AllowedEmails))
+			t.Cleanup(func() {
+				require.NoError(t, storage.DeleteBoard(b.ShortName), "board short name %s", b.ShortName)
+			})
+		}
+
+		boards, err := storage.GetBoardsAllowedEmails()
+		require.NoError(t, err)
+		require.Empty(t, boards, "Expected empty boards, got %v", boards)
+	})
+
+	t.Run("every board has allowed emails", func(t *testing.T) {
+		toCreate := []domain.Board{
+			{Name: "Board 1", ShortName: "b1", AllowedEmails: &domain.Emails{"testcompany"}},
+			{Name: "Board 2", ShortName: "b2", AllowedEmails: &domain.Emails{"@test1.ru", "@test2.ru"}},
+			{Name: "Board 3", ShortName: "b3", AllowedEmails: &domain.Emails{"@test3.ru"}},
+		}
+		for _, b := range toCreate {
+			require.NoError(t, storage.CreateBoard(b.Name, b.ShortName, b.AllowedEmails))
+			t.Cleanup(func() {
+				require.NoError(t, storage.DeleteBoard(b.ShortName), "board short name %s", b.ShortName)
+			})
+		}
+
+		boards, err := storage.GetBoardsAllowedEmails()
+		require.NoError(t, err)
+
+		require.Len(t, boards, 3)
+		require.Equal(t, toCreate, boards)
+	})
+}
+
+func checkBoardInvariants(t *testing.T, boardShortName string) {
+	t.Helper()
+	board, err := storage.GetBoard(boardShortName, 1)
+	require.NoError(t, err)
+
+	require.LessOrEqual(t, len(board.Threads), storage.cfg.Public.ThreadsPerPage)
+
+	var lastBumped time.Time
+	for i, thread := range board.Threads {
+		if i > 0 {
+			require.False(t, thread.LastBumped.After(lastBumped), "Thread order incorrect at index %d", i)
+		}
+		lastBumped = thread.LastBumped
+
+		require.LessOrEqual(t, len(thread.Messages), storage.cfg.Public.NLastMsg+1)
+		for j := 1; j < len(thread.Messages); j++ {
+			require.False(t, thread.Messages[j].CreatedAt.Before(thread.Messages[j-1].CreatedAt),
+				"Message order incorrect in thread %s", thread.Title)
 		}
 	}
 }
