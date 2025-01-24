@@ -1,10 +1,17 @@
 package domain
 
-import "time"
+import (
+	"time"
+
+	"github.com/lib/pq"
+)
+
+type Emails = pq.StringArray
 
 type Board struct {
-	Name      string
-	ShortName string
-	Threads   []*Thread
-	CreatedAt time.Time
+	Name          string
+	ShortName     string
+	Threads       []*Thread
+	AllowedEmails *Emails
+	CreatedAt     time.Time
 }

@@ -41,7 +41,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 var validate *validator.Validate
 
-func loadAndValidateRequestBody(r *http.Request, body any) error {
+func LoadAndValidateRequestBody(r *http.Request, body any) error {
 	if err := json.NewDecoder(r.Body).Decode(body); err != nil {
 		log.Print(err.Error())
 		return &internal_errors.ErrorWithStatusCode{Message: "Body is invalid json", StatusCode: 400}

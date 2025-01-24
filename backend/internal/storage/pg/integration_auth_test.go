@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
 	_ "github.com/lib/pq"
 )
@@ -33,10 +32,7 @@ func TestGetUser(t *testing.T) {
 	assert.Equal(t, user.PassHash, userFromDb.PassHash, "Unexpected user password hash")
 
 	_, err = storage.User("nonexistent@example.com")
-	require.Error(t, err, "Expected error for nonexistent user")
-	e, ok := err.(*errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 }
 
 func TestUpdatePassword(t *testing.T) {
@@ -52,10 +48,7 @@ func TestUpdatePassword(t *testing.T) {
 	require.Equal(t, updatedUser.PassHash, "new_password")
 
 	err = storage.UpdatePassword("nonexisting@example.com", "new_password")
-	require.Error(t, err, "UpdatePassword should return an error for nonexistent user")
-	e, ok := err.(*errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 }
 
 func TestDeleteUser(t *testing.T) {
@@ -67,16 +60,10 @@ func TestDeleteUser(t *testing.T) {
 	require.NoError(t, err, "DeleteUser should not return an error")
 
 	_, err = storage.User(user.Email)
-	require.Error(t, err, "Expected error for deleted user")
-	e, ok := err.(*errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 
 	err = storage.DeleteUser("nonexistent@example.com")
-	require.Error(t, err, "DeleteUser should return an error for nonexistent user")
-	e, ok = err.(*errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 }
 
 func TestSaveConfirmationData(t *testing.T) {
@@ -103,10 +90,7 @@ func TestGetConfirmationData(t *testing.T) {
 	require.Equal(t, data, *dataFromPg)
 
 	_, err = storage.ConfirmationData("nonexistent@example.com")
-	require.Error(t, err, "Expected error for nonexistent user")
-	e, ok := err.(*errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 }
 
 func TestConfirmationData(t *testing.T) {
@@ -119,14 +103,8 @@ func TestConfirmationData(t *testing.T) {
 	require.NoError(t, err, "DeleteConfirmationData should not return an error")
 
 	_, err = storage.ConfirmationData(data.Email)
-	require.Error(t, err, "Expected error for deleted ConfirmationData")
-	e, ok := err.(*errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 
 	err = storage.DeleteConfirmationData("nonexistent@example.com")
-	require.Error(t, err, "DeleteConfirmationData should return an error for nonexistent user")
-	e, ok = err.(*errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 }

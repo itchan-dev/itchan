@@ -3,7 +3,6 @@ package pg
 import (
 	"testing"
 
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,33 +12,22 @@ import (
 
 func TestCreateThread(t *testing.T) {
 	// Create a board for testing
-	boardName := "testboard"
-	boardShortName := "tb"
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
+	boardShortName := setupBoard(t)
 
 	// Test creating a thread
 	title := "Test Thread"
 	msg := &domain.Message{Author: domain.User{Id: 1}, Text: "Test OP", Attachments: &domain.Attachments{"file1.jpg"}}
-	threadID, err := storage.CreateThread(title, boardShortName, msg)
-	require.NoError(t, err, "CreateThread should not return an error")
-	assert.NotEqual(t, int64(-1), threadID, "Thread ID should not be -1")
+	threadID := createTestThread(t, boardShortName, title, msg)
 
-	// Clean up
-	err = storage.DeleteBoard(boardShortName)
-	require.NoError(t, err, "DeleteBoard should not return an error")
+	assert.Greater(t, threadID, int64(0), "Thread ID should be greater 0")
 }
 
 func TestGetThread(t *testing.T) {
-	// Create a board and thread for testing
-	boardName := "testboard"
-	boardShortName := "tb"
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
+	boardShortName := setupBoard(t)
+
 	title := "Test Thread"
 	opMsg := &domain.Message{Author: domain.User{Id: 1}, Text: "Test OP", Attachments: &domain.Attachments{"file1.jpg"}}
-	threadID, err := storage.CreateThread(title, boardShortName, opMsg)
-	require.NoError(t, err, "CreateThread should not return an error")
+	threadID := createTestThread(t, boardShortName, title, opMsg)
 
 	// Add some messages to the thread
 	replyMsgs := []struct {
@@ -50,8 +38,7 @@ func TestGetThread(t *testing.T) {
 		{author: &domain.User{Id: 3}, text: "Reply 2"},
 	}
 	for _, m := range replyMsgs {
-		_, err = storage.CreateMessage(boardShortName, m.author, m.text, nil, threadID)
-		require.NoError(t, err, "CreateMessage should not return an error")
+		createTestMessage(t, boardShortName, m.author, m.text, nil, threadID)
 	}
 
 	// Test getting the thread
@@ -61,53 +48,50 @@ func TestGetThread(t *testing.T) {
 	assert.Equal(t, boardShortName, thread.Board, "Thread board mismatch")
 	assert.Equal(t, uint(2), thread.NumReplies, "Number of replies mismatch")
 	assert.Len(t, thread.Messages, 3, "Expected 3 messages (OP + 2 replies)")
-	assert.Equal(t, opMsg.Text, thread.Messages[0].Text, "OP message text mismatch")
+	requireMessageOrder(t, thread.Messages, []string{opMsg.Text, replyMsgs[0].text, replyMsgs[1].text})
 	assert.Equal(t, *opMsg.Attachments, *thread.Messages[0].Attachments, "OP message attachments mismatch")
-	assert.Equal(t, replyMsgs[0].text, thread.Messages[1].Text, "Reply 1 text mismatch")
-	assert.Equal(t, replyMsgs[1].text, thread.Messages[2].Text, "Reply 2 text mismatch")
 
 	// Test getting a non-existent thread
 	_, err = storage.GetThread(-1)
-	require.Error(t, err, "GetThread should return an error for non-existent thread")
-	e, ok := err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
-
-	// Clean up
-	err = storage.DeleteBoard(boardShortName)
-	require.NoError(t, err, "DeleteBoard should not return an error")
+	requireNotFoundError(t, err)
 }
 
 func TestDeleteThread(t *testing.T) {
-	// Create a board and thread for testing
-	boardName := "testboard"
-	boardShortName := "tb"
-	err := storage.CreateBoard(boardName, boardShortName)
-	require.NoError(t, err, "CreateBoard should not return an error")
-	title := "Test Thread"
-	msg := &domain.Message{Author: domain.User{Id: 1}, Text: "Test OP"}
-	threadID, err := storage.CreateThread(title, boardShortName, msg)
-	require.NoError(t, err, "CreateThread should not return an error")
+	boardShortName, threadID := setupBoardAndThread(t)
 
 	// Test deleting the thread
-	err = storage.DeleteThread(boardShortName, threadID)
+	err := storage.DeleteThread(boardShortName, threadID)
 	require.NoError(t, err, "DeleteThread should not return an error")
 
 	// Test getting the deleted thread
 	_, err = storage.GetThread(threadID)
-	require.Error(t, err, "GetThread should return an error for deleted thread")
-	e, ok := err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
 
 	// Test deleting a non-existent thread
 	err = storage.DeleteThread(boardShortName, -1)
-	require.Error(t, err, "DeleteThread should return an error for non-existent thread")
-	e, ok = err.(*internal_errors.ErrorWithStatusCode)
-	require.True(t, ok, "Expected ErrorWithStatusCode")
-	assert.Equal(t, 404, e.StatusCode, "Expected status code 404")
+	requireNotFoundError(t, err)
+}
 
-	// Clean up
-	err = storage.DeleteBoard(boardShortName)
-	require.NoError(t, err, "DeleteBoard should not return an error")
+func TestBumpLimit(t *testing.T) {
+	boardShortName, threadID := setupBoardAndThread(t)
+
+	// Send messages up to the bump limit
+	for i := 0; i <= storage.cfg.Public.BumpLimit; i++ {
+		createTestMessage(t, boardShortName, &domain.User{Id: 2}, "Test message", nil, threadID)
+	}
+
+	// Get the thread and check the last bump timestamp
+	thread, err := storage.GetThread(threadID)
+	require.NoError(t, err)
+	lastBumpTsBefore := thread.LastBumped
+
+	// Send one more message (over the bump limit)
+	createTestMessage(t, boardShortName, &domain.User{Id: 2}, "Test message over bump limit", nil, threadID)
+
+	// Get the thread again and check that the last bump timestamp hasn't changed
+	thread, err = storage.GetThread(threadID)
+	require.NoError(t, err)
+	lastBumpTsAfter := thread.LastBumped
+
+	assert.Equal(t, lastBumpTsBefore, lastBumpTsAfter, "Last bump timestamp should not change after going over the bump limit")
 }

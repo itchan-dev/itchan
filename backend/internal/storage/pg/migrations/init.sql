@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS users(
-    id                     serial PRIMARY KEY, 
+    id                     serial PRIMARY KEY,
     email                  varchar(254) NOT NULL UNIQUE,
     pass_hash              varchar(80) NOT NULL,
     is_admin               boolean default false,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS confirmation_data(
 );
 
 CREATE TABLE IF NOT EXISTS messages(
-    id          serial PRIMARY KEY, 
+    id          serial PRIMARY KEY,
     author_id   int NOT NULL,
     text        text NOT NULL,
     created     timestamp default (now() at time zone 'utc'),
@@ -25,9 +25,10 @@ CREATE TABLE IF NOT EXISTS messages(
 );
 
 CREATE TABLE IF NOT EXISTS boards(
-    short_name  varchar(10) PRIMARY KEY, 
-    name        varchar(254) NOT NULL,
-    created     timestamp default (now() at time zone 'utc')
+    short_name     varchar(10) PRIMARY KEY,
+    name           varchar(254) NOT NULL,
+    allowed_emails text[],
+    created        timestamp default (now() at time zone 'utc')
 );
 
 -- metainfo in first thread message

@@ -13,7 +13,7 @@ type credentials struct {
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var creds credentials
-	if err := loadAndValidateRequestBody(r, &creds); err != nil {
+	if err := LoadAndValidateRequestBody(r, &creds); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
@@ -32,7 +32,7 @@ func (h *Handler) CheckConfirmationCode(w http.ResponseWriter, r *http.Request) 
 		Email            string `validate:"required" json:"email"`
 		ConfirmationCode string `validate:"required" json:"confirmation_code"`
 	}
-	if err := loadAndValidateRequestBody(r, &reqBody); err != nil {
+	if err := LoadAndValidateRequestBody(r, &reqBody); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
@@ -47,7 +47,7 @@ func (h *Handler) CheckConfirmationCode(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var creds credentials
-	if err := loadAndValidateRequestBody(r, &creds); err != nil {
+	if err := LoadAndValidateRequestBody(r, &creds); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

@@ -14,14 +14,14 @@ import (
 )
 
 type MockBoardService struct {
-	MockCreate func(name, shortName string) error
+	MockCreate func(name, shortName string, allowedEmails *domain.Emails) error
 	MockGet    func(shortName string, page int) (*domain.Board, error)
 	MockDelete func(shortName string) error
 }
 
-func (m *MockBoardService) Create(name, shortName string) error {
+func (m *MockBoardService) Create(name, shortName string, allowedEmails *domain.Emails) error {
 	if m.MockCreate != nil {
-		return m.MockCreate(name, shortName)
+		return m.MockCreate(name, shortName, allowedEmails)
 	}
 	return nil // Default behavior
 }
@@ -50,7 +50,7 @@ func TestCreateBoardHandler(t *testing.T) {
 
 	t.Run("successful request", func(t *testing.T) {
 		mockService := &MockBoardService{
-			MockCreate: func(name, shortName string) error {
+			MockCreate: func(name, shortName string, allowedEmails *domain.Emails) error {
 				return nil
 			},
 		}
@@ -73,7 +73,7 @@ func TestCreateBoardHandler(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		mockService := &MockBoardService{
-			MockCreate: func(name, shortName string) error {
+			MockCreate: func(name, shortName string, allowedEmails *domain.Emails) error {
 				return errors.New("mock create error")
 			},
 		}
@@ -86,8 +86,28 @@ func TestCreateBoardHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, rr.Code, "expected status code %d, but got %d", http.StatusInternalServerError, rr.Code)
 	})
-}
 
+	// Optional: Test case with AllowedEmails provided
+	t.Run("with allowed emails", func(t *testing.T) {
+		mockService := &MockBoardService{
+			MockCreate: func(name, shortName string, allowedEmails *domain.Emails) error {
+				if allowedEmails == nil || len(*allowedEmails) == 0 {
+					return errors.New("allowedEmails expected")
+				}
+				return nil
+			},
+		}
+		h.board = mockService
+
+		requestBodyWithEmails := []byte(`{"name": "Test Board", "short_name": "tb", "allowed_emails": ["test@example.com"]}`)
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBodyWithEmails))
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
+	})
+}
 func TestGetBoardHandler(t *testing.T) {
 	h := &Handler{}
 
