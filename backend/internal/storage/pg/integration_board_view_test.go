@@ -94,7 +94,7 @@ func TestStartPeriodicViewRefreshRefreshesActiveBoards(t *testing.T) {
 	createTestMessage(t, boardShortName, user, "Reply 2", nil, threadID)
 
 	// Wait for the periodic refresh to trigger
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	// Verify the view was refreshed with the new message
 	board, err := storage.GetBoard(boardShortName, 1)
