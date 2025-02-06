@@ -3,4 +3,4 @@ pgdata
 trash.txt
 *_mock.go
 fmtcoverage.html
-.ipynb*
+.*

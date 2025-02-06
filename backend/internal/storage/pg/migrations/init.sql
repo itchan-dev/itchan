@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS messages(
     thread_id   int default NULL, -- null if this is OP message
     n           int NOT NULL default 0
 );
+CREATE INDEX messages__thread_id__index ON messages (thread_id);
 
 CREATE TABLE IF NOT EXISTS boards(
     short_name     varchar(10) PRIMARY KEY,
@@ -40,3 +41,4 @@ CREATE TABLE IF NOT EXISTS threads(
 	reply_count   int NOT NULL default 0,
 	last_bump_ts  timestamp NOT NULL 
 );
+CREATE INDEX threads__board__index ON threads (board);

@@ -45,12 +45,6 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 		return -1, err
 	}
 
-	view_name := getViewName(board)
-	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
-	if err != nil {
-		return -1, err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return -1, err
 	}
@@ -101,11 +95,6 @@ func (s *Storage) DeleteMessage(board string, id int64) error {
 	}
 	if deleted == 0 {
 		return &internal_errors.ErrorWithStatusCode{Message: "Message not found", StatusCode: 404}
-	}
-	view_name := getViewName(board)
-	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
-	if err != nil {
-		return err
 	}
 
 	if err := tx.Commit(); err != nil {

@@ -31,12 +31,6 @@ func (s *Storage) CreateThread(title, board string, msg *domain.Message) (int64,
 		return -1, err
 	}
 
-	view_name := getViewName(board)
-	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
-	if err != nil {
-		return -1, err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return -1, fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -119,11 +113,6 @@ func (s *Storage) DeleteThread(board string, id int64) error {
 	}
 	if deleted == 0 {
 		return &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
-	}
-	view_name := getViewName(board)
-	_, err = tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", view_name))
-	if err != nil {
-		return err
 	}
 
 	if err := tx.Commit(); err != nil {

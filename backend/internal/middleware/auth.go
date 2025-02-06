@@ -16,9 +16,9 @@ type key int
 
 const userClaimsKey key = 0
 
-func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.HandlerFunc) http.HandlerFunc {
-	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
+func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			accessCookie, err := r.Cookie("accessToken")
 			if err == http.ErrNoCookie {
 				http.Error(w, "Please sign-in", http.StatusUnauthorized)
@@ -41,7 +41,7 @@ func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.HandlerF
 			if adminOnly {
 				isAdmin, ok := claims["admin"].(bool)
 				if !ok || !isAdmin {
-					http.Error(w, "Access denied. Only for admin", http.StatusForbidden) // 403 Forbidden is more appropriate
+					http.Error(w, "Access denied. Only for admin", http.StatusForbidden)
 					return
 				}
 			}
@@ -55,17 +55,17 @@ func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.HandlerF
 
 			// Store the user in the request context
 			ctx := context.WithValue(r.Context(), userClaimsKey, user)
-			next(w, r.WithContext(ctx))
-		}
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
 }
 
 // Helper functions for admin and regular auth
-func AdminOnly(jwtService jwt_internal.JwtService) func(http.HandlerFunc) http.HandlerFunc {
+func AdminOnly(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
 	return Auth(jwtService, true)
 }
 
-func NeedAuth(jwtService jwt_internal.JwtService) func(http.HandlerFunc) http.HandlerFunc {
+func NeedAuth(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
 	return Auth(jwtService, false)
 }
 

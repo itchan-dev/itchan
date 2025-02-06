@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/router"
 	"github.com/itchan-dev/itchan/backend/internal/setup"
@@ -34,6 +38,38 @@ func main() {
 		httpPort = "8080"
 	}
 
-	log.Printf("Server started on port %s", httpPort)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", httpPort), r))
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%s", httpPort),
+		Handler: r,
+	}
+
+	// Channel to listen for interrupt or termination signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Server starting on port %s", httpPort)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	// Block until a signal is received
+	<-sigChan
+	log.Println("Shutdown signal received, initiating graceful shutdown...")
+
+	// Cancel the root context, triggering cleanup in dependencies
+	deps.CancelFunc()
+
+	// Create shutdown context with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	// Attempt graceful shutdown
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	} else {
+		log.Println("HTTP server gracefully stopped")
+	}
 }

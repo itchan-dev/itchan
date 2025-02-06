@@ -25,5 +25,5 @@ func (t *Thread) String() string {
 		}
 		s += fmt.Sprintf("%v", msg)
 	}
-	return s + "]]"
+	return s + "]]\n"
 }

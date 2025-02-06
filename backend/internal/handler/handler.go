@@ -43,12 +43,12 @@ var validate *validator.Validate
 
 func LoadAndValidateRequestBody(r *http.Request, body any) error {
 	if err := json.NewDecoder(r.Body).Decode(body); err != nil {
-		log.Print(err.Error())
+		log.Printf(err.Error())
 		return &internal_errors.ErrorWithStatusCode{Message: "Body is invalid json", StatusCode: 400}
 	}
 	validate = validator.New(validator.WithRequiredStructEnabled())
 	if err := validate.Struct(body); err != nil {
-		log.Print(err.Error())
+		log.Printf(err.Error())
 		return &internal_errors.ErrorWithStatusCode{Message: "Required fields missing", StatusCode: 400}
 	}
 	return nil
