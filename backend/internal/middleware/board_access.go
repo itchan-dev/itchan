@@ -15,9 +15,9 @@ type BoardAccess interface {
 // RestrictBoardAccess assumes:
 // 1. Email validation/confirmation is done in prior middleware.
 // 2. User added to request context in prior middleware
-func RestrictBoardAccess(access BoardAccess) func(http.HandlerFunc) http.HandlerFunc {
-	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
+func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			board, ok := mux.Vars(r)["board"]
 			if !ok {
 				// if no board in vars - skip
@@ -60,6 +60,6 @@ func RestrictBoardAccess(access BoardAccess) func(http.HandlerFunc) http.Handler
 			// Log and deny access
 			log.Printf("Restricted access: user=%d, board=%s, domain=%s", user.Id, board, emailDomain)
 			http.Error(w, "Access restricted", http.StatusForbidden)
-		}
+		})
 	}
 }

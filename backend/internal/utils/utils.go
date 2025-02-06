@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -73,7 +74,9 @@ func WriteErrorAndStatusCode(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), e.StatusCode)
 	}
 	// default error is 500
-	http.Error(w, "Internal server error", http.StatusInternalServerError)
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+
+	// http.Error(w, "Internal server error", http.StatusInternalServerError)
 }
 
 func GenerateConfirmationCode(len int) string {
@@ -102,6 +105,7 @@ func GetIP(r *http.Request) (string, error) {
 	//Get IP from RemoteAddr
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
+		log.Printf(err.Error())
 		return "", err
 	}
 	netIP = net.ParseIP(ip)

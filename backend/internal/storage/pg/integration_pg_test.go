@@ -24,24 +24,26 @@ const (
 	dbName        = "itchan"
 	dbUser        = "user"
 	dbPassword    = "password"
-	initScriptRel = "migrations/init.sql" // Adjust path according to your project structure
+	initScriptRel = "migrations/init.sql"
 )
 
 var (
 	storage    *Storage
 	containers []testcontainers.Container
+	cancel     context.CancelFunc
 )
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
-	storage, containers = mustSetup(ctx)
+	storage, containers, cancel = mustSetup(ctx)
+	cancel() // refresh board_preview manually
 	defer teardown(ctx)
 
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
 
-func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container) {
+func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container, context.CancelFunc) {
 	// Resolve absolute path for init script
 	initScriptPath, err := filepath.Abs(initScriptRel)
 	if err != nil {
@@ -79,9 +81,10 @@ func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container) {
 
 	cfg := config.Config{
 		Public: config.Public{
-			ThreadsPerPage: 3,
-			NLastMsg:       3,
-			BumpLimit:      15,
+			ThreadsPerPage:              3,
+			NLastMsg:                    3,
+			BumpLimit:                   15,
+			BoardPreviewRefreshInterval: 1 * time.Second,
 		},
 		Private: config.Private{
 			Pg: config.Pg{
@@ -94,12 +97,13 @@ func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container) {
 		},
 	}
 
-	storage, err := New(&cfg)
+	ctx, cancel := context.WithCancel(ctx)
+	storage, err := New(ctx, &cfg)
 	if err != nil {
 		log.Fatalf("failed to initialize storage: %v", err)
 	}
 
-	return storage, []testcontainers.Container{container}
+	return storage, []testcontainers.Container{container}, cancel
 }
 
 func teardown(ctx context.Context) {

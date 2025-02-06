@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/itchan-dev/itchan/backend/internal/handler"
@@ -10,23 +11,28 @@ import (
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 )
 
-func RateLimit(url *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request) (string, error)) func(http.HandlerFunc) http.HandlerFunc {
-	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
+func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request) (string, error)) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			identity, err := getIdentity(r)
 			if err != nil {
 				utils.WriteErrorAndStatusCode(w, err)
 			}
-			if !url.Allow(identity) {
+			if !rl.Allow(identity) {
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}
 
 			next.ServeHTTP(w, r)
-		}
+		})
 	}
 }
 
+func GlobalRateLimit(rl *ratelimiter.UserRateLimiter) func(http.Handler) http.Handler {
+	return RateLimit(rl, func(r *http.Request) (string, error) { return "global", nil })
+}
+
+// Possible if user was authorized with previous middleware
 func GetEmailFromContext(r *http.Request) (string, error) {
 	user := GetUserFromContext(r)
 	if user == nil {
@@ -38,7 +44,13 @@ func GetEmailFromContext(r *http.Request) (string, error) {
 func GetIP(r *http.Request) (string, error) {
 	ip, err := utils.GetIP(r)
 	if err != nil {
-		return "", err
+		// Create consistent fingerprint from request characteristics
+		fingerprint := fmt.Sprintf("%s|%s|%s",
+			r.UserAgent(),
+			r.Header.Get("Accept-Language"),
+			r.Header.Get("Accept-Encoding"),
+		)
+		return utils.HashSHA256(fingerprint), nil
 	}
 	return ip, nil
 }
@@ -52,10 +64,4 @@ func GetEmailFromBody(r *http.Request) (string, error) {
 		return "", err
 	}
 	return creds.Email, nil
-}
-
-func LimitByIpAndEmail(rl *ratelimiter.UserRateLimiter, handler http.HandlerFunc) http.HandlerFunc {
-	return RateLimit(rl, GetIP)(
-		RateLimit(rl, GetEmailFromBody)(
-			handler))
 }

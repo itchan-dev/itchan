@@ -71,14 +71,14 @@ func TestAuth(t *testing.T) {
 				req.AddCookie(tt.cookie)
 			}
 			rr := httptest.NewRecorder()
-			handler := Auth(jwtService, tt.adminOnly)(func(w http.ResponseWriter, r *http.Request) {
+			handler := Auth(jwtService, tt.adminOnly)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				user := GetUserFromContext(r)
 				require.NotNil(t, user, "Auth should always propagate user thru context")
 				assert.Equal(t, tt.expectedUser, user)
 
 				w.WriteHeader(http.StatusOK)
-			})
-			handler(rr, req)
+			}))
+			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.expectedStatus, rr.Code, "handler returned wrong status code")
 		})

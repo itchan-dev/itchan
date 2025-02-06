@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"context"
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/handler"
@@ -17,14 +18,17 @@ import (
 type Dependencies struct {
 	Storage    *pg.Storage
 	Handler    *handler.Handler
-	accessData *board_access.BoardAccess
+	AccessData *board_access.BoardAccess
 	Jwt        jwt.JwtService
+	CancelFunc context.CancelFunc
 }
 
 // SetupDependencies initializes all dependencies required for the application.
 func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
-	storage, err := pg.New(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	storage, err := pg.New(ctx, cfg)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -44,7 +48,8 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	return &Dependencies{
 		Storage:    storage,
 		Handler:    h,
-		accessData: accessData,
+		AccessData: accessData,
 		Jwt:        jwt,
+		CancelFunc: cancel,
 	}, nil
 }

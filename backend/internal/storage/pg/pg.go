@@ -1,6 +1,7 @@
 package pg
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -15,14 +16,16 @@ type Storage struct {
 	cfg *config.Config
 }
 
-func New(cfg *config.Config) (*Storage, error) {
+func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 	log.Print("Connecting to db")
 	db, err := Connect(cfg)
 	if err != nil {
 		return nil, err
 	}
 	log.Print("Succesfully connected to db")
-	return &Storage{db, cfg}, nil
+	storage := &Storage{db, cfg}
+	storage.StartPeriodicViewRefresh(ctx, cfg.Public.BoardPreviewRefreshInterval)
+	return storage, nil
 }
 
 func Connect(cfg *config.Config) (*sql.DB, error) {

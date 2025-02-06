@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -135,11 +136,12 @@ func TestBoardWorkflow(t *testing.T) {
 	}
 
 	t.Run("verify board structure", func(t *testing.T) {
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1), "Refresh view shouldnt throw error") // manually refresh board view
 		board, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
 
-		require.Equal(t, boardShortName, board.ShortName)
-		require.Len(t, board.Threads, 3, "Page 1 should show 3 threads")
+		assert.Equal(t, boardShortName, board.ShortName)
+		assert.Len(t, board.Threads, 3, "Page 1 should show 3 threads, instead it has %d", len(board.Threads))
 
 		t.Run("thread order by last bump", func(t *testing.T) {
 			requireThreadOrder(t, board.Threads, []string{"thread4", "thread1", "thread2"})
@@ -153,6 +155,7 @@ func TestBoardWorkflow(t *testing.T) {
 	})
 
 	t.Run("pagination", func(t *testing.T) {
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1), "Refresh view shouldnt throw error") // manually refresh board view
 		board, err := storage.GetBoard(boardShortName, 2)
 		require.NoError(t, err)
 		require.Len(t, board.Threads, 2, "Page 2 should show 2 threads")
@@ -184,6 +187,7 @@ func TestBoardWorkflow(t *testing.T) {
 		// bump thread with bump limit
 		createTestMessage(t, boardShortName, &domain.User{Id: 1}, "bump", nil, threadID)
 
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1), "Refresh view shouldnt throw error") // manually refresh board view
 		board, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
 		requireThreadOrder(t, board.Threads, []string{"thread2", "thread1", "Bump Test"})
@@ -200,7 +204,8 @@ func TestBoardInvariants(t *testing.T) {
 		{Author: domain.User{Id: 3}, Text: "msg3"},
 	}
 
-	threads := make([]int64, 4)
+	threadCount := 4
+	threads := make([]int64, threadCount)
 	for i := range threads {
 		threads[i] = createTestThread(t, boardShortName, "Thread"+strconv.Itoa(i+1), &messages[rand.Intn(len(messages))])
 	}
@@ -216,7 +221,6 @@ func TestBoardInvariants(t *testing.T) {
 }
 
 func TestGetBoardsAllowedEmails(t *testing.T) {
-
 	t.Run("returns boards with non-null allowed_emails", func(t *testing.T) {
 		toCreate := []domain.Board{
 			{Name: "Board 1", ShortName: "b1", AllowedEmails: nil},
@@ -279,6 +283,7 @@ func TestGetBoardsAllowedEmails(t *testing.T) {
 
 func checkBoardInvariants(t *testing.T, boardShortName string) {
 	t.Helper()
+	require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1), "Refresh view shouldnt throw error") // manually refresh board view
 	board, err := storage.GetBoard(boardShortName, 1)
 	require.NoError(t, err)
 
@@ -297,4 +302,81 @@ func checkBoardInvariants(t *testing.T, boardShortName string) {
 				"Message order incorrect in thread %s", thread.Title)
 		}
 	}
+}
+
+func TestGetActiveBoards(t *testing.T) {
+	t.Run("no active boards when there are no messages", func(t *testing.T) {
+		_ = setupBoard(t)
+		boards, err := storage.GetActiveBoards(time.Hour)
+		require.NoError(t, err)
+		assert.Empty(t, boards)
+	})
+
+	t.Run("board is active with recent message", func(t *testing.T) {
+		boardShortName, threadId := setupBoardAndThread(t)
+
+		// Interval 10 minutes should return 1 board
+		boards, err := storage.GetActiveBoards(10 * time.Minute)
+		require.NoError(t, err)
+		assert.Len(t, boards, 1)
+
+		// Set message created time to 30 minutes ago
+		createdTime := time.Now().UTC().Add(-30 * time.Minute)
+		_, err = storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", createdTime, threadId)
+		require.NoError(t, err)
+
+		// Interval 31 minutes should include the board
+		boards, err = storage.GetActiveBoards(31 * time.Minute)
+		require.NoError(t, err)
+		assert.Len(t, boards, 1)
+		assert.Equal(t, boardShortName, boards[0].ShortName)
+
+		// Interval 29 minutes should exclude the board
+		boards, err = storage.GetActiveBoards(29 * time.Minute)
+		require.NoError(t, err)
+		assert.Empty(t, boards)
+	})
+
+	t.Run("multiple boards with varying activity", func(t *testing.T) {
+		// Setup boards
+		boardActive, _ := setupBoardAndThread(t)
+
+		_, threadInactive := setupBoardAndThread(t)
+		_, err := storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", time.Now().UTC().Add(-2*time.Hour), threadInactive)
+		require.NoError(t, err)
+
+		boards, err := storage.GetActiveBoards(1 * time.Hour)
+		require.NoError(t, err)
+		assert.Len(t, boards, 1)
+		assert.Equal(t, boardActive, boards[0].ShortName)
+	})
+
+	t.Run("board with multiple messages uses latest", func(t *testing.T) {
+		boardShortName, oldThreadId := setupBoardAndThread(t)
+		msgRecentID := createTestMessage(t, boardShortName, &domain.User{Id: 1}, "Recent Msg", nil, oldThreadId)
+
+		// Set old message to 2 hours ago, recent to 30 minutes ago
+		_, err := storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", time.Now().UTC().Add(-2*time.Hour), oldThreadId)
+		require.NoError(t, err)
+		_, err = storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", time.Now().UTC().Add(-30*time.Minute), msgRecentID)
+		require.NoError(t, err)
+
+		// Interval 1 hour should include the board
+		boards, err := storage.GetActiveBoards(1 * time.Hour)
+		require.NoError(t, err)
+		assert.Len(t, boards, 1)
+		assert.Equal(t, boardShortName, boards[0].ShortName)
+
+		// Interval 29 minutes should exclude the board
+		boards, err = storage.GetActiveBoards(29 * time.Minute)
+		require.NoError(t, err)
+		assert.Empty(t, boards)
+	})
+
+	t.Run("board with no messages is not active", func(t *testing.T) {
+		setupBoard(t)
+		boards, err := storage.GetActiveBoards(time.Hour)
+		require.NoError(t, err)
+		assert.Empty(t, boards)
+	})
 }

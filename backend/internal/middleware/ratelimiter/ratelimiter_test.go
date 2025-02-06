@@ -91,7 +91,7 @@ func TestRateLimiter_Allow(t *testing.T) {
 
 func TestUserRateLimiter_getLimiter(t *testing.T) {
 	t.Run("creates a new limiter for a new user", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, time.Minute)
+		url := New(1, 10, time.Minute)
 		limiter := url.getLimiter("user1")
 
 		require.NotNil(t, limiter)
@@ -100,7 +100,7 @@ func TestUserRateLimiter_getLimiter(t *testing.T) {
 	})
 
 	t.Run("returns the existing limiter for the same user", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, time.Minute)
+		url := New(1, 10, time.Minute)
 		limiter1 := url.getLimiter("user1")
 		limiter2 := url.getLimiter("user1")
 
@@ -108,7 +108,7 @@ func TestUserRateLimiter_getLimiter(t *testing.T) {
 	})
 
 	t.Run("creates different limiters for different users", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, time.Minute)
+		url := New(1, 10, time.Minute)
 		limiter1 := url.getLimiter("user1")
 		limiter2 := url.getLimiter("user2")
 
@@ -116,7 +116,7 @@ func TestUserRateLimiter_getLimiter(t *testing.T) {
 	})
 
 	t.Run("concurrent access for limiter creation", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, time.Minute)
+		url := New(1, 10, time.Minute)
 		userID := "user1"
 		wg := sync.WaitGroup{}
 		numRoutines := 10
@@ -140,7 +140,7 @@ func TestUserRateLimiter_getLimiter(t *testing.T) {
 
 func TestUserRateLimiter_Allow(t *testing.T) {
 	t.Run("allows and denies requests based on user-specific limiters", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 2, time.Minute) // 1 request per second, capacity 2
+		url := New(1, 2, time.Minute) // 1 request per second, capacity 2
 
 		assert.True(t, url.Allow("user1"))
 		assert.True(t, url.Allow("user1"))
@@ -156,7 +156,7 @@ func TestUserRateLimiter_Allow(t *testing.T) {
 
 func TestUserRateLimiter_cleanup(t *testing.T) {
 	t.Run("removes limiter after expiration time", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, 1*time.Millisecond) // Short expiration time
+		url := New(1, 10, 1*time.Millisecond) // Short expiration time
 		_ = url.getLimiter("user1")
 
 		require.Eventually(t, func() bool {
@@ -168,7 +168,7 @@ func TestUserRateLimiter_cleanup(t *testing.T) {
 	})
 
 	t.Run("does not remove limiter before expiration time", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, time.Minute) // Long expiration time
+		url := New(1, 10, time.Minute) // Long expiration time
 		_ = url.getLimiter("user1")
 
 		time.Sleep(100 * time.Millisecond) // Wait for a short time
@@ -180,7 +180,7 @@ func TestUserRateLimiter_cleanup(t *testing.T) {
 	})
 
 	t.Run("resets timer on access", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, 50*time.Millisecond)
+		url := New(1, 10, 50*time.Millisecond)
 
 		// Wait for some time to pass, but less than the expiration time
 		time.Sleep(30 * time.Millisecond)
@@ -208,7 +208,7 @@ func TestUserRateLimiter_cleanup(t *testing.T) {
 	})
 
 	t.Run("cleanup specific user", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, time.Minute)
+		url := New(1, 10, time.Minute)
 		_ = url.getLimiter("user1")
 		_ = url.getLimiter("user2")
 
@@ -226,7 +226,7 @@ func TestUserRateLimiter_cleanup(t *testing.T) {
 
 func TestUserRateLimiter_Stop(t *testing.T) {
 	t.Run("stops all timers", func(t *testing.T) {
-		url := NewUserRateLimiter(1, 10, time.Minute)
+		url := New(1, 10, time.Minute)
 		url.getLimiter("user1")
 		url.getLimiter("user2")
 

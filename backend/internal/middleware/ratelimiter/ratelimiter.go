@@ -27,7 +27,7 @@ type UserRateLimiter struct {
 }
 
 // NewUserRateLimiter creates a new UserRateLimiter instance
-func NewUserRateLimiter(rate float64, capacity float64, expirationTime time.Duration) *UserRateLimiter {
+func New(rate float64, capacity float64, expirationTime time.Duration) *UserRateLimiter {
 	return &UserRateLimiter{
 		limiters:       make(map[string]*RateLimiter),
 		rate:           rate,
@@ -136,5 +136,22 @@ func (url *UserRateLimiter) Stop() {
 	}
 }
 
-var OnceInMinute = NewUserRateLimiter(1/60, 1, 1*time.Hour)
-var OnceInSecond = NewUserRateLimiter(1, 1, 1*time.Hour)
+func OnceInMinute() *UserRateLimiter {
+	return New(1/60, 1, 1*time.Hour)
+}
+
+func OnceInSecond() *UserRateLimiter {
+	return New(1, 1, 1*time.Hour)
+}
+
+func Rps10() *UserRateLimiter {
+	return New(10, 10, 1*time.Hour)
+}
+
+func Rps100() *UserRateLimiter {
+	return New(100, 100, 1*time.Hour)
+}
+
+func Rps1000() *UserRateLimiter {
+	return New(1000, 1000, 1*time.Hour)
+}

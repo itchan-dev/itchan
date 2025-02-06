@@ -50,6 +50,7 @@ func (b *BoardAccess) AllowedDomains(board string) []string {
 
 func (b *BoardAccess) StartBackgroundUpdate(interval time.Duration, s Storage) {
 	ticker := time.NewTicker(interval)
+	log.Printf("Started BoardAccess background update")
 	go func() {
 		for range ticker.C {
 			if err := b.Update(s); err != nil {

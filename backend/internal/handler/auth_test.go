@@ -39,6 +39,155 @@ func (m *MockAuthService) Login(email, password string) (string, error) {
 	return "", nil // Default behavior
 }
 
+func TestRegisterHandler(t *testing.T) {
+	h := &Handler{}
+
+	route := "/v1/auth/register"
+	router := mux.NewRouter()
+	router.HandleFunc(route, h.Register).Methods("POST")
+
+	validRequestBody := []byte(`{"email": "test@example.com", "password": "password"}`)
+
+	t.Run("successful registration", func(t *testing.T) {
+		mockService := &MockAuthService{
+			MockRegister: func(email, password string) error {
+				assert.Equal(t, "test@example.com", email)
+				assert.Equal(t, "password", password)
+				return nil
+			},
+		}
+		h.auth = mockService
+
+		req := createRequest(t, http.MethodPost, route, validRequestBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "The confirmation code has been sent by email", rr.Body.String())
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		req := createRequest(t, http.MethodPost, route, []byte(`{invalid`))
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("missing email", func(t *testing.T) {
+		invalidBody := []byte(`{"password": "password"}`)
+		req := createRequest(t, http.MethodPost, route, invalidBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("missing password", func(t *testing.T) {
+		invalidBody := []byte(`{"email": "test@example.com"}`)
+		req := createRequest(t, http.MethodPost, route, invalidBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		mockErr := errors.New("registration failed")
+		mockService := &MockAuthService{
+			MockRegister: func(email, password string) error {
+				return mockErr
+			},
+		}
+		h.auth = mockService
+
+		req := createRequest(t, http.MethodPost, route, validRequestBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+}
+
+func TestCheckConfirmationCodeHandler(t *testing.T) {
+	h := &Handler{}
+
+	route := "/v1/auth/check-confirmation-code"
+	router := mux.NewRouter()
+	router.HandleFunc(route, h.CheckConfirmationCode).Methods("POST")
+
+	validRequestBody := []byte(`{"email": "test@example.com", "confirmation_code": "123456"}`)
+
+	t.Run("successful confirmation", func(t *testing.T) {
+		mockService := &MockAuthService{
+			MockCheckConfirmationCode: func(email, code string) error {
+				assert.Equal(t, "test@example.com", email)
+				assert.Equal(t, "123456", code)
+				return nil
+			},
+		}
+		h.auth = mockService
+
+		req := createRequest(t, http.MethodPost, route, validRequestBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		req := createRequest(t, http.MethodPost, route, []byte(`{invalid`))
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("missing email", func(t *testing.T) {
+		invalidBody := []byte(`{"confirmation_code": "123456"}`)
+		req := createRequest(t, http.MethodPost, route, invalidBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("missing confirmation code", func(t *testing.T) {
+		invalidBody := []byte(`{"email": "test@example.com"}`)
+		req := createRequest(t, http.MethodPost, route, invalidBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		mockErr := errors.New("invalid code")
+		mockService := &MockAuthService{
+			MockCheckConfirmationCode: func(email, code string) error {
+				return mockErr
+			},
+		}
+		h.auth = mockService
+
+		req := createRequest(t, http.MethodPost, route, validRequestBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+}
+
 func TestAuthLoginHandler(t *testing.T) {
 	cfg := config.Config{Public: config.Public{JwtTTL: 999999999999}}
 	h := &Handler{cfg: &cfg}

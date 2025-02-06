@@ -28,53 +28,7 @@ func (s *Storage) CreateBoard(name, shortName string, allowedEmails *domain.Emai
 		return err
 	}
 
-	// Create materialized view to store op message and several last replies
-	// This is neccessary for fast access to board page, otherwise it would require complex queries every GetBoard request
-	// This view store op message and several (value in config) last messages. It refreshed every time new message posted to the board (maybe change to refresh every sec?)
-	query := fmt.Sprintf(`
-	CREATE MATERIALIZED VIEW %s AS
-	WITH data AS (
-		SELECT -- op messages
-			t.title as thread_title,
-			t.reply_count as reply_count,
-			t.last_bump_ts as last_bump_ts,
-			t.id as thread_id,
-			m.id as msg_id,
-			m.author_id as author_id,
-			m.text as text,
-			m.created as created,
-			m.attachments as attachments,
-			true as op,
-			m.n as reply_number
-		FROM threads as t
-		JOIN messages as m
-			ON t.id = m.id
-		WHERE t.board = '%s'
-		UNION ALL
-		SELECT -- last messages
-			t.title as thread_title,
-			t.reply_count as reply_count,
-			t.last_bump_ts as last_bump_ts,
-			t.id as thread_id,
-			m.id as msg_id,
-			m.author_id as author_id,
-			m.text as text,
-			m.created as created,
-			m.attachments as attachments,
-			false as op,
-			m.n as reply_number
-		FROM threads as t
-		JOIN messages as m
-			ON t.id = m.thread_id -- thread_id is null for op message
-		WHERE t.board = '%s'
-		AND (t.reply_count - m.n) < %d
-	)
-	SELECT
-		*
-		,dense_rank() over(order by last_bump_ts desc, thread_id) as thread_order  -- for pagination
-	FROM data
-	ORDER BY thread_order, created 
-	`, getViewName(shortName), shortName, shortName, s.cfg.Public.NLastMsg)
+	query := fmt.Sprintf(view_query, getViewName(shortName), shortName, shortName, s.cfg.Public.NLastMsg, getViewName(shortName))
 	_, err = tx.Exec(query)
 	if err != nil {
 		return err
@@ -108,6 +62,7 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 		*
 	FROM %s
 	WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
+	ORDER BY thread_order, created
 	`, getViewName(shortName)), s.cfg.Public.ThreadsPerPage, page)
 	if err != nil {
 		return nil, err
@@ -204,6 +159,33 @@ func (s *Storage) GetBoardsAllowedEmails() ([]domain.Board, error) {
 	for rows.Next() {
 		board := domain.Board{}
 		err = rows.Scan(&board.Name, &board.ShortName, &board.AllowedEmails)
+		if err != nil {
+			return nil, err
+		}
+		boards = append(boards, board)
+	}
+	return boards, nil
+}
+
+// Boards that had new messages at last `interval` time
+func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error) {
+	var boards []domain.Board
+	rows, err := s.db.Query(`
+	SELECT
+		t.board
+	FROM messages as m
+	JOIN threads as t
+		ON coalesce(m.thread_id, m.id) = t.id
+	GROUP BY board
+	HAVING EXTRACT(EPOCH FROM ((now() at time zone 'utc') - MAX(m.created))) < $1
+	`, interval.Seconds())
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		board := domain.Board{}
+		// err = rows.Scan(&board.ShortName)
+		err = rows.Scan(&board.ShortName)
 		if err != nil {
 			return nil, err
 		}

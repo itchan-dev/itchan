@@ -15,4 +15,6 @@ service layer contains business logic: validate input arguments, gather data fro
 
 storage package interact with different storages and provide data to service level
 
-All layers beside handlers should communicate via models defined in domain package
+all layers beside handlers should communicate via models defined in domain package
+
+attachments is file pathes to images/videos on local hard drive
