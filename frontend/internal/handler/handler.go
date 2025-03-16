@@ -354,7 +354,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
-func DeleteBoardHandler(w http.ResponseWriter, r *http.Request) {
+func BoardDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	shortName := vars["board"]
 
@@ -386,4 +386,45 @@ func DeleteBoardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func getBoardPreview(r *http.Request, shortName string, page string) (*domain.Board, error) {
+	req, err := requestWithCookie(r, "GET", fmt.Sprintf("http://api:8080/v1/%s?page=%s", shortName, page), nil, "accessToken")
+	if err != nil {
+		return nil, errors.New("Internal error: request creation failed")
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf(err.Error())
+		return nil, errors.New("Internal error: backend unavailable")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New(fmt.Sprintf("Internal error: backend status %d", resp.StatusCode))
+	}
+	var board domain.Board
+	err = utils.Decode(resp.Body, &board)
+	if err != nil {
+		return nil, errors.New("Internal error: cant decode response")
+	}
+	return &board, nil
+}
+
+func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
+	var templateData struct {
+		Board *domain.Board
+		Error template.HTML
+		User  *domain.User
+	}
+	templateData.User = mw.GetUserFromContext(r) // use after auth middleware
+	shortName := mux.Vars(r)["board"]
+	page := r.URL.Query().Get("page")
+
+	board, err := getBoardPreview(r, shortName, page)
+	if err != nil {
+		templateData.Error = template.HTML(err.Error())
+	}
+	templateData.Board = board
+	h.renderTemplate(w, "board.html", templateData)
 }
