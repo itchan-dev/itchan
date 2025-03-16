@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
+	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 	_ "github.com/lib/pq"
 )
 
@@ -39,7 +40,7 @@ func (s *Storage) User(email string) (*domain.User, error) {
 	err := s.db.QueryRow("SELECT id, email, pass_hash, is_admin FROM users WHERE email = $1", email).Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: 404}
+			return nil, &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: http.StatusNotFound}
 		}
 		return nil, err
 	}
@@ -62,7 +63,7 @@ func (s *Storage) UpdatePassword(email, passHash string) error {
 		return err
 	}
 	if rowsAffected == 0 {
-		return &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: 404}
+		return &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: http.StatusNotFound}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -90,7 +91,7 @@ func (s *Storage) DeleteUser(email string) error {
 		return err
 	}
 	if rowsDeleted == 0 {
-		return &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: 404}
+		return &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: http.StatusNotFound}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -124,7 +125,7 @@ func (s *Storage) ConfirmationData(email string) (*domain.ConfirmationData, erro
 		&data.Email, &data.NewPassHash, &data.ConfirmationCodeHash, &data.Expires)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &internal_errors.ErrorWithStatusCode{Message: "ConfirmationData not found", StatusCode: 404}
+			return nil, &internal_errors.ErrorWithStatusCode{Message: "ConfirmationData not found", StatusCode: http.StatusNotFound}
 		}
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func (s *Storage) DeleteConfirmationData(email string) error {
 		return err
 	}
 	if rowsDeleted == 0 {
-		return &internal_errors.ErrorWithStatusCode{Message: "ConfirmationData not found", StatusCode: 404}
+		return &internal_errors.ErrorWithStatusCode{Message: "ConfirmationData not found", StatusCode: http.StatusNotFound}
 	}
 
 	if err := tx.Commit(); err != nil {

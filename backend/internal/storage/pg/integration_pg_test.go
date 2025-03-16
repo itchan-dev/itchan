@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
+	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -84,7 +84,7 @@ func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container, conte
 			ThreadsPerPage:              3,
 			NLastMsg:                    3,
 			BumpLimit:                   15,
-			BoardPreviewRefreshInterval: 1 * time.Second,
+			BoardPreviewRefreshInterval: 1,
 		},
 		Private: config.Private{
 			Pg: config.Pg{

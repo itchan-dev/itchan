@@ -1,0 +1,15 @@
+{{define "title"}}Login{{end}}
+{{define "content"}}
+<form method="POST" action="/login">
+    {{if .EmailPlaceholder}}
+    <label>Email: <input type="email" name="email" value={{.EmailPlaceholder}} required></label>
+    {{else}}
+    <label>Email: <input type="email" name="email" required></label>
+    {{end}}
+    <label>Password: <input type="password" name="password" required></label>
+    <button type="submit">Login</button>
+</form>
+{{if .Error}}
+<div class="error-message" style="display: block;">{{.Error}}</div>
+{{end}}
+{{end}}

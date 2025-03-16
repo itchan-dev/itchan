@@ -1,16 +1,13 @@
 package email
 
-// placeholder code
-
 import (
-	"crypto/tls"
 	"fmt"
-	"net"
+	"log"
 	"net/mail"
 	"net/smtp"
 
-	"github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/errors"
 )
 
 type Email struct {
@@ -34,85 +31,75 @@ func (e *Email) IsCorrect(email string) error {
 	return nil
 }
 
-func (s *Email) Send(recipientEmail, subject, body string) error {
-	msg := []byte(fmt.Sprintf("To: %s\r\n"+
-		"From: %s <%s>\r\n"+
-		"Subject: %s\r\n"+
-		"MIME-Version: 1.0\r\n"+
-		"Content-Type: text/plain; charset=\"utf-8\"\r\n\r\n"+
-		"%s",
-		recipientEmail, s.config.SenderName, s.config.Username, subject, body))
+func (e *Email) Send(recipientEmail, subject, body string) error {
 
-	// Establish connection (using a helper function)
-	conn, err := s.connect()
+	msg := e.buildMessage(recipientEmail, subject, body)
+	address := fmt.Sprintf("%s:%d", e.config.SMTPServer, e.config.SMTPPort)
+	err := smtp.SendMail(address, e.auth, e.config.SenderName, []string{recipientEmail}, msg)
 	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer conn.Close()
-
-	// Create SMTP client
-	client, err := smtp.NewClient(conn, s.config.SMTPServer)
-	if err != nil {
-		return fmt.Errorf("failed to create SMTP client: %w", err)
-	}
-	defer client.Close()
-
-	// Perform authentication
-	if err := client.Auth(s.auth); err != nil {
-		return fmt.Errorf("failed to authenticate: %w", err)
-	}
-
-	// Send the email
-	if err := client.Mail(s.config.Username); err != nil {
-		return fmt.Errorf("failed to set sender: %w", err)
-	}
-	if err := client.Rcpt(recipientEmail); err != nil {
-		return fmt.Errorf("failed to set recipient: %w", err)
-	}
-
-	w, err := client.Data()
-	if err != nil {
-		return fmt.Errorf("failed to open data writer: %w", err)
-	}
-	_, err = w.Write(msg)
-	if err != nil {
-		return fmt.Errorf("failed to write message body: %w", err)
-	}
-	err = w.Close()
-	if err != nil {
-		return fmt.Errorf("failed to close data writer: %w", err)
-	}
-
-	// Quit the SMTP session
-	if err := client.Quit(); err != nil {
-		return fmt.Errorf("failed to quit SMTP session: %w", err)
+		log.Fatal("Error sending email:", err)
 	}
 
 	return nil
 }
 
-func (s *Email) connect() (net.Conn, error) {
-	address := fmt.Sprintf("%s:%d", s.config.SMTPServer, s.config.SMTPPort)
+// func (e *Email) Close() error {
+// 	e.mu.Lock()
+// 	defer e.mu.Unlock()
 
-	dialer := net.Dialer{
-		Timeout: s.config.Timeout,
-	}
+// 	var errs []error
+// 	if e.client != nil {
+// 		if err := e.client.Quit(); err != nil {
+// 			errs = append(errs, fmt.Errorf("SMTP quit error: %w", err))
+// 		}
+// 		e.client = nil
+// 	}
+// 	if e.conn != nil {
+// 		if err := e.conn.Close(); err != nil {
+// 			errs = append(errs, fmt.Errorf("connection close error: %w", err))
+// 		}
+// 		e.conn = nil
+// 	}
 
-	if s.config.UseTLS {
-		tlsConfig := &tls.Config{
-			ServerName:         s.config.SMTPServer,
-			InsecureSkipVerify: s.config.InsecureSkipVerify, // Set to true only for testing!
-		}
-		conn, err := tls.DialWithDialer(&dialer, "tcp", address, tlsConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to establish TLS connection: %w", err)
-		}
-		return conn, nil
-	}
+// 	if len(errs) > 0 {
+// 		return fmt.Errorf("error closing connection: %v", errs)
+// 	}
+// 	return nil
+// }
 
-	conn, err := dialer.Dial("tcp", address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to establish connection: %w", err)
-	}
-	return conn, nil
+// func (e *Email) resetConnection() {
+// 	if e.client != nil {
+// 		e.client.Close()
+// 		e.client = nil
+// 	}
+// 	if e.conn != nil {
+// 		e.conn.Close()
+// 		e.conn = nil
+// 	}
+// }
+
+func (e *Email) buildMessage(recipient, subject, body string) []byte {
+	return []byte(fmt.Sprintf(
+		"To: %s\r\nFrom: %s <%s>\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\n\r\n%s",
+		recipient,
+		e.config.SenderName,
+		e.config.Username,
+		subject,
+		body,
+	))
 }
+
+// func (e *Email) connect() (net.Conn, error) {
+// 	address := fmt.Sprintf("%s:%d", e.config.SMTPServer, e.config.SMTPPort)
+// 	dialer := net.Dialer{Timeout: time.Duration(e.config.Timeout) * time.Second}
+
+// 	if e.config.UseTLS {
+// 		tlsConfig := &tls.Config{
+// 			ServerName:         e.config.SMTPServer,
+// 			InsecureSkipVerify: e.config.InsecureSkipVerify,
+// 		}
+// 		return tls.DialWithDialer(&dialer, "tcp", address, tlsConfig)
+// 	}
+
+// 	return dialer.Dial("tcp", address)
+// }

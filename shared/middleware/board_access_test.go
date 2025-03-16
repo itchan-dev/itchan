@@ -57,8 +57,8 @@ func TestRestrictBoardAccess(t *testing.T) {
 			boardAccess: &mockBoardAccess{allowedDomains: map[string][]string{
 				"restricted": {"example.com"},
 			}},
-			expectedStatus: http.StatusUnauthorized,
-			nextCalled:     false,
+			expectedStatus: http.StatusOK,
+			nextCalled:     true,
 		},
 		{
 			name: "admin user bypass",
@@ -92,6 +92,21 @@ func TestRestrictBoardAccess(t *testing.T) {
 			boardAccess: &mockBoardAccess{allowedDomains: map[string][]string{
 				"restricted": {"example.com"},
 			}},
+			expectedStatus: http.StatusOK,
+			nextCalled:     true,
+		},
+		{
+			name: "empty domains",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest("GET", "/board/restricted", nil)
+				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
+				ctx := context.WithValue(req.Context(), userClaimsKey, &domain.User{
+					Id:    1,
+					Email: "user@example.com",
+				})
+				return req.WithContext(ctx)
+			},
+			boardAccess:    &mockBoardAccess{allowedDomains: map[string][]string{}},
 			expectedStatus: http.StatusOK,
 			nextCalled:     true,
 		},

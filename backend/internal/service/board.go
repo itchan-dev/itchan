@@ -9,6 +9,7 @@ type BoardService interface {
 	Create(name, shortName string, allowedEmails *domain.Emails) error
 	Get(shortName string, page int) (*domain.Board, error)
 	Delete(shortName string) error
+	GetAll(user *domain.User) ([]domain.Board, error)
 }
 
 type Board struct {
@@ -20,6 +21,7 @@ type BoardStorage interface {
 	CreateBoard(name, shortName string, allowedEmails *domain.Emails) error
 	GetBoard(shortName string, page int) (*domain.Board, error)
 	DeleteBoard(shortName string) error
+	GetBoards(user *domain.User) ([]domain.Board, error)
 }
 
 type BoardValidator interface {
@@ -57,6 +59,10 @@ func (b *Board) Get(shortName string, page int) (*domain.Board, error) {
 		return nil, err
 	}
 	return board, nil
+}
+
+func (b *Board) GetAll(user *domain.User) ([]domain.Board, error) {
+	return b.storage.GetBoards(user)
 }
 
 func (b *Board) Delete(shortName string) error {

@@ -11,13 +11,18 @@ services:
         condition: service_healthy
     ports:
       - 8080:8080
-  # frontend:
-  #   container_name: frontend
-  #   build:
-  #       dockerfile: ./frontend/Dockerfile
-  #       context: ./
-  #   ports:
-  #     - 8081:8081
+  frontend:
+    container_name: frontend
+    build:
+        dockerfile: ./frontend/Dockerfile
+        context: ./
+    ports:
+      - 8081:8081
+    volumes:
+      - ./frontend/templates:/root/templates
+      - ./frontend/static:/root/static
+    depends_on:
+      - api
   db:
     container_name: postgres
     image: postgres:15.3-alpine

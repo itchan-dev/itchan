@@ -1,0 +1,228 @@
+/* Reset and General Styles */
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #ddd; /* Medium grey background - same as footer */
+    color: #333; /* Dark grey text */
+    line-height: 1.6;
+    /* min-height: 100vh;   Ensure body takes up at least the full viewport height */
+    display: flex; /* Enable flexbox on body */
+    flex-direction: column; /* Arrange body content in a column */
+}
+
+a {
+    color: #007bff; /* Default link color (can be changed to grey if desired) */
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+} */
+
+/* Header */
+.site-header {
+    border-bottom: 1px solid #ccc; /* Lighter grey border */
+    padding: 10px 0;
+}
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.header-top {
+    display: flex;
+    align-items: center;
+}
+
+.site-title {
+    margin: 0;
+    font-size: 1.5em;
+    margin-right: 20px;
+}
+
+.site-title a {
+    color: #333; /* Dark grey title text */
+    font-weight: bold;
+}
+
+.main-nav a {
+    margin-left: 15px;
+    color: #555; /* Slightly lighter grey nav links */
+}
+
+.auth-links {
+    display: flex;
+    align-items: center;
+}
+
+.auth-links a, .auth-links span {
+    margin-left: 15px;
+    color: #555; /* Slightly lighter grey auth links and user email */
+}
+
+.auth-button {
+    padding: 8px 12px;
+    background-color: #eee; /* Very light grey button background */
+    border: 1px solid #ccc; /* Lighter grey button border */
+    border-radius: 4px;
+    color: #333; /* Dark grey button text */
+    cursor: pointer;
+    display: inline-block;
+    text-decoration: none;
+}
+
+.auth-button:hover {
+    background-color: #ddd; /* Slightly darker grey on hover */
+    text-decoration: none;
+}
+
+/* Main Content */
+.content {
+    padding: 20px;
+    background-color: #f0f0f0; /* Light grey content background */
+}
+
+/* Footer */
+.site-footer {
+    border-top: 1px solid #ccc; /* Lighter grey border */
+    padding: 20px 0;
+    text-align: center;
+    color: #555; /* Slightly lighter grey footer text */
+    font-size: 0.9em;
+    margin-top: auto; /* Push footer to the bottom */
+}
+
+.footer-container {
+    padding: 0 20px;
+}
+
+.footer-nav {
+    margin-bottom: 10px;
+}
+
+.footer-nav a {
+    margin: 0 10px;
+    color: #555; /* Slightly lighter grey footer nav links */
+}
+
+.footer-info p {
+    margin: 5px 0;
+}
+
+/* Board List Styles */
+.boards-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0 0 20px 0;
+}
+
+.boards-list li {
+    margin-bottom: 8px;
+}
+
+.boards-list a {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #eee;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.boards-list a:hover {
+    background-color: #ddd;
+    text-decoration: none;
+}
+
+/* Admin Panel Styles */
+.admin-panel {
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 15px 20px;
+    margin: 20px 0;
+    max-width: 600px;
+}
+
+.admin-panel h2 {
+    margin-top: 0;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 1.3em;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+    color: #333;
+    box-sizing: border-box;
+}
+
+.form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.form-group small {
+    display: block;
+    color: #777;
+    font-size: 0.85em;
+    margin-top: 5px;
+}
+
+.form-group input[type="text"]:focus,
+.form-group textarea:focus {
+    border-color: #999;
+    outline: none;
+}
+
+/* Message Styling */
+.success-message {
+    background-color: #e6f3e6;
+    color: #337733;
+    padding: 10px 15px;
+    border: 1px solid #c3e6c3;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.error-message {
+    background-color: #f8e6e6;
+    color: #cc3333;
+    padding: 10px 15px;
+    border: 1px solid #ecc3c3;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.boards-list form.delete-form {
+    display: inline-block;
+    margin-left: 10px;
+}

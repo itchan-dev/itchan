@@ -1,0 +1,33 @@
+{{ define "content" }}
+    <h2>Thread: {{ .Thread.Title }}</h2>
+
+    <ul class="message-list">
+        {{ range .Thread.Messages }}
+        <li class="message-item">
+            <span class="message-author">Anonymous</span>
+            <span class="message-date">{{ .CreatedAt.Format "2006-01-02 15:04" }}</span>
+            <p class="message-text">{{ .Text }}</p>
+             {{ if .Attachments }}
+                <p>Attachments:
+                {{ range .Attachments }}
+                    <a href="{{ . }}" target="_blank">{{ . }}</a>
+                {{ end }}
+                </p>
+            {{ end }}
+        </li>
+        {{ end }}
+    </ul>
+
+    <div class="form-container">
+        <h3>Reply to Thread</h3>
+        <form action="/{{ .BoardShortName }}/{{ .Thread.Id }}" method="post">
+            <div class="form-group">
+                <label for="text">Message:</label>
+                <textarea id="text" name="text" rows="4" required></textarea>
+            </div>
+            <div class="form-group">
+                <button type="submit">Post Reply</button>
+            </div>
+        </form>
+    </div>
+{{ end }}

@@ -1,0 +1,61 @@
+{{define "title"}}Confirm Email{{end}}
+{{define "content"}}
+<form id="confirm-form">
+    <label>Confirmation code: <input type="text" id="confirmation_code" name="confirmation_code" required></label>
+    <button type="submit">Confirm</button>
+</form>
+
+<div id="confirmation-result" style="display: none;"></div>
+    
+<script>
+    document.getElementById('confirm-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const confirmationCode = document.getElementById('confirmation_code').value.trim();
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email');
+
+        // Prepare data for submission
+        const formData = {
+            email: email,
+            confirmation_code: confirmationCode
+        };
+        
+        // Send POST request
+        fetch('http://localhost:8080/v1/auth/check_confirmation_code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.text();
+            } else {
+                return response.text().then(text => { 
+                    throw new Error(text);
+                });
+            }
+        })
+        .then(successText => {
+                const resultDiv = document.getElementById('confirmation-result');
+                resultDiv.innerHTML = `<div class="success-message">${email} registred successfully!</div>`;
+                resultDiv.style.display = 'block';
+                
+                // Clear form
+                document.getElementById('confirmation_code').value = '';
+                
+                // Refresh the page after a short delay to show the new board
+                setTimeout(() => {
+                    window.location.href = '/login'
+                }, 2000);
+            })
+            .catch(error => {
+                const resultDiv = document.getElementById('confirmation-result');
+                resultDiv.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+                resultDiv.style.display = 'block';
+            });
+    });
+</script>
+{{end}}

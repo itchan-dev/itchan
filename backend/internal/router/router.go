@@ -4,11 +4,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 
-	mw "github.com/itchan-dev/itchan/backend/internal/middleware"
-	rl "github.com/itchan-dev/itchan/backend/internal/middleware/ratelimiter"
 	"github.com/itchan-dev/itchan/backend/internal/setup"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
+	rl "github.com/itchan-dev/itchan/shared/middleware/ratelimiter"
 )
 
 // New creates and configures a new mux router with all the routes.
@@ -16,12 +17,34 @@ import (
 func New(deps *setup.Dependencies) *mux.Router {
 	r := mux.NewRouter()
 
+	// setup CORS for frontend
+	r.Use(handlers.CORS(
+		handlers.AllowedOrigins([]string{"http://localhost:8081"}),
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
+	))
+
+	// Add a wildcard OPTIONS handler to avoid 404s for preflight requests
+	r.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
 	h := deps.Handler
 	jwt := deps.Jwt
 
 	v1 := r.PathPrefix("/v1").Subrouter()
-	v1.Use(mw.RestrictBoardAccess(deps.AccessData)) // if path has {board}, restrict access to certain email domain
 
+	// test := v1.PathPrefix("/test").Subrouter()                                                     //
+	// test.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test")) }) //
+	// test_tmp := v1.PathPrefix("/test").Subrouter()
+	// test_tmp.HandleFunc("/xa", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test")) })
+	// test2 := v1.PathPrefix("/test2").Subrouter()                                                     //
+	// test2.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test2")) }) //
+	// test3 := v1.PathPrefix("/{board}").Subrouter()                                                   //
+	// test3.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test3")) }) //
+	// v1.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("v1")) })
+
+	// Admin routes
 	admin := v1.PathPrefix("/admin").Subrouter()
 	admin.Use(mw.AdminOnly(jwt))
 	admin.HandleFunc("/boards", h.CreateBoard).Methods("POST")
@@ -29,37 +52,42 @@ func New(deps *setup.Dependencies) *mux.Router {
 	admin.HandleFunc("/{board}/{thread}", h.DeleteThread).Methods("DELETE")
 	admin.HandleFunc("/{board}/{thread}/{message}", h.DeleteMessage).Methods("DELETE")
 
-	auth := v1.PathPrefix("/auth")
-	// register func send msg via email
-	// so rate limit it hard to prevent spam
-	authSendingEmail := auth.Subrouter()
-	authSendingEmail.Use(mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromBody)) // rate limit by email
-	authSendingEmail.Use(mw.RateLimit(rl.OnceInMinute(), mw.GetIP))            // rate limit by ip
-	authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))                      // rate limit to 100 rps total from all users
+	// Auth routes
+	auth := v1.PathPrefix("/auth").Subrouter()
+	// Rate-limited email sending endpoints
+	authSendingEmail := auth.NewRoute().Subrouter()
+	// authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10, 1, 1*time.Hour), mw.GetEmailFromBody)) // per 10 sec by email
+	authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10, 1, 1*time.Hour), mw.GetIP)) // per 10 sec by IP
+	authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))                        // 100 global RPS
 	authSendingEmail.HandleFunc("/register", h.Register).Methods("POST")
-	// сheckConfirmationCode and login do database lookup
-	// so we can afford higher rate limits
-	authDbLookup := auth.Subrouter()
-	authDbLookup.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetEmailFromBody)) // rate limit by email
-	authDbLookup.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetIP))            // rate limit by ip
-	authDbLookup.Use(mw.GlobalRateLimit(rl.Rps1000()))                     // rate limit to 1000 rps total from all users
+
+	// Database lookup endpoints (higher limits)
+	authDbLookup := auth.NewRoute().Subrouter()
+	// authDbLookup.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetEmailFromBody)) // 1 per second by email
+	authDbLookup.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetIP)) // 1 per second by IP
+	authDbLookup.Use(mw.GlobalRateLimit(rl.Rps1000()))          // 1000 global RPS
 	authDbLookup.HandleFunc("/check_confirmation_code", h.CheckConfirmationCode).Methods("POST")
 	authDbLookup.HandleFunc("/login", h.Login).Methods("POST")
-	// logout just deletes cookie, no need rate limits
-	auth.Subrouter().HandleFunc("/logout", h.Logout).Methods("POST")
 
+	// Logout (no rate limits)
+	auth.HandleFunc("/logout", h.Logout).Methods("POST")
+
+	// Logged-in user routes
 	loggedIn := v1.NewRoute().Subrouter()
-	loggedIn.Use(mw.NeedAuth(jwt)) // check user token from cookie and add user to request context
-	// loggedIn.Use(mw.RateLimit(rl.New(100, 100, time.Hour), mw.GetIP)) // maybe limit all actions fron single ip?
-	loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 rps for single user to all loggedIn endpoints
+	loggedIn.Use(mw.NeedAuth(jwt))                                  // Enforce JWT authentication
+	loggedIn.Use(mw.RestrictBoardAccess(deps.AccessData))           // Restrict access based on board and email domain
+	loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
 
-	// costly operation, limit to 10 rps
+	loggedIn.HandleFunc("/boards", h.GetBoards).Methods("GET")
+	// GetBoard: 10 RPS per user
 	loggedIn.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)(http.HandlerFunc(h.GetBoard))).Methods("GET")
-	// 1 thread per minute at max
+	// CreateThread: 1 per minute per user
 	loggedIn.Handle("/{board}", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateThread))).Methods("POST")
+
 	loggedIn.HandleFunc("/{board}/{thread}", h.GetThread).Methods("GET")
-	// 1 msg per sec for single user
-	loggedIn.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1/15, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateMessage))).Methods("POST")
+	// CreateMessage: 1 per second per user (fixed rate limiter)
+	loggedIn.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateMessage))).Methods("POST")
+
 	loggedIn.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods("GET")
 
 	return r

@@ -1,10 +1,15 @@
 package config
 
 import (
+	"encoding/json"
+	"io"
+	"log"
 	"os"
 	"path"
 	"time"
 
+	"github.com/go-playground/validator/v10"
+	"github.com/itchan-dev/itchan/shared/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -30,14 +35,14 @@ type Pg struct {
 }
 
 type Email struct {
-	SMTPServer         string        `yaml:"smtp_server"`
-	SMTPPort           int           `yaml:"smtp_port"`
-	Username           string        `yaml:"username"`
-	Password           string        `yaml:"password"`
-	SenderName         string        `yaml:"sender_name"`
-	Timeout            time.Duration `yaml:"timeout"`
-	UseTLS             bool          `yaml:"use_tls"`
-	InsecureSkipVerify bool          `yaml:"skip_verify"`
+	SMTPServer         string `yaml:"smtp_server"`
+	SMTPPort           int    `yaml:"smtp_port"`
+	Username           string `yaml:"username"`
+	Password           string `yaml:"password"`
+	SenderName         string `yaml:"sender_name"`
+	Timeout            int    `yaml:"timeout"`
+	UseTLS             bool   `yaml:"use_tls"`
+	InsecureSkipVerify bool   `yaml:"skip_verify"`
 }
 
 type Private struct {
@@ -81,4 +86,17 @@ func MustLoad(configFolder string) *Config {
 	mustLoadPath(path.Join(configFolder, "private.yaml"), &private)
 
 	return &Config{public, private}
+}
+
+func loadValidate(r io.ReadCloser, body any) error {
+	if err := json.NewDecoder(r).Decode(body); err != nil {
+		log.Printf(err.Error())
+		return &errors.ErrorWithStatusCode{Message: "Body is invalid json", StatusCode: 400}
+	}
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	if err := validate.Struct(body); err != nil {
+		log.Printf(err.Error())
+		return &errors.ErrorWithStatusCode{Message: "Required fields missing", StatusCode: 400}
+	}
+	return nil
 }

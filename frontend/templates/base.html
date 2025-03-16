@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{template "title" .}}</title>
+    <link rel="stylesheet" href="./static/css/style.css?t=<?php echo(microtime(true).rand()); ?>">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-container">
+            <div class="header-top">
+                <h1 class="site-title"><a href="/">Itchan</a></h1>
+                <nav class="main-nav">
+                    <a href="/">Home</a>
+                    <a href="/boards">Boards</a>
+                    <a href="/catalog">Catalog</a>
+                    <a href="/faq">FAQ</a>
+                </nav>
+            </div>
+            <div class="auth-links">
+                {{if .User}}
+                    <span class="user-email">Welcome {{.User.Email}}</span>
+                    <a href="/logout" class="auth-button">Logout</a>
+                {{else}}
+                    <a href="/login" class="auth-button">Login</a>
+                    <a href="/register" class="auth-button">Register/Reset password</a>
+                {{end}}
+            </div>
+        </div>
+    </header>
+
+    <main class="content">
+        {{template "content" .}}
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-container">
+            <nav class="footer-nav">
+                <a href="/rules">Rules</a>
+                <a href="/contact">Contact</a>
+                <a href="/about">About</a>
+                <a href="/privacy">Privacy</a>
+            </nav>
+            <div class="footer-info">
+                <p>© 2023 4chan-style Imageboard</p>
+                <p>All trademarks and copyrights on this page are owned by their respective parties.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

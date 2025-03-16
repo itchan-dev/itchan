@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		Attachments *domain.Attachments `json:"attachments"`
 	}
 	var body bodyJson
-	if err := LoadAndValidateRequestBody(r, &body); err != nil {
+	if err := utils.DecodeValidate(r.Body, &body); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

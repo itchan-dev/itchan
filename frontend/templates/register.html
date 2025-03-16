@@ -1,0 +1,11 @@
+{{define "title"}}Register{{end}}
+{{define "content"}}
+<form method="POST" action="/register">
+    <label>Email: <input type="email" name="email" required></label>
+    <label>Password: <input type="password" name="password" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" title="Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters" required></label>
+    <button type="submit">Send confirmation code</button>
+</form>
+{{if .Error}}
+<div class="error-message" style="display: block;">{{.Error}}</div>
+{{end}}
+{{end}}

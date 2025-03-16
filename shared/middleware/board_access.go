@@ -3,7 +3,6 @@ package middleware
 import (
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -18,10 +17,22 @@ type BoardAccess interface {
 func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 			board, ok := mux.Vars(r)["board"]
 			if !ok {
 				// if no board in vars - skip
 				next.ServeHTTP(w, r)
+				return
+			}
+
+			user := GetUserFromContext(r)
+			if user == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if user.Admin {
+				next.ServeHTTP(w, r) // Admin bypass
+				return
 			}
 
 			allowedDomains := access.AllowedDomains(board)
@@ -30,24 +41,12 @@ func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 				return
 			}
 
-			user := GetUserFromContext(r)
-			if user == nil {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				return
-			}
-
-			if user.Admin {
-				next.ServeHTTP(w, r) // Admin bypass
-				return
-			}
-
 			// Fail-safe email format check
-			emailParts := strings.Split(user.Email, "@")
-			if len(emailParts) != 2 {
+			emailDomain, err := user.Domain()
+			if err != nil {
 				http.Error(w, "Access restricted", http.StatusForbidden)
 				return
 			}
-			emailDomain := emailParts[1]
 
 			// Domain check
 			for _, d := range allowedDomains {

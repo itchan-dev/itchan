@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	jwt_internal "github.com/itchan-dev/itchan/backend/internal/utils/jwt"
 	"github.com/itchan-dev/itchan/shared/domain"
+	jwt_internal "github.com/itchan-dev/itchan/shared/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

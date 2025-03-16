@@ -17,6 +17,7 @@ type MockBoardService struct {
 	MockCreate func(name, shortName string, allowedEmails *domain.Emails) error
 	MockGet    func(shortName string, page int) (*domain.Board, error)
 	MockDelete func(shortName string) error
+	MockGetAll func(user *domain.User) ([]domain.Board, error)
 }
 
 func (m *MockBoardService) Create(name, shortName string, allowedEmails *domain.Emails) error {
@@ -38,6 +39,13 @@ func (m *MockBoardService) Delete(shortName string) error {
 		return m.MockDelete(shortName)
 	}
 	return nil // Default behavior
+}
+
+func (m *MockBoardService) GetAll(user *domain.User) ([]domain.Board, error) {
+	if m.MockDelete != nil {
+		return m.MockGetAll(user)
+	}
+	return nil, nil
 }
 
 func TestCreateBoardHandler(t *testing.T) {
