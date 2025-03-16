@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -50,6 +51,8 @@ func NewAuth(storage AuthStorage, email Email, jwt Jwt) *Auth {
 // Generate and send confirmation code to destinated email
 // Save email, passHash, confirmation code to database
 func (a *Auth) Register(email, password string) error {
+	email = strings.ToLower(email)
+
 	var err error
 
 	err = a.email.IsCorrect(email)
@@ -57,7 +60,34 @@ func (a *Auth) Register(email, password string) error {
 		return err
 	}
 
+	cData, err := a.storage.ConfirmationData(email)
+	if cData != nil { // data presented
+		if cData.Expires.Before(time.Now()) {
+			if err := a.storage.DeleteConfirmationData(email); err != nil {
+				return err
+			}
+		} else {
+			diff := cData.Expires.Sub(time.Now())
+			return &errors.ErrorWithStatusCode{Message: fmt.Sprintf("Previous confirmation code is still valid. Retry after %.0fs", diff.Seconds()), StatusCode: http.StatusTooEarly}
+		}
+	}
+
 	confirmationCode := utils.GenerateConfirmationCode(6)
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Print(err.Error())
+		return err
+	}
+	confirmationCodeHash, err := bcrypt.GenerateFromPassword([]byte(confirmationCode), bcrypt.DefaultCost)
+	if err != nil {
+		log.Print(err.Error())
+		return err
+	}
+	err = a.storage.SaveConfirmationData(&domain.ConfirmationData{Email: email, NewPassHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(5 * time.Minute)})
+	if err != nil {
+		return err
+	}
+
 	emailBody := fmt.Sprintf(`
 		Hello,
 
@@ -72,27 +102,13 @@ func (a *Auth) Register(email, password string) error {
 	if err != nil {
 		return err
 	}
-
-	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		log.Print(err.Error())
-		return err
-	}
-	confirmationCodeHash, err := bcrypt.GenerateFromPassword([]byte(confirmationCode), bcrypt.DefaultCost)
-	if err != nil {
-		log.Print(err.Error())
-		return err
-	}
-
-	err = a.storage.SaveConfirmationData(&domain.ConfirmationData{Email: email, NewPassHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(5 * time.Minute)})
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 // Confirm code sended via Register func and update user password
 func (a *Auth) CheckConfirmationCode(email, confirmationCode string) error {
+	email = strings.ToLower(email)
+
 	if err := a.email.IsCorrect(email); err != nil {
 		return err
 	}
@@ -108,7 +124,24 @@ func (a *Auth) CheckConfirmationCode(email, confirmationCode string) error {
 		log.Print(err.Error())
 		return &errors.ErrorWithStatusCode{Message: "Wrong confirmation code", StatusCode: http.StatusBadRequest}
 	}
-	if err := a.storage.UpdatePassword(email, data.NewPassHash); err != nil {
+	// if not exists - create
+	user, err := a.storage.User(email)
+	if err != nil {
+		e, ok := err.(*errors.ErrorWithStatusCode)
+		if ok && e.StatusCode == http.StatusNotFound {
+			if _, err := a.storage.SaveUser(&domain.User{Email: email, PassHash: data.NewPassHash}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	if user != nil {
+		if err := a.storage.UpdatePassword(email, data.NewPassHash); err != nil {
+			return err
+		}
+	}
+	if err := a.storage.DeleteConfirmationData(email); err != nil { // cleanup
 		return err
 	}
 	return nil
@@ -118,6 +151,8 @@ func (a *Auth) CheckConfirmationCode(email, confirmationCode string) error {
 // If user exists, but password is incorrect, returns error.
 // If user doesn't exist, returns error.
 func (a *Auth) Login(email, password string) (string, error) {
+	email = strings.ToLower(email)
+
 	err := a.email.IsCorrect(email)
 	if err != nil {
 		return "", err
@@ -125,13 +160,21 @@ func (a *Auth) Login(email, password string) (string, error) {
 
 	user, err := a.storage.User(email)
 	if err != nil {
+		// to not leak existing users
+		e, ok := err.(*errors.ErrorWithStatusCode)
+		if ok && e.StatusCode == http.StatusNotFound {
+			return "", &errors.ErrorWithStatusCode{
+				Message:    "Invalid credentials",
+				StatusCode: http.StatusUnauthorized,
+			}
+		}
 		return "", err
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PassHash), []byte(password))
 	if err != nil {
 		log.Print(err.Error())
-		return "", &errors.ErrorWithStatusCode{Message: "Wrong password", StatusCode: http.StatusBadRequest}
+		return "", &errors.ErrorWithStatusCode{Message: "Invalid credentials", StatusCode: http.StatusUnauthorized}
 	}
 
 	token, err := a.jwt.NewToken(user)

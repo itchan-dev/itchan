@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/itchan-dev/itchan/shared/config"
 
@@ -24,7 +25,7 @@ func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 	}
 	log.Print("Succesfully connected to db")
 	storage := &Storage{db, cfg}
-	storage.StartPeriodicViewRefresh(ctx, cfg.Public.BoardPreviewRefreshInterval)
+	storage.StartPeriodicViewRefresh(ctx, cfg.Public.BoardPreviewRefreshInterval*time.Second)
 	return storage, nil
 }
 

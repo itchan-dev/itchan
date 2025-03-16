@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/itchan-dev/itchan/backend/internal/handler"
-	"github.com/itchan-dev/itchan/backend/internal/middleware/ratelimiter"
+	"github.com/itchan-dev/itchan/shared/middleware/ratelimiter"
 
-	"github.com/itchan-dev/itchan/backend/internal/utils"
+	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request) (string, error)) func(http.Handler) http.Handler {
@@ -17,6 +16,7 @@ func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request
 			identity, err := getIdentity(r)
 			if err != nil {
 				utils.WriteErrorAndStatusCode(w, err)
+				return
 			}
 			if !rl.Allow(identity) {
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
@@ -55,13 +55,13 @@ func GetIP(r *http.Request) (string, error) {
 	return ip, nil
 }
 
-func GetEmailFromBody(r *http.Request) (string, error) {
-	var creds struct {
-		Email    string `validate:"required" json:"email"`
-		Password string `json:"password"`
-	}
-	if err := handler.LoadAndValidateRequestBody(r, &creds); err != nil {
-		return "", err
-	}
-	return creds.Email, nil
-}
+// func GetEmailFromBody(r *http.Request) (string, error) {
+// 	var creds struct {
+// 		Email    string `validate:"required" json:"email"`
+// 		Password string `json:"password"`
+// 	}
+// 	if err := utils.LoadAndValidateRequestBody(r, &creds); err != nil {
+// 		return "", err
+// 	}
+// 	return creds.Email, nil
+// }

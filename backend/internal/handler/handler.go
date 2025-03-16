@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/go-playground/validator/v10"
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/config"
 )
@@ -37,19 +35,4 @@ func writeJSON(w http.ResponseWriter, v any) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-}
-
-var validate *validator.Validate
-
-func LoadAndValidateRequestBody(r *http.Request, body any) error {
-	if err := json.NewDecoder(r.Body).Decode(body); err != nil {
-		log.Printf(err.Error())
-		return &internal_errors.ErrorWithStatusCode{Message: "Body is invalid json", StatusCode: 400}
-	}
-	validate = validator.New(validator.WithRequiredStructEnabled())
-	if err := validate.Struct(body); err != nil {
-		log.Printf(err.Error())
-		return &internal_errors.ErrorWithStatusCode{Message: "Required fields missing", StatusCode: 400}
-	}
-	return nil
 }

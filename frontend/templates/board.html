@@ -1,0 +1,10 @@
+{{define "title"}}{{.Board.Name}}{{end}}
+{{define "content"}}
+<h1>{{.Board.Name}}</h1>
+{{range .Board.Threads}}
+    <div class="thread">
+        <h3>{{.Title}}</h3>
+        <a href="/thread/{{.Id}}">View thread ({{.NumReplies}} replies)</a>
+    </div>
+{{end}}
+{{end}}

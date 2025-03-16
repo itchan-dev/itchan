@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/itchan-dev/itchan/backend/internal/utils"
-	jwt_internal "github.com/itchan-dev/itchan/backend/internal/utils/jwt"
 	"github.com/itchan-dev/itchan/shared/domain"
+	jwt_internal "github.com/itchan-dev/itchan/shared/jwt"
+	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 // Key to store the user claims in the request context
@@ -29,7 +29,6 @@ func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler)
 				http.Error(w, "Invalid cookie", http.StatusInternalServerError)
 				return
 			}
-
 			token, err := jwtService.DecodeToken(accessCookie.Value)
 			if err != nil {
 				utils.WriteErrorAndStatusCode(w, err)

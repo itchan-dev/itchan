@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/handler"
-	"github.com/itchan-dev/itchan/backend/internal/middleware/board_access"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/backend/internal/storage/pg"
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/backend/internal/utils/email"
-	"github.com/itchan-dev/itchan/backend/internal/utils/jwt"
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/jwt"
+	"github.com/itchan-dev/itchan/shared/middleware/board_access"
 )
 
 // Dependencies struct to hold all initialized dependencies.

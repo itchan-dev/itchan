@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -10,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/itchan-dev/itchan/backend/internal/middleware/ratelimiter"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/middleware/ratelimiter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -161,34 +160,35 @@ func TestGetIP(t *testing.T) {
 		assert.NoError(t, err, "Returned value should be a valid hex string")
 	})
 }
-func TestGetEmailFromBody(t *testing.T) {
-	t.Run("returns email from valid request body", func(t *testing.T) {
-		body := bytes.NewBufferString(`{"email": "user@test.com", "password": "pass"}`)
-		req := httptest.NewRequest("POST", "/", body)
-		req.Header.Set("Content-Type", "application/json")
 
-		email, err := GetEmailFromBody(req)
-		assert.NoError(t, err)
-		assert.Equal(t, "user@test.com", email)
-	})
+// func TestGetEmailFromBody(t *testing.T) {
+// 	t.Run("returns email from valid request body", func(t *testing.T) {
+// 		body := bytes.NewBufferString(`{"email": "user@test.com", "password": "pass"}`)
+// 		req := httptest.NewRequest("POST", "/", body)
+// 		req.Header.Set("Content-Type", "application/json")
 
-	t.Run("returns error when email is missing", func(t *testing.T) {
-		body := bytes.NewBufferString(`{"password": "pass"}`)
-		req := httptest.NewRequest("POST", "/", body)
-		req.Header.Set("Content-Type", "application/json")
+// 		email, err := GetEmailFromBody(req)
+// 		assert.NoError(t, err)
+// 		assert.Equal(t, "user@test.com", email)
+// 	})
 
-		email, err := GetEmailFromBody(req)
-		assert.Error(t, err)
-		assert.Empty(t, email)
-	})
+// 	t.Run("returns error when email is missing", func(t *testing.T) {
+// 		body := bytes.NewBufferString(`{"password": "pass"}`)
+// 		req := httptest.NewRequest("POST", "/", body)
+// 		req.Header.Set("Content-Type", "application/json")
 
-	t.Run("returns error on invalid JSON", func(t *testing.T) {
-		body := bytes.NewBufferString(`{invalid`)
-		req := httptest.NewRequest("POST", "/", body)
-		req.Header.Set("Content-Type", "application/json")
+// 		email, err := GetEmailFromBody(req)
+// 		assert.Error(t, err)
+// 		assert.Empty(t, email)
+// 	})
 
-		email, err := GetEmailFromBody(req)
-		assert.Error(t, err)
-		assert.Empty(t, email)
-	})
-}
+// 	t.Run("returns error on invalid JSON", func(t *testing.T) {
+// 		body := bytes.NewBufferString(`{invalid`)
+// 		req := httptest.NewRequest("POST", "/", body)
+// 		req.Header.Set("Content-Type", "application/json")
+
+// 		email, err := GetEmailFromBody(req)
+// 		assert.Error(t, err)
+// 		assert.Empty(t, email)
+// 	})
+// }

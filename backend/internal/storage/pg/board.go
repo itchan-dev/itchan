@@ -7,8 +7,8 @@ import (
 
 	"errors"
 
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
+	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 )
 
 var emptyAllowedEmailsError = errors.New("allowedEmails should be either nil or not empty")
@@ -186,6 +186,47 @@ func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error
 		board := domain.Board{}
 		// err = rows.Scan(&board.ShortName)
 		err = rows.Scan(&board.ShortName)
+		if err != nil {
+			return nil, err
+		}
+		boards = append(boards, board)
+	}
+	return boards, nil
+}
+
+func (s *Storage) GetBoards(user *domain.User) ([]domain.Board, error) {
+	var boards []domain.Board
+	var err error
+	var rows *sql.Rows
+	if user.Admin {
+		rows, err = s.db.Query(`
+	SELECT
+		name,
+		short_name
+	FROM boards
+	ORDER BY created
+	`)
+	} else {
+		// restrict boards for non-admins
+		domain, err := user.Domain()
+		if err != nil {
+			return nil, err
+		}
+		rows, err = s.db.Query(`
+	SELECT
+		name,
+		short_name
+	FROM boards
+	where (allowed_emails is null) or ($1 =any(allowed_emails))
+	ORDER BY created
+	`, domain)
+	}
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		board := domain.Board{}
+		err = rows.Scan(&board.Name, &board.ShortName)
 		if err != nil {
 			return nil, err
 		}

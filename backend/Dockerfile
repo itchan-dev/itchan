@@ -1,61 +1,33 @@
-ARG PORT=8080
+# Use official Golang image as the builder
+FROM golang:1.22-alpine AS builder
 
-FROM golang:1.22.10
-
-# Set destination for COPY
+# Set working directory
 WORKDIR /app
 
-# Download Go modules
+# Copy go.mod and go.sum
 COPY go.mod go.sum ./
+
+# Download dependencies
 RUN go mod download
 
-# Copy the source code. Note the slash at the end, as explained in
-# https://docs.docker.com/reference/dockerfile/#copy
-COPY . ./
+# Copy the rest of the source code
+COPY . .
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /itchan-api ./backend/cmd/itchan-api
+# Build the backend binary
+RUN go build -o itchan-api ./backend/cmd/itchan-api/
 
-# Optional:
-# To bind to a TCP port, runtime parameters must be supplied to the docker command.
-# But we can document in the Dockerfile what ports
-# the application is going to listen on by default.
-# https://docs.docker.com/reference/dockerfile/#expose
-EXPOSE 8080
+# Use a minimal image for the final build
+FROM alpine:latest
 
-# Run
-CMD ["/itchan-api"]
+# Set working directory
+WORKDIR /root/
 
+# Copy the binary from the builder
+COPY --from=builder /app/itchan-api .
+COPY --from=builder /app/backend/config ./config/
 
-# # Use official Golang image as the builder
-# FROM golang:1.20-alpine AS builder
+# Expose port (optional, since Docker Compose handles it)
+EXPOSE 8000
 
-# # Set working directory
-# WORKDIR /app
-
-# # Copy go.mod and go.sum
-# COPY go.mod go.sum ./
-
-# # Download dependencies
-# RUN go mod download
-
-# # Copy the rest of the source code
-# COPY . .
-
-# # Build the backend binary
-# RUN go build -o itchan-api ./cmd/itchan-api/
-
-# # Use a minimal image for the final build
-# FROM alpine:latest
-
-# # Set working directory
-# WORKDIR /root/
-
-# # Copy the binary from the builder
-# COPY --from=builder /app/itchan-api .
-
-# # Expose port (optional, since Docker Compose handles it)
-# EXPOSE 8000
-
-# # Command to run the backend
-# CMD ["./itchan-api"]
+# Command to run the backend
+CMD ["./itchan-api", "-config_folder", "./config"]

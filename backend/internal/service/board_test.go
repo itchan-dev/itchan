@@ -14,6 +14,7 @@ type MockBoardStorage struct {
 	createBoardFunc func(name, shortName string, allowedEmails *domain.Emails) error
 	getBoardFunc    func(shortName string, page int) (*domain.Board, error)
 	deleteBoardFunc func(shortName string) error
+	getBoardsFunc   func(user *domain.User) ([]domain.Board, error)
 }
 
 func (m *MockBoardStorage) CreateBoard(name, shortName string, allowedEmails *domain.Emails) error {
@@ -35,6 +36,13 @@ func (m *MockBoardStorage) DeleteBoard(shortName string) error {
 		return m.deleteBoardFunc(shortName)
 	}
 	return nil
+}
+
+func (m *MockBoardStorage) GetBoards(user *domain.User) ([]domain.Board, error) {
+	if m.getBoardsFunc != nil {
+		return m.getBoardsFunc(user)
+	}
+	return nil, nil
 }
 
 // MockBoardValidator mocks the BoardValidator interface.

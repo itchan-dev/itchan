@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users(
 CREATE TABLE IF NOT EXISTS confirmation_data(
     email                  varchar(254) PRIMARY KEY,
     new_pass_hash          varchar(80) NOT NULL,
-    confirmation_code_hash varchar(6) default '',
+    confirmation_code_hash varchar(80) default '',
     confirmation_expires   timestamp default (now() at time zone 'utc'),
     created                timestamp default (now() at time zone 'utc')
 );

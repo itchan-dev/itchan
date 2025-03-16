@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	internal_errors "github.com/itchan-dev/itchan/backend/internal/errors"
 	"github.com/itchan-dev/itchan/shared/domain"
+	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
