@@ -423,7 +423,8 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	board, err := getBoardPreview(r, shortName, page)
 	if err != nil {
-		templateData.Error = template.HTML(err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	templateData.Board = board
 	h.renderTemplate(w, "board.html", templateData)
