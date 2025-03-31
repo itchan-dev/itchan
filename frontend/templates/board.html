@@ -17,13 +17,16 @@
                 <button type="submit">Create Thread</button>
             </div>
         </form>
+        {{if .Error}}
+        <div class="error-message" style="display: block;">{{.Error}}</div>
+        {{end}}
     </div>
 
     <h2>Threads</h2>
     <ul class="thread-list">
         {{ range .Board.Threads }}
         <li class="thread-preview">
-            <h3 class="thread-title"><a href="/{{ .Board.ShortName }}/{{ .Id }}" class="thread-link">{{ .Title }}</a></h3>
+            <h3 class="thread-title"><a href="/{{ .Board }}/{{ .Id }}" class="thread-link">{{ .Title }}</a></h3>
             {{ if .Messages }}
                 {{ range $index, $msg := .Messages }}
                     {{ if gt $index 0 }} <hr/> {{ end }}
@@ -43,7 +46,7 @@
             {{ else }}
                 <p>No messages in this thread.</p>
             {{ end }}
-            <p><a href="/{{ .Board.ShortName }}/{{ .Id }}" class="thread-link">View all replies ({{ .NumReplies }})</a></p>
+            <p><a href="/{{ .Board }}/{{ .Id }}" class="thread-link">View all replies ({{ .NumReplies }})</a></p>
         </li>
         {{ else }}
         <li>No threads in this board yet.</li>

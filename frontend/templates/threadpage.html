@@ -1,4 +1,5 @@
-{{ define "content" }}
+{{define "title"}}/{{ .Thread.Board }} - {{ .Thread.Id }}{{end}}
+{{define "content"}}
     <h2>Thread: {{ .Thread.Title }}</h2>
 
     <ul class="message-list">
@@ -18,9 +19,9 @@
         {{ end }}
     </ul>
 
-    <div class="form-container">
+    <div class="form-group">
         <h3>Reply to Thread</h3>
-        <form action="/{{ .BoardShortName }}/{{ .Thread.Id }}" method="post">
+        <form action="/{{ .Thread.Board }}/{{ .Thread.Id }}" method="post">
             <div class="form-group">
                 <label for="text">Message:</label>
                 <textarea id="text" name="text" rows="4" required></textarea>

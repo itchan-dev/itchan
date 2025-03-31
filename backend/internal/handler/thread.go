@@ -8,6 +8,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/shared/domain"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
@@ -22,18 +23,12 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
-	uidCtx := r.Context().Value("uid")
-	if uidCtx == nil {
+	user := mw.GetUserFromContext(r)
+	if user == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	uid, ok := uidCtx.(int64)
-	if !ok {
-		log.Printf("Cant parse uid %v", uidCtx)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	op_msg := domain.Message{Author: domain.User{Id: uid}, Text: body.Text, Attachments: body.Attachments}
+	op_msg := domain.Message{Author: *user, Text: body.Text, Attachments: body.Attachments}
 
 	_, err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
 	if err != nil {
