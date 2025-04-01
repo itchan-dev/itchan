@@ -440,7 +440,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	shortName := vars["board"]
-	apiAddr := fmt.Sprintf("/%s", shortName)
+	endpoint := fmt.Sprintf("/%s", shortName)
 	// Make backend request
 	backendData := struct {
 		Title       string              `validate:"required" json:"title"`
@@ -450,37 +450,36 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	backendDataJson, err := json.Marshal(backendData)
 	if err != nil {
 		log.Println(err.Error())
-		http.Redirect(w, r, apiAddr+"?error="+url.QueryEscape("Internal error: cant encode json"), http.StatusSeeOther)
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Internal error: cant encode json"), http.StatusSeeOther)
 		return
 	}
 
-	req, err := requestWithCookie(r, "POST", fmt.Sprintf("http://api:8080/v1/%s", shortName), bytes.NewBuffer(backendDataJson), "accessToken")
+	req, err := requestWithCookie(r, "POST", fmt.Sprintf("http://api:8080/v1%s", endpoint), bytes.NewBuffer(backendDataJson), "accessToken")
 	if err != nil {
-		http.Redirect(w, r, apiAddr+"?error="+url.QueryEscape("Internal error: "+err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Internal error: "+err.Error()), http.StatusSeeOther)
 		return
 	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Redirect(w, r, apiAddr+"?error="+url.QueryEscape("Internal error: "+err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Internal error: "+err.Error()), http.StatusSeeOther)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusCreated {
-		var errMsg string
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Println(err.Error())
-			errMsg = "Internal error: cant decode backend response"
-		} else {
-			errMsg = string(bodyBytes)
-		}
-		http.Redirect(w, r, apiAddr+"?error="+url.QueryEscape("Backend wrong status code: "+errMsg), http.StatusSeeOther)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err.Error())
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Internal error: cant decode backend response"), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, apiAddr, http.StatusSeeOther)
+	msg := string(bodyBytes)
+	if resp.StatusCode != http.StatusCreated {
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Backend wrong status code: "+msg), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, endpoint+"/"+msg, http.StatusSeeOther)
 }
 
 func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -527,4 +526,50 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.Error = template.HTML(template.HTMLEscapeString(decodedError))
 	}
 	h.renderTemplate(w, "threadpage.html", templateData)
+}
+
+func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	shortName := vars["board"]
+	threadId := vars["thread"]
+	endpoint := fmt.Sprintf("/%s/%s", shortName, threadId)
+	// Make backend request
+	backendData := struct {
+		Text        string              `validate:"required" json:"text"`
+		Attachments *domain.Attachments `json:"attachments"`
+	}{Text: r.FormValue("text")}
+	backendDataJson, err := json.Marshal(backendData)
+	if err != nil {
+		log.Println(err.Error())
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Internal error: cant encode json"), http.StatusSeeOther)
+		return
+	}
+
+	req, err := requestWithCookie(r, "POST", fmt.Sprintf("http://api:8080/v1%s", endpoint), bytes.NewBuffer(backendDataJson), "accessToken")
+	if err != nil {
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Internal error: "+err.Error()), http.StatusSeeOther)
+		return
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Internal error: "+err.Error()), http.StatusSeeOther)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		var errMsg string
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Println(err.Error())
+			errMsg = "Internal error: cant decode backend response"
+		} else {
+			errMsg = string(bodyBytes)
+		}
+		http.Redirect(w, r, endpoint+"?error="+url.QueryEscape("Backend wrong status code: "+errMsg), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, endpoint, http.StatusSeeOther)
 }

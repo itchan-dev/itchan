@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -30,14 +31,14 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	}
 	op_msg := domain.Message{Author: *user, Text: body.Text, Attachments: body.Attachments}
 
-	_, err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
+	id, err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("Created"))
+	w.Write([]byte(fmt.Sprintf("%d", id)))
 }
 
 func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {

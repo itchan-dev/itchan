@@ -19,7 +19,7 @@
         {{ end }}
     </ul>
 
-    <div class="form-group">
+    <div class="form-container">
         <h3>Reply to Thread</h3>
         <form action="/{{ .Thread.Board }}/{{ .Thread.Id }}" method="post">
             <div class="form-group">
@@ -30,5 +30,8 @@
                 <button type="submit">Post Reply</button>
             </div>
         </form>
+        {{if .Error}}
+        <div class="error-message" style="display: block;">{{.Error}}</div>
+        {{end}}
     </div>
 {{ end }}
