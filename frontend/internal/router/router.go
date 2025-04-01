@@ -37,6 +37,7 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	authRouter.HandleFunc("/{board}", deps.Handler.BoardPostHandler).Methods("POST")
 
 	authRouter.HandleFunc("/{board}/{thread}", deps.Handler.ThreadGetHandler).Methods("GET")
+	authRouter.HandleFunc("/{board}/{thread}", deps.Handler.ThreadPostHandler).Methods("POST")
 
 	return r
 }
