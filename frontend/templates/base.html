@@ -1,28 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{template "title" .}}</title>
-    <link rel="stylesheet" href="/static/css/style.css?t=<?php echo(microtime(true).rand()); ?>">
+    <meta charset="UTF-8"> <!-- Good practice -->
+    <title>{{template "title" .}} - Itchan</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="shortcut icon" href="/favicon.ico"> <!-- Add favicon link -->
 </head>
 <body>
     <header class="site-header">
-        <div class="header-container">
-            <div class="header-top">
-                <h1 class="site-title"><a href="/">Itchan</a></h1>
-                <nav class="main-nav">
-                    <a href="/">Home</a>
-                    <a href="/boards">Boards</a>
-                    <a href="/catalog">Catalog</a>
-                    <a href="/faq">FAQ</a>
-                </nav>
+        <!-- Optional: Simple board list header common on chans -->
+        <!-- <div class="board-list-header">[ <a href="/">Home</a> / <a href="/b/">b</a> / <a href="/g/">g</a> ]</div> -->
+        <div class="header-content">
+            <div class="header-left">
+                 <h1 class="site-title"><a href="/">Itchan</a></h1>
+                 <nav class="main-nav">
+                     [ <a href="/">Home</a> / <a href="/boards">Boards</a> / <a href="/catalog">Catalog</a> / <a href="/faq">FAQ</a> ]
+                 </nav>
             </div>
             <div class="auth-links">
                 {{if .User}}
-                    <span class="user-email">Welcome {{.User.Email}}</span>
-                    <a href="/logout" class="auth-button">Logout</a>
+                    <span class="user-info">[{{.User.Email}}]</span>
+                    [<a href="/logout">Logout</a>]
                 {{else}}
-                    <a href="/login" class="auth-button">Login</a>
-                    <a href="/register" class="auth-button">Register/Reset password</a>
+                    [<a href="/login">Login</a>]
+                    [<a href="/register">Register</a>] <!-- Simplified link text -->
                 {{end}}
             </div>
         </div>
@@ -33,17 +34,12 @@
     </main>
 
     <footer class="site-footer">
-        <div class="footer-container">
-            <nav class="footer-nav">
-                <a href="/rules">Rules</a>
-                <a href="/contact">Contact</a>
-                <a href="/about">About</a>
-                <a href="/privacy">Privacy</a>
-            </nav>
-            <div class="footer-info">
-                <p>© 2023 4chan-style Imageboard</p>
-                <p>All trademarks and copyrights on this page are owned by their respective parties.</p>
-            </div>
+        <nav class="footer-nav">
+           [ <a href="/rules">Rules</a> / <a href="/contact">Contact</a> / <a href="/about">About</a> / <a href="/privacy">Privacy</a> ]
+        </nav>
+        <div class="footer-info">
+            <p>All trademarks and copyrights on this page are owned by their respective parties. Images uploaded are the responsibility of the Poster.</p>
+            <p>© 2023 Itchan Imageboard</p>
         </div>
     </footer>
 </body>

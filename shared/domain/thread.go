@@ -8,7 +8,7 @@ type Thread struct {
 	Title      string
 	Messages   []*Message // all other metainfo = 1st message metainfo
 	Board      string
-	NumReplies uint
+	NumReplies int
 	LastBumped time.Time
 }
 

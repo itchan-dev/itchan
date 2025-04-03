@@ -46,7 +46,7 @@ func TestGetThread(t *testing.T) {
 	require.NoError(t, err, "GetThread should not return an error")
 	assert.Equal(t, title, thread.Title, "Thread title mismatch")
 	assert.Equal(t, boardShortName, thread.Board, "Thread board mismatch")
-	assert.Equal(t, uint(2), thread.NumReplies, "Number of replies mismatch")
+	assert.Equal(t, 2, thread.NumReplies, "Number of replies mismatch")
 	assert.Len(t, thread.Messages, 3, "Expected 3 messages (OP + 2 replies)")
 	requireMessageOrder(t, thread.Messages, []string{opMsg.Text, replyMsgs[0].text, replyMsgs[1].text})
 	assert.Equal(t, *opMsg.Attachments, *thread.Messages[0].Attachments, "OP message attachments mismatch")

@@ -36,6 +36,8 @@ func SetupDependencies() *Dependencies {
 	return &Dependencies{Handler: h, Jwt: jwtSvc}
 }
 
+func sub(a, b int) int { return a - b }
+
 func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	templates := make(map[string]*template.Template)
 	files, err := os.ReadDir(tmplPath)
@@ -45,7 +47,7 @@ func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 
 	for _, f := range files {
 		if f.Name() != baseTemplate {
-			templates[f.Name()] = template.Must(template.ParseFiles(
+			templates[f.Name()] = template.Must(template.New(baseTemplate).Funcs(template.FuncMap{"sub": sub}).ParseFiles(
 				path.Join(tmplPath, baseTemplate),
 				path.Join(tmplPath, f.Name()),
 			),

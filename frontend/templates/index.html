@@ -3,39 +3,50 @@
 <h1>Boards</h1>
 {{if .Boards}}
 <ul class="boards-list">
-    {{range .Boards}}<li><a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>{{if $.User.Admin}}<form method="POST" action="/{{.ShortName}}/delete" class="delete-form">
-        <button type="submit" class="auth-button">Delete</button>
-    </form>{{end}}</li>{{end}}
+    {{range .Boards}}
+    <li>
+        <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
+        {{if $.User.Admin}}
+        <form method="POST" action="/{{.ShortName}}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete /{{.ShortName}}/?');">
+            [<button type="submit" class="delete-button">Delete</button>]
+        </form>
+        {{end}}
+    </li>
+    {{end}}
 </ul>
+{{else}}
+<p>No boards found.</p>
 {{end}}
 
 {{if .User.Admin}}
+<hr class="section-separator">
 <div class="admin-panel">
     <h2>Create New Board</h2>
     <form method="POST" action="/">
-        <div class="form-group">
-            <label for="short-name">Short Name:</label>
-            <input type="text" name="shortName" required placeholder="e.g. rnd" maxlength="4" pattern="[a-zA-Z]+">
-            <small>Board identifier used in URLs (e.g. 'b' for /b/) - letters and numbers only</small>
-        </div>
-        
-        <div class="form-group">
-            <label for="name">Full Name:</label>
-            <input type="text" name="name" required placeholder="e.g. Random">
-            <small>Descriptive name of the board</small>
-        </div>
-        
-        <div class="form-group">
-            <label for="allowed-emails">Allowed Emails (optional):</label>
-            <textarea name="allowedEmails" placeholder="Enter email addresses separated by commas"></textarea>
-            <small>Leave blank to allow all users, or specify emails that can post (comma-separated)</small>
-        </div>
-        
-        <button type="submit" class="auth-button">Create Board</button>
+        <table class="form-table">
+            <tbody>
+                <tr>
+                    <td class="form-label"><label for="short-name">Short Name:</label></td>
+                    <td><input type="text" id="short-name" name="shortName" required pattern="[a-zA-Z0-9]+" maxlength="10" size="10"> (e.g., 'b', 'g', 'meta')</td>
+                </tr>
+                 <tr>
+                    <td class="form-label"><label for="name">Full Name:</label></td>
+                    <td><input type="text" id="name" name="name" required size="30"> (e.g., 'Random', 'Technology')</td>
+                </tr>
+                 <tr>
+                    <td class="form-label"><label for="allowed-emails">Allowed Emails:</label></td>
+                    <td><textarea id="allowed-emails" name="allowedEmails" rows="3" cols="50" placeholder="Optional, comma-separated"></textarea></td>
+                </tr>
+                 <tr>
+                    <td class="form-label"></td>
+                    <td><button type="submit">Create Board</button></td>
+                </tr>
+            </tbody>
+        </table>
+         {{if .Error}}
+         <div class="error-message">{{.Error}}</div>
+         {{end}}
     </form>
-    {{if .Error}}
-    <div class="error-message" style="display: block;">{{.Error}}</div>
-    {{end}}
 </div>
 {{end}}
 {{end}}

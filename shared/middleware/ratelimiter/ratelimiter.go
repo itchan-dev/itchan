@@ -120,7 +120,6 @@ func (rl *RateLimiter) Allow() bool {
 // Allow checks if a request should be allowed for a given user
 func (url *UserRateLimiter) Allow(userID string) bool {
 	limiter := url.getLimiter(userID)
-
 	return limiter.Allow()
 }
 
@@ -137,7 +136,7 @@ func (url *UserRateLimiter) Stop() {
 }
 
 func OnceInMinute() *UserRateLimiter {
-	return New(1/60, 1, 1*time.Hour)
+	return New(1.0/60.0, 1, 1*time.Hour)
 }
 
 func OnceInSecond() *UserRateLimiter {

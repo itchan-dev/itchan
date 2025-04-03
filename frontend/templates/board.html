@@ -1,55 +1,131 @@
-{{define "title"}}Itchan - /{{ .Board.ShortName }}{{end}}
+{{define "title"}}/{{ .Board.ShortName }}/ - {{ .Board.Name }}{{end}}
 {{ define "content" }}
-    <h2>Board /{{ .Board.ShortName }}/ - {{ .Board.Name }}</h2>
+    <div class="board-header">
+        <h1>/{{ .Board.ShortName }}/ - {{ .Board.Name }}</h1>
+        <hr>
+    </div>
 
-    <div class="form-container">
-        <h3>Create New Thread</h3>
-        <form action="/{{ .Board.ShortName }}" method="post">
-            <div class="form-group">
-                <label for="title">Title:</label>
-                <input type="text" id="title" name="title" required>
-            </div>
-            <div class="form-group">
-                <label for="text">Message:</label>
-                <textarea id="text" name="text" rows="4" required></textarea>
-            </div>
-            <div class="form-group">
-                <button type="submit">Create Thread</button>
-            </div>
+    <!-- New Thread Form (remains the same) -->
+    <div class="post-form-container">
+        <form action="/{{ .Board.ShortName }}" method="post" id="new-thread-form">
+             <input type="hidden" name="form_action" value="new_thread">
+             <table class="form-table">
+                 <tbody>
+                    <tr>
+                        <td class="form-label"><label for="title">Subject:</label></td>
+                        <td>
+                            <input type="text" id="title" name="title" size="40">
+                            <button type="submit">Post</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="form-label"><label for="text">Comment:</label></td>
+                        <td><textarea id="text" name="text" cols="48" rows="4" required></textarea></td>
+                    </tr>
+                    <!-- File input -->
+                 </tbody>
+             </table>
         </form>
         {{if .Error}}
-        <div class="error-message" style="display: block;">{{.Error}}</div>
+        <div class="error-message">{{.Error}}</div>
         {{end}}
     </div>
 
-    <h2>Threads</h2>
-    <ul class="thread-list">
-        {{ range .Board.Threads }}
-        <li class="thread-preview">
-            <h3 class="thread-title"><a href="/{{ .Board }}/{{ .Id }}" class="thread-link">{{ .Title }}</a></h3>
-            {{ if .Messages }}
-                {{ range $index, $msg := .Messages }}
-                    {{ if gt $index 0 }} <hr/> {{ end }}
-                    <div class="message-item">
-                        <span class="message-author">Anonymous</span>
-                        <span class="message-date">{{ $msg.CreatedAt.Format "2006-01-02 15:04" }}</span>
-                        <p class="message-text">{{ $msg.Text }}</p>
-                        {{ if $msg.Attachments }}
-                            <p>Attachments:
-                            {{ range $msg.Attachments }}
-                                <a href="{{ . }}" target="_blank">{{ . }}</a>
-                            {{ end }}
-                            </p>
-                        {{ end }}
-                    </div>
-                {{ end }}
-            {{ else }}
-                <p>No messages in this thread.</p>
+    <hr class="section-separator">
+
+    <div class="threads-container">
+        {{ range $threadIndex, $thread := .Board.Threads }}
+            {{ if gt $threadIndex 0 }}
+                <hr class="thread-separator">
             {{ end }}
-            <p><a href="/{{ .Board }}/{{ .Id }}" class="thread-link">View all replies ({{ .NumReplies }})</a></p>
-        </li>
+
+            <div class="thread-preview">
+                {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
+                    {{ $opMessage := index $thread.Messages 0 }}
+                    <div class="post op-post" id="p{{ $opMessage.Id }}">
+                         <div class="post-header">
+                            <input type="checkbox" name="delete" value="{{ $opMessage.Id }}">
+                            {{if $thread.Title}}<span class="post-subject">{{ $thread.Title }}</span>{{end}}
+                            <span class="post-author">Anonymous</span>
+                            <span class="post-date">{{ $opMessage.CreatedAt.Format "01/02/06(Mon)15:04:05" }}</span>
+                            <span class="post-id">
+                                No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $opMessage.Id }}">{{ $opMessage.Id }}</a>
+                            </span>
+                            <span class="reply-link">[<a href="/{{ $thread.Board }}/{{ $thread.Id }}">Reply</a>]</span>
+                        </div>
+                        {{ if $opMessage.Attachments }}
+                            <div class="post-attachments">
+                                File:
+                                {{ range $opMessage.Attachments }}
+                                    <a href="{{ . }}" target="_blank">{{ . }}</a>
+                                {{ end }}
+                            </div>
+                        {{ end }}
+                        <blockquote class="post-body">
+                             {{ $opMessage.Text }}
+                        </blockquote>
+                    </div><!-- End OP Post -->
+
+                    {{/* Display Reply Previews (rest of the messages) */}}
+                    {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
+                    {{ range $replyIndex, $reply := $previewReplies }}
+                         <div class="post reply-post" id="p{{ $reply.Id }}">
+                            <div class="post-header">
+                                <input type="checkbox" name="delete" value="{{ $reply.Id }}">
+                                <span class="post-author">Anonymous</span>
+                                <span class="post-date">{{ $reply.CreatedAt.Format "01/02/06(Mon)15:04:05" }}</span>
+                                <span class="post-id">
+                                    No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $reply.Id }}">{{ $reply.Id }}</a>
+                                </span>
+                            </div>
+                            {{ if $reply.Attachments }}
+                                <div class="post-attachments">
+                                    File:
+                                    {{ range $reply.Attachments }}
+                                        <a href="{{ . }}" target="_blank">{{ . }}</a>
+                                    {{ end }}
+                                </div>
+                            {{ end }}
+                            <blockquote class="post-body">
+                                {{ $reply.Text }}
+                            </blockquote>
+                        </div><!-- End Reply Post Preview -->
+                    {{ end }}
+
+                    {{/* Calculate and Display Omitted Count Info */}}
+                    {{ $numShownMessages := len $thread.Messages }}
+                    {{ $numShownReplies := 0 }}
+                    {{ if gt $numShownMessages 1 }}{{/* Only calculate if there's more than just the OP */}}
+                        {{ $numShownReplies = sub $numShownMessages 1 }}
+                    {{ end }}
+                    {{/* Omitted = TotalReplies - ShownReplies */}}
+                    {{ $omittedReplies := sub $thread.NumReplies $numShownReplies }}
+
+                    {{ if gt $omittedReplies 0 }}
+                         <div class="reply-summary">
+                            {{ $omittedReplies }} {{ if eq $omittedReplies 1 }}post{{ else }}posts{{ end }} omitted. Click Reply to view.
+                         </div>
+                    {{ else if gt $thread.NumReplies 0 }} {{/* If there are replies, but none are omitted (all shown) */}}
+                        {{/* Optional: Show a link even if all replies are shown, if desired */}}
+                        <!--
+                        <div class="reply-summary">
+                            Click Reply to view.
+                        </div>
+                        -->
+                    {{ end }}
+
+
+                {{ else }}
+                    {{/* Should ideally not happen if a thread exists */}}
+                    <p>Thread {{ $thread.Id }} has no messages.</p>
+                {{ end }}
+            </div> <!-- End thread-preview -->
+
         {{ else }}
-        <li>No threads in this board yet.</li>
+            <p>No threads on this board yet. Why not create one?</p>
         {{ end }}
-    </ul>
+    </div> <!-- End threads-container -->
+
+    <!-- Pagination / Delete Form etc. -->
+
 {{ end }}

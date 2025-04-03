@@ -1,0 +1,70 @@
+{{define "title"}}/{{ .Thread.Board }}/ - Thread No.{{ .Thread.Id }}{{end}}
+{{define "content"}}
+    <div class="thread-header">
+        <!-- Thread title isn't usually repeated prominently on the thread page itself -->
+        <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
+        <hr>
+    </div>
+
+    <div class="posts-container">
+        {{ range $index, $message := .Thread.Messages }}
+            {{ $isOP := eq $index 0 }}
+            <div class="post {{if $isOP}}op-post{{else}}reply-post{{end}}" id="p{{ $message.Id }}">
+                <div class="post-header">
+                    <input type="checkbox" name="delete" value="{{ $message.Id }}"> <!-- Delete checkbox -->
+                    {{if and $isOP $.Thread.Title}}<span class="post-subject">{{ $.Thread.Title }}</span>{{end}}
+                    <span class="post-author">Anonymous</span>
+                    <span class="post-date">{{ $message.CreatedAt.Format "01/02/06(Mon)15:04:05" }}</span>
+                    <span class="post-id">
+                        No.<a href="#p{{ $message.Id }}">{{ $message.Id }}</a> <!-- Link to self within page -->
+                    </span>
+                    {{if $isOP}}<span class="reply-link">[<a href="#reply-form-top">Reply</a>]</span>{{end}}
+                     <!-- Add backlinks display here if implemented -->
+                </div>
+                {{ if $message.Attachments }}
+                    <div class="post-attachments">
+                        File:
+                        {{ range $message.Attachments }}
+                            <a href="{{ . }}" target="_blank">{{ . }}</a>
+                        {{ end }}
+                    </div>
+                {{ end }}
+                <blockquote class="post-body">
+                    {{ $message.Text }}
+                </blockquote>
+            </div><!-- End Post -->
+            {{/* No <hr> between posts on thread page usually, spacing is handled by margin */}}
+        {{ end }}
+    </div><!-- End posts-container -->
+    <br clear="left"> <!-- Clear floats/inline-blocks -->
+
+    <hr class="post-separator"> <!-- Separator before bottom reply form -->
+
+    <!-- Reply Form (Bottom) -->
+     <div class="post-form-container" id="reply-form-bottom">
+        <form action="/{{ .Thread.Board }}/{{ .Thread.Id }}" method="post">
+             <input type="hidden" name="form_action" value="reply">
+             <table class="form-table">
+                 <tbody>
+                    <tr>
+                        <td class="form-label"><label for="text-reply-bottom">Comment:</label></td>
+                        <td>
+                            <textarea id="text-reply-bottom" name="text" cols="48" rows="4" required></textarea>
+                        </td>
+                    </tr>
+                    <!-- Add file input if needed -->
+                    <tr>
+                        <td class="form-label"></td>
+                        <td><button type="submit">Post</button></td>
+                    </tr>
+                 </tbody>
+             </table>
+        </form>
+        {{/* Usually no error message display at the bottom form */}}
+    </div>
+
+    <div id="bottom"></div> <!-- Anchor for bottom link -->
+    <hr>
+     <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
+
+{{ end }}
