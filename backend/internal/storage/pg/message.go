@@ -13,7 +13,7 @@ import (
 )
 
 // Saves message to db
-func (s *Storage) CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+func (s *Storage) CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return -1, err
@@ -27,7 +27,7 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 	SET reply_count = reply_count + 1, last_bump_ts = CASE WHEN reply_count > $1 THEN last_bump_ts ELSE $2 END -- if reply_count over bump limit then dont update last_bump_ts
 	WHERE id = $3
 	RETURNING reply_count
-	`, s.cfg.Public.BumpLimit, createdTs, thread_id).Scan(&n)
+	`, s.cfg.Public.BumpLimit, createdTs, threadId).Scan(&n)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return -1, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: 404}
@@ -40,7 +40,7 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 	INSERT INTO messages(author_id, text, created, attachments, thread_id, n) 
 	VALUES($1, $2, $3, $4, $5, $6) 
 	RETURNING id`,
-		author.Id, text, createdTs, attachments, thread_id, n).Scan(&id)
+		author.Id, text, createdTs, attachments, threadId, n).Scan(&id)
 	if err != nil {
 		return -1, err
 	}

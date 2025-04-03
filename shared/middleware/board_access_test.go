@@ -65,7 +65,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
-				ctx := context.WithValue(req.Context(), userClaimsKey, &domain.User{
+				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:    1,
 					Email: "admin@other.com",
 					Admin: true,
@@ -83,7 +83,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
-				ctx := context.WithValue(req.Context(), userClaimsKey, &domain.User{
+				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:    1,
 					Email: "user@example.com",
 				})
@@ -100,7 +100,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
-				ctx := context.WithValue(req.Context(), userClaimsKey, &domain.User{
+				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:    1,
 					Email: "user@example.com",
 				})
@@ -115,7 +115,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
-				ctx := context.WithValue(req.Context(), userClaimsKey, &domain.User{
+				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:    1,
 					Email: "user@unauthorized.com",
 				})
@@ -132,7 +132,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
-				ctx := context.WithValue(req.Context(), userClaimsKey, &domain.User{
+				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:    1,
 					Email: "invalid-email",
 				})

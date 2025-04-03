@@ -11,19 +11,20 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/shared/domain"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type MockMessageService struct {
-	MockCreate func(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error)
+	MockCreate func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error)
 	MockGet    func(id int64) (*domain.Message, error)
 	MockDelete func(board string, id int64) error
 }
 
-func (m *MockMessageService) Create(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+func (m *MockMessageService) Create(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
 	if m.MockCreate != nil {
-		return m.MockCreate(board, author, text, attachments, thread_id)
+		return m.MockCreate(board, author, text, attachments, threadId)
 	}
 	return 0, nil // Default behavior
 }
@@ -48,17 +49,18 @@ func TestCreateMessageHandler(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}/{thread}", h.CreateMessage).Methods("POST")
 	requestBody := []byte(`{"text": "test text", "attachments": ["one", "two"]}`)
+	user := domain.User{Id: 1, Email: "test@test.com"}
 
 	t.Run("successful request", func(t *testing.T) {
 		mockService := &MockMessageService{
-			MockCreate: func(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+			MockCreate: func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
 				return 1, nil
 			},
 		}
 		h.message = mockService
 
 		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 
@@ -75,7 +77,7 @@ func TestCreateMessageHandler(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
-	t.Run("no uid in context", func(t *testing.T) {
+	t.Run("no user in context", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
 
@@ -83,17 +85,7 @@ func TestCreateMessageHandler(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
 
-	t.Run("bad uid type in context", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-		ctx := context.WithValue(req.Context(), "uid", "abc")
-		req = req.WithContext(ctx)
-
-		router.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusInternalServerError, rr.Code)
-	})
-
-	t.Run("bad thread_id", func(t *testing.T) {
+	t.Run("bad threadId", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/b/abc", bytes.NewBuffer(requestBody))
 
@@ -103,14 +95,14 @@ func TestCreateMessageHandler(t *testing.T) {
 
 	t.Run("service error", func(t *testing.T) {
 		mockService := &MockMessageService{
-			MockCreate: func(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+			MockCreate: func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
 				return 0, errors.New("Mock")
 			},
 		}
 		h.message = mockService
 
 		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 
