@@ -5,7 +5,7 @@ import (
 )
 
 type MessageService interface {
-	Create(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error)
+	Create(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error)
 	Get(id int64) (*domain.Message, error)
 	Delete(board string, id int64) error
 }
@@ -16,7 +16,7 @@ type Message struct {
 }
 
 type MessageStorage interface {
-	CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error)
+	CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error)
 	GetMessage(id int64) (*domain.Message, error)
 	DeleteMessage(board string, id int64) error
 }
@@ -29,13 +29,13 @@ func NewMessage(storage MessageStorage, validator MessageValidator) MessageServi
 	return &Message{storage, validator}
 }
 
-func (b *Message) Create(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+func (b *Message) Create(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
 	err := b.validator.Text(text)
 	if err != nil {
 		return 0, err
 	}
 
-	id, err := b.storage.CreateMessage(board, author, text, attachments, thread_id)
+	id, err := b.storage.CreateMessage(board, author, text, attachments, threadId)
 	if err != nil {
 		return 0, err
 	}

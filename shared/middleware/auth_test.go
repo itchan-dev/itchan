@@ -96,7 +96,7 @@ func TestGetUserFromContext(t *testing.T) {
 	t.Run("user in context", func(t *testing.T) {
 		user := &domain.User{Id: 1, Email: "test@example.com", Admin: true}
 		req := httptest.NewRequest("GET", "/", nil)
-		ctx := context.WithValue(req.Context(), userClaimsKey, user)
+		ctx := context.WithValue(req.Context(), UserClaimsKey, user)
 		req = req.WithContext(ctx)
 
 		assert.Equal(t, user, GetUserFromContext(req))

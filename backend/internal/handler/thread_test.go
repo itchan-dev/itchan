@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/shared/domain"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,6 +49,7 @@ func TestCreateThreadHandler(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc("/{board}", h.CreateThread).Methods("POST")
 	requestBody := []byte(`{"title": "thread title", "text": "test text", "attachments": ["one", "two"]}`)
+	user := domain.User{Id: 1, Email: "test@test.com"}
 
 	t.Run("successful request", func(t *testing.T) {
 		mockService := &MockThreadService{
@@ -57,7 +59,7 @@ func TestCreateThreadHandler(t *testing.T) {
 		}
 		h.thread = mockService
 		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 
@@ -68,7 +70,7 @@ func TestCreateThreadHandler(t *testing.T) {
 
 	t.Run("successful request no attachments", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{"title": "thread title", "text": "test text"}`)))
-		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 
@@ -85,22 +87,12 @@ func TestCreateThreadHandler(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
-	t.Run("no uid in context", func(t *testing.T) {
+	t.Run("no user in context", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
 
 		router.ServeHTTP(rr, req)
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	})
-
-	t.Run("bad uid type in context", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-		ctx := context.WithValue(req.Context(), "uid", "abc")
-		req = req.WithContext(ctx)
-
-		router.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	})
 
 	t.Run("service error", func(t *testing.T) {
@@ -112,7 +104,7 @@ func TestCreateThreadHandler(t *testing.T) {
 		h.thread = mockService
 
 		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-		ctx := context.WithValue(req.Context(), "uid", int64(123))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 

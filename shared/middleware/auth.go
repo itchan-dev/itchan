@@ -14,7 +14,7 @@ import (
 // Key to store the user claims in the request context
 type key int
 
-const userClaimsKey key = 0
+const UserClaimsKey key = 0
 
 func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -53,7 +53,7 @@ func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler)
 			}
 
 			// Store the user in the request context
-			ctx := context.WithValue(r.Context(), userClaimsKey, user)
+			ctx := context.WithValue(r.Context(), UserClaimsKey, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -70,7 +70,7 @@ func NeedAuth(jwtService jwt_internal.JwtService) func(http.Handler) http.Handle
 
 // Function to retrieve the user from the context
 func GetUserFromContext(r *http.Request) *domain.User {
-	user, ok := r.Context().Value(userClaimsKey).(*domain.User)
+	user, ok := r.Context().Value(UserClaimsKey).(*domain.User)
 	if !ok {
 		return nil // Or handle the case where no user is in the context
 	}

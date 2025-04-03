@@ -12,14 +12,14 @@ import (
 
 // Mock structs
 type MockMessageStorage struct {
-	CreateMessageFunc func(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error)
+	CreateMessageFunc func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error)
 	GetMessageFunc    func(id int64) (*domain.Message, error)
 	DeleteMessageFunc func(board string, id int64) error
 }
 
-func (m *MockMessageStorage) CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+func (m *MockMessageStorage) CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
 	if m.CreateMessageFunc != nil {
-		return m.CreateMessageFunc(board, author, text, attachments, thread_id)
+		return m.CreateMessageFunc(board, author, text, attachments, threadId)
 	}
 	return 1, nil
 }
@@ -58,20 +58,20 @@ func TestMessageCreate(t *testing.T) {
 	author := &domain.User{Id: 1}
 	text := "test_text"
 	attachments := domain.Attachments{}
-	thread_id := int64(1)
+	threadId := int64(1)
 
 	t.Run("Successful creation", func(t *testing.T) {
-		createdId, err := service.Create(board, author, text, &attachments, thread_id)
+		createdId, err := service.Create(board, author, text, &attachments, threadId)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), createdId)
 	})
 
 	t.Run("Storage error", func(t *testing.T) {
 		mockError := errors.New("Mock CreateMessageFunc")
-		storage.CreateMessageFunc = func(board string, author *domain.User, text string, attachments *domain.Attachments, thread_id int64) (int64, error) {
+		storage.CreateMessageFunc = func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
 			return 0, mockError
 		}
-		_, err := service.Create(board, author, text, &attachments, thread_id)
+		_, err := service.Create(board, author, text, &attachments, threadId)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, mockError))
 	})
@@ -80,7 +80,7 @@ func TestMessageCreate(t *testing.T) {
 		validator.TextFunc = func(text string) error {
 			return &internal_errors.ErrorWithStatusCode{Message: "Invalid text", StatusCode: 400}
 		}
-		_, err := service.Create(board, author, text, &attachments, thread_id)
+		_, err := service.Create(board, author, text, &attachments, threadId)
 		require.Error(t, err)
 		assert.Equal(t, "Invalid text", err.Error())
 	})

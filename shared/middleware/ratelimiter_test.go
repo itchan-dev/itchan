@@ -63,7 +63,7 @@ func TestRateLimit(t *testing.T) {
 		handler.ServeHTTP(w2, req2)
 
 		assert.Equal(t, http.StatusTooManyRequests, w2.Code)
-		assert.Equal(t, "Rate limit exceeded\n", w2.Body.String())
+		assert.Equal(t, "Rate limit exceeded, try again later\n", w2.Body.String())
 	})
 
 	t.Run("allows request after rate limit reset", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestGetEmailFromContext(t *testing.T) {
 	t.Run("returns email when user exists in context", func(t *testing.T) {
 		user := &domain.User{Email: "test@example.com"}
 		req := httptest.NewRequest("GET", "/", nil)
-		ctx := context.WithValue(req.Context(), userClaimsKey, user)
+		ctx := context.WithValue(req.Context(), UserClaimsKey, user)
 		req = req.WithContext(ctx)
 
 		email, err := GetEmailFromContext(req)
