@@ -1,15 +1,32 @@
 {{define "title"}}Login{{end}}
 {{define "content"}}
-<form method="POST" action="/login">
-    {{if .EmailPlaceholder}}
-    <label>Email: <input type="email" name="email" value={{.EmailPlaceholder}} required></label>
-    {{else}}
-    <label>Email: <input type="email" name="email" required></label>
+<h2>Login</h2>
+<form method="POST" action="/login" class="auth-form">
+    <table class="form-table">
+        <tbody>
+            <tr>
+                <td class="form-label"><label for="email">Email:</label></td>
+                <td>
+                    {{if .EmailPlaceholder}}
+                    <input type="email" id="email" name="email" value="{{.EmailPlaceholder}}" required size="30">
+                    {{else}}
+                    <input type="email" id="email" name="email" required size="30">
+                    {{end}}
+                </td>
+            </tr>
+            <tr>
+                <td class="form-label"><label for="password">Password:</label></td>
+                <td><input type="password" id="password" name="password" required size="30"></td>
+            </tr>
+            <tr>
+                <td class="form-label"></td>
+                <td><button type="submit">Login</button></td>
+            </tr>
+        </tbody>
+    </table>
+    {{if .Error}}
+    <div class="error-message">{{.Error}}</div>
     {{end}}
-    <label>Password: <input type="password" name="password" required></label>
-    <button type="submit">Login</button>
 </form>
-{{if .Error}}
-<div class="error-message" style="display: block;">{{.Error}}</div>
-{{end}}
+<p style="margin-top: 1em; font-size: 0.9em;">Don't have an account? <a href="/register">Register here</a>.</p>
 {{end}}

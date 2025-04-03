@@ -57,8 +57,8 @@ func New(deps *setup.Dependencies) *mux.Router {
 	// Rate-limited email sending endpoints
 	authSendingEmail := auth.NewRoute().Subrouter()
 	// authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10, 1, 1*time.Hour), mw.GetEmailFromBody)) // per 10 sec by email
-	authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10, 1, 1*time.Hour), mw.GetIP)) // per 10 sec by IP
-	authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))                        // 100 global RPS
+	authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10.0, 1, 1*time.Hour), mw.GetIP)) // per 10 sec by IP
+	authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))                          // 100 global RPS
 	authSendingEmail.HandleFunc("/register", h.Register).Methods("POST")
 
 	// Database lookup endpoints (higher limits)

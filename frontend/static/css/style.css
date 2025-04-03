@@ -1,228 +1,472 @@
-/* Reset and General Styles */
-body {
-    font-family: sans-serif;
+/* ==========================================
+   Futaba/4chan Style CSS - Minimalist
+   ========================================== */
+
+/* ==========================================
+   Reset and General Styles
+   ========================================== */
+   body {
+    font-family: sans-serif; /* Or Arial, Verdana */
+    font-size: 10pt;
     margin: 0;
-    padding: 0;
-    background-color: #ddd; /* Medium grey background - same as footer */
-    color: #333; /* Dark grey text */
-    line-height: 1.6;
-    /* min-height: 100vh;   Ensure body takes up at least the full viewport height */
-    display: flex; /* Enable flexbox on body */
-    flex-direction: column; /* Arrange body content in a column */
+    padding: 8px; /* Padding around the edge */
+    background-color: #eee; /* Light grey page background */
+    color: #000; /* Black text */
+    line-height: 1.4;
 }
 
 a {
-    color: #007bff; /* Default link color (can be changed to grey if desired) */
-    text-decoration: none;
-}
-
-a:hover {
+    color: #0000ee; /* Standard blue link */
     text-decoration: underline;
 }
 
-/* .container {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 20px;
-} */
-
-/* Header */
-.site-header {
-    border-bottom: 1px solid #ccc; /* Lighter grey border */
-    padding: 10px 0;
+a:hover {
+    color: #dd0000; /* Red hover */
 }
 
-.header-container {
+h1, h2, h3 {
+    color: #af0a0f; /* Dark red for headings */
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    font-weight: bold;
+}
+h1 { font-size: 1.4em; }
+h2 { font-size: 1.2em; }
+h3 { font-size: 1.1em; }
+
+
+hr {
+    border: 0;
+    height: 1px;
+    background-color: #999; /* Grey horizontal rule */
+    margin: 10px 0;
+}
+
+hr.section-separator {
+    margin: 20px 0;
+}
+hr.thread-separator {
+    margin: 15px 0;
+}
+hr.post-separator {
+    margin: 10px 0;
+}
+
+
+blockquote {
+    margin: 0.5em 0 0.5em 0.5em; /* Remove default large margins */
+    padding: 0;
+}
+
+/* Green quote line (optional) */
+blockquote {
+   /* color: #789922; */ /* Classic quote color */
+}
+blockquote a {
+    /* color: #0000ee; */ /* Ensure links inside quotes are standard blue */
+}
+blockquote a:hover {
+    /* color: #dd0000; */
+}
+
+
+/* ==========================================
+   Header Styles
+   ========================================== */
+.site-header {
+    background-color: #d6daf0; /* Light blue/purple header bg */
+    padding: 2px 5px;
+    border-bottom: 1px solid #999;
+    font-size: 0.9em;
+    margin-bottom: 10px;
+}
+.header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
 }
-
-.header-top {
+.header-left {
     display: flex;
     align-items: center;
 }
-
 .site-title {
-    margin: 0;
-    font-size: 1.5em;
-    margin-right: 20px;
-}
-
-.site-title a {
-    color: #333; /* Dark grey title text */
+    margin: 0 15px 0 0;
+    font-size: 1.2em; /* Slightly larger */
+    color: #af0a0f; /* Match heading color */
     font-weight: bold;
 }
-
+.site-title a {
+    color: inherit;
+    text-decoration: none;
+}
+.site-title a:hover {
+    text-decoration: none;
+}
 .main-nav a {
-    margin-left: 15px;
-    color: #555; /* Slightly lighter grey nav links */
+    margin: 0 3px;
+    font-weight: bold;
+    color: #0000ee;
 }
-
 .auth-links {
-    display: flex;
-    align-items: center;
-}
-
-.auth-links a, .auth-links span {
-    margin-left: 15px;
-    color: #555; /* Slightly lighter grey auth links and user email */
-}
-
-.auth-button {
-    padding: 8px 12px;
-    background-color: #eee; /* Very light grey button background */
-    border: 1px solid #ccc; /* Lighter grey button border */
-    border-radius: 4px;
-    color: #333; /* Dark grey button text */
-    cursor: pointer;
-    display: inline-block;
-    text-decoration: none;
-}
-
-.auth-button:hover {
-    background-color: #ddd; /* Slightly darker grey on hover */
-    text-decoration: none;
-}
-
-/* Main Content */
-.content {
-    padding: 20px;
-    background-color: #f0f0f0; /* Light grey content background */
-}
-
-/* Footer */
-.site-footer {
-    border-top: 1px solid #ccc; /* Lighter grey border */
-    padding: 20px 0;
-    text-align: center;
-    color: #555; /* Slightly lighter grey footer text */
     font-size: 0.9em;
-    margin-top: auto; /* Push footer to the bottom */
+}
+.auth-links a, .auth-links span {
+    margin-left: 8px;
+    color: #0000ee;
+}
+.auth-links span.user-info {
+     color: #555; /* Grey for user email */
+     font-weight: bold;
 }
 
-.footer-container {
-    padding: 0 20px;
+
+/* ==========================================
+   Main Content Area
+   ========================================== */
+.content {
+    /* No specific styling needed, inherits body */
 }
 
-.footer-nav {
-    margin-bottom: 10px;
-}
-
-.footer-nav a {
-    margin: 0 10px;
-    color: #555; /* Slightly lighter grey footer nav links */
-}
-
-.footer-info p {
-    margin: 5px 0;
-}
-
-/* Board List Styles */
+/* ==========================================
+   Board List Styles (Index Page)
+   ========================================== */
 .boards-list {
     list-style-type: none;
     padding: 0;
     margin: 0 0 20px 0;
+    line-height: 1.6;
 }
 
 .boards-list li {
-    margin-bottom: 8px;
+    margin-bottom: 2px;
 }
 
 .boards-list a {
-    display: inline-block;
-    padding: 5px 10px;
-    background-color: #eee;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-}
-
-.boards-list a:hover {
-    background-color: #ddd;
-    text-decoration: none;
-}
-
-/* Admin Panel Styles */
-.admin-panel {
-    background-color: #f5f5f5;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 15px 20px;
-    margin: 20px 0;
-    max-width: 600px;
-}
-
-.admin-panel h2 {
-    margin-top: 0;
-    border-bottom: 1px solid #ccc;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-    color: #333;
-    font-size: 1.3em;
-}
-
-.form-group {
-    margin-bottom: 15px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
     font-weight: bold;
-    color: #555;
-}
-
-.form-group input[type="text"],
-.form-group textarea {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: #fff;
-    color: #333;
-    box-sizing: border-box;
-}
-
-.form-group textarea {
-    min-height: 80px;
-    resize: vertical;
-}
-
-.form-group small {
-    display: block;
-    color: #777;
-    font-size: 0.85em;
-    margin-top: 5px;
-}
-
-.form-group input[type="text"]:focus,
-.form-group textarea:focus {
-    border-color: #999;
-    outline: none;
-}
-
-/* Message Styling */
-.success-message {
-    background-color: #e6f3e6;
-    color: #337733;
-    padding: 10px 15px;
-    border: 1px solid #c3e6c3;
-    border-radius: 4px;
-    margin-bottom: 15px;
-}
-
-.error-message {
-    background-color: #f8e6e6;
-    color: #cc3333;
-    padding: 10px 15px;
-    border: 1px solid #ecc3c3;
-    border-radius: 4px;
-    margin-bottom: 15px;
 }
 
 .boards-list form.delete-form {
-    display: inline-block;
-    margin-left: 10px;
+    display: inline; /* Keep on same line */
+    margin-left: 5px;
 }
+.boards-list form.delete-form button.delete-button {
+     font-size: 0.8em;
+     color: #dd0000;
+     background: none;
+     border: none;
+     padding: 0;
+     text-decoration: underline;
+     cursor: pointer;
+     font-family: sans-serif; /* Inherit */
+}
+.boards-list form.delete-form button.delete-button:hover {
+    color: #ff0000;
+}
+
+/* ==========================================
+   General Form Styles (Tables)
+   ========================================== */
+.post-form-container, .admin-panel, .auth-form {
+    background-color: #d6daf0; /* Same as header bg */
+    padding: 5px;
+    margin-bottom: 10px;
+    border: 1px solid #999;
+    display: inline-block; /* Shrink wrap */
+    vertical-align: top;
+}
+
+.form-table {
+    border-collapse: collapse;
+    width: auto;
+    margin: 0;
+}
+
+.form-table td {
+    padding: 2px 4px;
+    vertical-align: middle;
+    font-size: 1em; /* Should be 10pt */
+}
+
+.form-table td.form-label {
+    text-align: left;
+    font-weight: bold;
+    color: #333;
+    padding-right: 8px;
+    white-space: nowrap;
+}
+.form-table tr:has(textarea) td.form-label {
+     vertical-align: top;
+     padding-top: 4px; /* Align better with textarea */
+}
+
+/* Inputs and Textareas */
+.form-table input[type="text"],
+.form-table input[type="password"],
+.form-table input[type="email"],
+.form-table textarea {
+    margin: 0;
+    padding: 3px;
+    border: 1px solid #999; /* Grey border */
+    border-radius: 0; /* Sharp corners */
+    background-color: #fff;
+    color: #000;
+    font-size: 10pt; /* Match body */
+    font-family: sans-serif;
+    box-sizing: border-box;
+}
+
+.form-table input[type="text"]:focus,
+.form-table input[type="password"]:focus,
+.form-table input[type="email"]:focus,
+.form-table textarea:focus {
+    border-color: #555; /* Darker focus border */
+    outline: none;
+}
+
+.form-table textarea {
+    resize: vertical;
+    line-height: 1.3;
+    min-height: 50px; /* Chan textareas are often small */
+    max-width: 100%; /* Prevent overflow in tables */
+}
+
+/* Buttons */
+.form-table button[type="submit"] {
+    padding: 3px 8px;
+    background-color: #eee;
+    border: 1px solid #999;
+    border-radius: 0; /* Sharp corners */
+    color: #000;
+    cursor: pointer;
+    font-weight: normal; /* Not usually bold */
+    font-size: 10pt;
+    font-family: sans-serif;
+}
+.form-table button[type="submit"]:hover {
+    background-color: #ddd;
+}
+
+/* Small text/hints in forms */
+.form-table small {
+    font-size: 0.9em;
+    color: #555;
+}
+
+/* Admin panel specifics */
+.admin-panel {
+    width: auto;
+    max-width: 700px; /* Limit width */
+}
+.admin-panel h2 {
+    margin-top: 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #999;
+    margin-bottom: 10px;
+}
+
+/* ==========================================
+   Post Styles (Common to Board & Thread)
+   ========================================== */
+.post {
+    background-color: #d6daf0; /* Base background */
+    margin: 4px 0; /* Adjust vertical margin */
+    padding: 2px 5px 5px 5px;
+    border: 1px solid #b7c5d9; /* Default border for replies */
+    border-radius: 0;
+    /* display: inline-block; */ /* REMOVE this */
+    /* vertical-align: top; */   /* REMOVE this (not needed for block) */
+    /* width: auto; */           /* REMOVE this (block elements take width) */
+    /* max-width: 98%; */       /* REMOVE this or adjust (e.g., max-width: 100%;) */
+    overflow: hidden;
+    line-height: 1.3;
+    display: block; /* ADD this (or rely on div default, but explicit is clear) */
+    box-sizing: border-box; /* Good practice for block elements */
+    /* width: 100%; */ /* Optional: force full width if needed, usually not */
+}
+
+.post.op-post {
+    border-color: #999; /* Slightly darker/more grey border for OP */
+}
+
+.post.reply-post {
+    /* Replies often have same background as OP */
+    margin-left: 20px; /* Indent replies */
+    /* max-width adjusted via inline-block nature and parent width */
+}
+
+.post-header {
+    font-size: 0.9em; /* Slightly smaller metadata */
+    color: #117743; /* Green name/metadata color */
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.post-header input[type="checkbox"] {
+    margin: 0 5px 0 0;
+    vertical-align: middle;
+    padding: 0;
+}
+
+.post-subject {
+    color: #cc1105; /* Subject color */
+    font-weight: bold;
+    margin-right: 8px;
+}
+
+.post-author {
+    font-weight: bold;
+    /* color: #117743; */ /* Inherits from header */
+    margin-right: 8px;
+}
+
+.post-date {
+    /* color: #117743; */ /* Inherits from header */
+    margin-right: 8px;
+}
+
+.post-id {
+    /* color: #117743; */ /* Inherits from header */
+    margin-right: 8px;
+}
+.post-id a {
+    color: inherit; /* Use header color */
+    text-decoration: none; /* No underline on No. */
+}
+.post-id a:hover {
+    color: #dd0000; /* Red hover */
+    text-decoration: underline;
+}
+
+.reply-link {
+    /* color: #117743; */ /* Inherits from header */
+    margin-left: 5px;
+    font-size: 0.9em;
+}
+.reply-link a {
+    color: #0000ee; /* Standard link blue */
+    text-decoration: underline;
+}
+.reply-link a:hover {
+    color: #dd0000;
+}
+
+
+.post-attachments {
+    font-size: 0.9em;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    padding-left: 25px; /* Indent file info */
+    word-wrap: break-word;
+    max-width: 100%;
+    color: #555; /* Grey file info text */
+}
+/* Style .post-attachments a specifically if needed */
+
+.post-body {
+    color: #000; /* Black post text */
+    line-height: 1.4; /* Slightly more readable line height */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    /* blockquote used inside */
+}
+.post-body p { /* Reset potential paragraph margins if blockquote isn't used */
+    margin: 0;
+    padding: 0;
+}
+
+
+/* ==========================================
+   Board Page Specifics
+   ========================================== */
+.board-header h1 {
+     margin-bottom: 5px;
+}
+
+.reply-summary {
+    font-size: 0.9em;
+    margin-left: 20px; /* Indent summary like replies */
+    margin-top: 5px;
+    margin-bottom: 5px;
+    color: #555;
+    font-style: italic;
+}
+
+
+/* ==========================================
+   Thread Page Specifics
+   ========================================== */
+.thread-header {
+    margin-bottom: 5px;
+}
+.thread-header .nav-links {
+    font-size: 0.9em;
+    font-weight: bold;
+}
+.thread-header .nav-links a {
+     margin: 0 5px;
+}
+
+/* Anchor for #bottom link */
+#bottom {
+    display: block;
+    height: 1px; /* Make it take up minimal space */
+    margin-bottom: -1px;
+}
+
+
+/* ==========================================
+   Utility Messages
+   ========================================== */
+.success-message,
+.error-message {
+    border: 1px solid #999;
+    padding: 5px 8px;
+    margin: 10px 0;
+    font-size: 1em;
+    font-weight: bold;
+    display: inline-block; /* Prevent full width */
+}
+
+.success-message {
+    background-color: #dff0d8; /* Light green */
+    color: #3c763d; /* Dark green */
+    border-color: #d6e9c6;
+}
+
+.error-message {
+    background-color: #f2dede; /* Light red */
+    color: #a94442; /* Dark red */
+    border-color: #ebccd1;
+}
+
+
+/* ==========================================
+   Footer Styles
+   ========================================== */
+.site-footer {
+    border-top: 1px solid #999;
+    padding: 5px 0;
+    text-align: center;
+    color: #555;
+    font-size: 0.8em; /* Smaller footer text */
+    margin-top: 20px;
+    clear: both;
+}
+
+.footer-nav {
+    margin-bottom: 5px;
+}
+.footer-nav a {
+    margin: 0 5px;
+    color: #0000ee;
+}
+
+.footer-info p {
+    margin: 2px 0;
+}
+
+/* ==========================================
+   End of Stylesheet
+   ========================================== */

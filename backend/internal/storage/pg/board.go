@@ -73,7 +73,7 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 	var thread domain.Thread
 	var row struct {
 		threadTitle string
-		nReplies    uint
+		nReplies    int
 		lastBumpTs  time.Time
 		threadId    sql.NullInt64
 		msgId       int64

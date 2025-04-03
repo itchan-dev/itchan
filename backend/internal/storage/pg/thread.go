@@ -42,7 +42,7 @@ func (s *Storage) GetThread(id int64) (*domain.Thread, error) {
 	var metadata struct {
 		title      string
 		board      string
-		numReplies uint
+		numReplies int
 		lastBumped time.Time
 	}
 

@@ -19,7 +19,7 @@ func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request
 				return
 			}
 			if !rl.Allow(identity) {
-				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+				http.Error(w, "Rate limit exceeded, try again later", http.StatusTooManyRequests)
 				return
 			}
 

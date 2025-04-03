@@ -11,6 +11,7 @@ import (
 
 func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	r := mux.NewRouter()
+	r.StrictSlash(true)
 
 	// Public routes
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
@@ -22,12 +23,14 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	r.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailGetHandler).Methods("GET")
 	r.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler).Methods("POST")
 
+	r.PathPrefix("/static/").Handler(
+		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
+	)
+
 	// Authenticated routes
 	authRouter := r.NewRoute().Subrouter()
 	authRouter.Use(mw.NeedAuth(deps.Jwt))
-	authRouter.PathPrefix("/static/").Handler(
-		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
-	)
+
 	authRouter.HandleFunc("/", deps.Handler.IndexGetHandler).Methods("GET")
 	authRouter.HandleFunc("/", deps.Handler.IndexPostHandler).Methods("POST")
 	authRouter.HandleFunc("/logout", handler.LogoutHandler)
