@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS boards(
     short_name     varchar(10) PRIMARY KEY,
     name           varchar(254) NOT NULL,
     allowed_emails text[],
-    created        timestamp default (now() at time zone 'utc')
+    created        timestamp default (now() at time zone 'utc'),
+    last_activity  timestamp default (now() at time zone 'utc')
 );
 
 -- metainfo in first thread message

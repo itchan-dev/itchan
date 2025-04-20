@@ -27,9 +27,15 @@ func TestCreateThread(t *testing.T) {
 
 	// --- Success Case ---
 	t.Run("Success", func(t *testing.T) {
+		boardBefore, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		time.Sleep(50 * time.Millisecond)
+
 		threadID, err := storage.CreateThread(title, boardShortName, opMsg)
 		require.NoError(t, err, "CreateThread should succeed")
 		require.Greater(t, threadID, int64(0), "Thread ID should be positive")
+		boardAfter, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
 
 		// Verify the created thread using GetThread
 		createdThread, err := storage.GetThread(threadID)
@@ -45,6 +51,8 @@ func TestCreateThread(t *testing.T) {
 		assert.False(t, createdThread.Messages[0].ThreadId.Valid, "OP message ThreadId should be nil")
 		assert.WithinDuration(t, time.Now(), createdThread.LastBumped, 5*time.Second, "LastBumped time should be recent")
 		assert.Equal(t, createdThread.Messages[0].CreatedAt, createdThread.LastBumped, "LastBumped time should match OP creation time initially")
+		assert.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Thread creation should update board last activity")
+		assert.Equal(t, boardAfter.LastActivity, createdThread.LastBumped, "Board last activity should be equal to last bump")
 
 		// Cleanup the thread manually since it was created within the subtest
 		err = storage.DeleteThread(boardShortName, threadID)
@@ -155,9 +163,14 @@ func TestDeleteThread(t *testing.T) {
 		msgID1 := createTestMessage(t, boardShortName, &domain.User{Id: 2}, "Reply 1 Delete", nil, threadID)
 		_ = createTestMessage(t, boardShortName, &domain.User{Id: 3}, "Reply 2 Delete", nil, threadID) // msgID2 not needed for verification
 
+		boardBefore, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		time.Sleep(50 * time.Millisecond)
 		// Delete the thread
-		err := storage.DeleteThread(boardShortName, threadID)
+		err = storage.DeleteThread(boardShortName, threadID)
 		require.NoError(t, err, "DeleteThread should not return an error")
+		boardAfter, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
 
 		// Verify thread is gone
 		_, err = storage.GetThread(threadID)
@@ -169,6 +182,9 @@ func TestDeleteThread(t *testing.T) {
 		err = storage.db.QueryRow(checkMsgQuery, threadID, msgID1).Scan(&exists)
 		require.NoError(t, err, "Querying for deleted messages should not error")
 		assert.False(t, exists, "Messages associated with the deleted thread should be gone")
+
+		// Verify board last activity is updated
+		require.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Thread deletion should update board last activity")
 	})
 }
 

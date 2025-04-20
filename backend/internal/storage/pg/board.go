@@ -47,9 +47,10 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 		shortName     string
 		allowedEmails *domain.Emails
 		createdAt     time.Time
+		lastActivity  time.Time
 	}
 	var m metadata
-	err := s.db.QueryRow("SELECT name, short_name, allowed_emails, created FROM boards WHERE short_name = $1", shortName).Scan(&m.name, &m.shortName, &m.allowedEmails, &m.createdAt)
+	err := s.db.QueryRow("SELECT name, short_name, allowed_emails, created, last_activity FROM boards WHERE short_name = $1", shortName).Scan(&m.name, &m.shortName, &m.allowedEmails, &m.createdAt, &m.lastActivity)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
@@ -107,7 +108,7 @@ func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
 	if rows.Err() != nil {
 		return nil, err
 	}
-	board := domain.Board{Name: m.name, ShortName: m.shortName, Threads: threads, AllowedEmails: m.allowedEmails, CreatedAt: m.createdAt}
+	board := domain.Board{Name: m.name, ShortName: m.shortName, Threads: threads, AllowedEmails: m.allowedEmails, CreatedAt: m.createdAt, LastActivity: m.lastActivity}
 	return &board, nil
 }
 
@@ -172,12 +173,9 @@ func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error
 	var boards []domain.Board
 	rows, err := s.db.Query(`
 	SELECT
-		t.board
-	FROM messages as m
-	JOIN threads as t
-		ON coalesce(m.thread_id, m.id) = t.id
-	GROUP BY board
-	HAVING EXTRACT(EPOCH FROM ((now() at time zone 'utc') - MAX(m.modified))) < $1
+		short_name
+	FROM boards
+	WHERE EXTRACT(EPOCH FROM ((now() at time zone 'utc') - last_activity)) < $1
 	`, interval.Seconds())
 	if err != nil {
 		return nil, err
