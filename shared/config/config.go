@@ -21,6 +21,7 @@ type Config struct {
 type Public struct {
 	JwtTTL                      time.Duration `yaml:"jwt_ttl"`
 	ThreadsPerPage              int           `yaml:"threads_per_page"`
+	MaxThreadCount              *int          `yaml:"max_thread_count"`
 	NLastMsg                    int           `yaml:"n_last_msg"` // number of last messages shown in board preview (materialized view)
 	BumpLimit                   int           `yaml:"bump_limit"` // if thread have more messages it will not get "bumped"
 	BoardPreviewRefreshInterval time.Duration `yaml:"board_preview_refresh_internval"`

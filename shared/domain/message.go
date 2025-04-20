@@ -14,6 +14,7 @@ type Message struct {
 	Author      User
 	Text        string
 	CreatedAt   time.Time
+	ModifiedAt  time.Time
 	Attachments *Attachments
 	ThreadId    sql.NullInt64
 }

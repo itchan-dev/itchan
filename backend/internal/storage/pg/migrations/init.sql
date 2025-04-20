@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS messages(
     created     timestamp default (now() at time zone 'utc'),
     attachments text[],
     thread_id   int default NULL, -- null if this is OP message
-    n           int NOT NULL default 0
+    n           int NOT NULL default 0,
+    modified    timestamp default (now() at time zone 'utc')
 );
 CREATE INDEX messages__thread_id__index ON messages (thread_id);
 
@@ -39,6 +40,8 @@ CREATE TABLE IF NOT EXISTS threads(
     title         text NOT NULL,
     board         varchar(10) REFERENCES boards ON DELETE CASCADE,
 	reply_count   int NOT NULL default 0,
-	last_bump_ts  timestamp NOT NULL 
+	last_bump_ts  timestamp NOT NULL,
+    is_sticky     boolean NOT NULL default false
 );
 CREATE INDEX threads__board__index ON threads (board);
+CREATE INDEX threads__last_bump_ts__index ON threads (last_bump_ts);

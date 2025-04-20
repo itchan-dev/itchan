@@ -6,6 +6,12 @@
         <hr>
     </div>
 
+    <!-- Display Error Message -->
+    {{if .Error}}
+    <div class="error-message">{{.Error}}</div>
+    {{end}}
+
+
     <div class="posts-container">
         {{ range $index, $message := .Thread.Messages }}
             {{ $isOP := eq $index 0 }}
@@ -18,6 +24,18 @@
                     <span class="post-id">
                         No.<a href="#p{{ $message.Id }}">{{ $message.Id }}</a> <!-- Link to self within page -->
                     </span>
+                    {{/* --- START: Message Delete Button --- */}}
+                    {{if $.User.Admin}}
+                    <form method="POST" action="/{{ $.Thread.Board }}/{{ $.Thread.Id }}/{{ $message.Id }}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete post No.{{ $message.Id }}? This cannot be undone.');">
+                         {{/* Add specific text for OP deletion */}}
+                         {{if $isOP}}
+                         [<button type="submit" class="delete-button">Delete OP & Thread</button>]
+                         {{else}}
+                         [<button type="submit" class="delete-button">Delete Post</button>]
+                         {{end}}
+                    </form>
+                    {{end}}
+                    {{/* --- END: Message Delete Button --- */}}
                     {{if $isOP}}<span class="reply-link">[<a href="#reply-form-top">Reply</a>]</span>{{end}}
                      <!-- Add backlinks display here if implemented -->
                 </div>

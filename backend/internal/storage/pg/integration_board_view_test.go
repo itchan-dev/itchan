@@ -73,7 +73,7 @@ func TestStartPeriodicViewRefreshRefreshesActiveBoards(t *testing.T) {
 
 	// Shorten the refresh interval for testing
 	originalInterval := storage.cfg.Public.BoardPreviewRefreshInterval
-	storage.cfg.Public.BoardPreviewRefreshInterval = 100 * time.Millisecond
+	storage.cfg.Public.BoardPreviewRefreshInterval = 500 * time.Millisecond
 	defer func() { storage.cfg.Public.BoardPreviewRefreshInterval = originalInterval }()
 
 	// Start the periodic refresh
@@ -82,8 +82,6 @@ func TestStartPeriodicViewRefreshRefreshesActiveBoards(t *testing.T) {
 	// Setup board and thread with a recent message
 	boardShortName, threadID := setupBoardAndThread(t)
 	user := &domain.User{Id: 1}
-	// opMsg := &domain.Message{Author: *user, Text: "OP"}
-	// threadID := createTestThread(t, boardShortName, "Test Thread", opMsg)
 	createTestMessage(t, boardShortName, user, "Reply 1", nil, threadID)
 
 	// Ensure initial refresh to populate the view
@@ -94,7 +92,7 @@ func TestStartPeriodicViewRefreshRefreshesActiveBoards(t *testing.T) {
 	createTestMessage(t, boardShortName, user, "Reply 2", nil, threadID)
 
 	// Wait for the periodic refresh to trigger
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	// Verify the view was refreshed with the new message
 	board, err := storage.GetBoard(boardShortName, 1)

@@ -309,74 +309,125 @@ func TestGetActiveBoards(t *testing.T) {
 		_ = setupBoard(t)
 		boards, err := storage.GetActiveBoards(time.Hour)
 		require.NoError(t, err)
-		assert.Empty(t, boards)
+		assert.Empty(t, boards, "Should be no active boards if no messages exist")
 	})
 
-	t.Run("board is active with recent message", func(t *testing.T) {
+	t.Run("board is active with recent message modification", func(t *testing.T) {
 		boardShortName, threadId := setupBoardAndThread(t)
 
-		// Interval 10 minutes should return 1 board
+		// Interval 10 minutes should return 1 board because the message was just created/modified
 		boards, err := storage.GetActiveBoards(10 * time.Minute)
 		require.NoError(t, err)
-		assert.Len(t, boards, 1)
+		require.Len(t, boards, 1, "Board should be active shortly after creation")
+		assert.Equal(t, boardShortName, boards[0].ShortName)
 
-		// Set message created time to 30 minutes ago
-		createdTime := time.Now().UTC().Add(-30 * time.Minute)
-		_, err = storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", createdTime, threadId)
-		require.NoError(t, err)
+		// Manually set the message's MODIFIED time to 30 minutes ago
+		modifiedTime := time.Now().UTC().Add(-30 * time.Minute)
+		_, err = storage.db.Exec("UPDATE messages SET modified = $1 WHERE id = $2", modifiedTime, threadId)
+		require.NoError(t, err, "Failed to update modified timestamp")
 
-		// Interval 31 minutes should include the board
+		// Interval 31 minutes should still include the board
 		boards, err = storage.GetActiveBoards(31 * time.Minute)
 		require.NoError(t, err)
-		assert.Len(t, boards, 1)
+		require.Len(t, boards, 1, "Board should be active for interval > 30 mins")
 		assert.Equal(t, boardShortName, boards[0].ShortName)
 
 		// Interval 29 minutes should exclude the board
 		boards, err = storage.GetActiveBoards(29 * time.Minute)
 		require.NoError(t, err)
-		assert.Empty(t, boards)
+		assert.Empty(t, boards, "Board should be inactive for interval < 30 mins")
 	})
 
-	t.Run("multiple boards with varying activity", func(t *testing.T) {
-		// Setup boards
+	t.Run("multiple boards with varying modification times", func(t *testing.T) {
 		boardActive, _ := setupBoardAndThread(t)
 
-		_, threadInactive := setupBoardAndThread(t)
-		_, err := storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", time.Now().UTC().Add(-2*time.Hour), threadInactive)
-		require.NoError(t, err)
+		// Board 2: Inactive (message modified long ago)
+		boardInactive, threadInactive := setupBoardAndThread(t)
+		_, err := storage.db.Exec("UPDATE messages SET modified = $1 WHERE id = $2", time.Now().UTC().Add(-2*time.Hour), threadInactive)
+		require.NoError(t, err, "Failed to set old modified time for inactive board")
 
+		// Check with 1 hour interval
 		boards, err := storage.GetActiveBoards(1 * time.Hour)
 		require.NoError(t, err)
-		assert.Len(t, boards, 1)
-		assert.Equal(t, boardActive, boards[0].ShortName)
+		assert.Len(t, boards, 1, "Only one board should be active")
+		assert.Equal(t, boardActive, boards[0].ShortName, "The active board should be the one with recent modification")
+
+		// Check with 3 hour interval (should include both now)
+		boards, err = storage.GetActiveBoards(3 * time.Hour)
+		require.NoError(t, err)
+		// Note: Order isn't guaranteed by the query, so check for presence
+		require.Len(t, boards, 2, "Both boards should be active with a large interval")
+		foundActive := false
+		foundInactive := false
+		for _, b := range boards {
+			if b.ShortName == boardActive {
+				foundActive = true
+			}
+			if b.ShortName == boardInactive {
+				foundInactive = true
+			}
+		}
+		assert.True(t, foundActive, "Active board missing with large interval")
+		assert.True(t, foundInactive, "Inactive board missing with large interval")
 	})
 
-	t.Run("board with multiple messages uses latest", func(t *testing.T) {
-		boardShortName, oldThreadId := setupBoardAndThread(t)
-		msgRecentID := createTestMessage(t, boardShortName, &domain.User{Id: 1}, "Recent Msg", nil, oldThreadId)
+	t.Run("board with multiple messages uses latest modification", func(t *testing.T) {
+		boardShortName, opMessageId := setupBoardAndThread(t)
 
-		// Set old message to 2 hours ago, recent to 30 minutes ago
-		_, err := storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", time.Now().UTC().Add(-2*time.Hour), oldThreadId)
-		require.NoError(t, err)
-		_, err = storage.db.Exec("UPDATE messages SET created = $1 WHERE id = $2", time.Now().UTC().Add(-30*time.Minute), msgRecentID)
-		require.NoError(t, err)
+		// Create a second message (reply) in the same thread
+		replyMessageAuthor := &domain.User{Id: 1}
+		replyMessageID := createTestMessage(t, boardShortName, replyMessageAuthor, "Recent Reply", nil, opMessageId)
+		require.Greater(t, replyMessageID, int64(0), "Failed to create reply message")
 
-		// Interval 1 hour should include the board
+		// Make the OP message's modification time old
+		_, err := storage.db.Exec("UPDATE messages SET modified = $1 WHERE id = $2", time.Now().UTC().Add(-2*time.Hour), opMessageId)
+		require.NoError(t, err, "Failed to set old modified time for OP message")
+
+		// Make the reply message's modification time more recent, but still slightly old
+		_, err = storage.db.Exec("UPDATE messages SET modified = $1 WHERE id = $2", time.Now().UTC().Add(-30*time.Minute), replyMessageID)
+		require.NoError(t, err, "Failed to set modified time for reply message")
+
+		// Interval 1 hour should include the board (because reply was modified 30 mins ago)
 		boards, err := storage.GetActiveBoards(1 * time.Hour)
 		require.NoError(t, err)
-		assert.Len(t, boards, 1)
+		require.Len(t, boards, 1, "Board should be active based on latest reply modification")
 		assert.Equal(t, boardShortName, boards[0].ShortName)
 
-		// Interval 29 minutes should exclude the board
+		// Interval 29 minutes should exclude the board (latest modification was 30 mins ago)
 		boards, err = storage.GetActiveBoards(29 * time.Minute)
 		require.NoError(t, err)
-		assert.Empty(t, boards)
+		assert.Empty(t, boards, "Board should be inactive as latest modification is older than interval")
 	})
 
 	t.Run("board with no messages is not active", func(t *testing.T) {
-		setupBoard(t)
+		_ = setupBoard(t)
 		boards, err := storage.GetActiveBoards(time.Hour)
 		require.NoError(t, err)
-		assert.Empty(t, boards)
+		assert.Empty(t, boards, "Board with no messages should never be active")
+	})
+
+	t.Run("board activity after message deletion", func(t *testing.T) {
+		boardShortName, messageId := setupBoardAndThread(t)
+
+		boards, err := storage.GetActiveBoards(5 * time.Minute)
+		require.NoError(t, err)
+		require.Len(t, boards, 1, "Board should be active immediately after creation")
+		assert.Equal(t, boardShortName, boards[0].ShortName)
+
+		oldTime := time.Now().UTC().Add(-10 * time.Minute)
+		_, err = storage.db.Exec("UPDATE messages SET modified = $1 WHERE id = $2", oldTime, messageId)
+		require.NoError(t, err, "Failed to set old modified time")
+
+		boards, err = storage.GetActiveBoards(5 * time.Minute)
+		require.NoError(t, err)
+		assert.Empty(t, boards, "Board should be inactive after modified time is made old")
+
+		err = storage.DeleteMessage(boardShortName, messageId)
+		require.NoError(t, err, "Failed to delete message")
+
+		boards, err = storage.GetActiveBoards(5 * time.Minute) // Same short interval
+		require.NoError(t, err)
+		require.Len(t, boards, 1, "Board should become active again immediately after deletion")
+		assert.Equal(t, boardShortName, boards[0].ShortName, "Board short name mismatch after deletion")
 	})
 }
