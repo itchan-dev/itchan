@@ -177,7 +177,7 @@ func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error
 	JOIN threads as t
 		ON coalesce(m.thread_id, m.id) = t.id
 	GROUP BY board
-	HAVING EXTRACT(EPOCH FROM ((now() at time zone 'utc') - MAX(m.created))) < $1
+	HAVING EXTRACT(EPOCH FROM ((now() at time zone 'utc') - MAX(m.modified))) < $1
 	`, interval.Seconds())
 	if err != nil {
 		return nil, err

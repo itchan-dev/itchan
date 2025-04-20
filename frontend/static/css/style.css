@@ -426,7 +426,8 @@ blockquote a:hover {
     margin: 10px 0;
     font-size: 1em;
     font-weight: bold;
-    display: inline-block; /* Prevent full width */
+    display: block;
+    box-sizing: border-box; /* Good practice with padding/border */
 }
 
 .success-message {

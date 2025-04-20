@@ -120,3 +120,36 @@ func (s *Storage) DeleteThread(board string, id int64) error {
 	}
 	return nil
 }
+
+func (s *Storage) ThreadCount(board string) (int, error) {
+	var count int
+	err := s.db.QueryRow(`
+	SELECT 
+		count(*) as count
+	FROM threads
+	WHERE board = $1
+	`, board).Scan(&count)
+	if err != nil {
+		return -1, err
+	}
+	return count, nil
+}
+
+func (s *Storage) LastThreadId(board string) (int64, error) {
+	var id int64
+	err := s.db.QueryRow(`
+	SELECT 
+		id
+	FROM threads
+	WHERE board = $1 and is_sticky = FALSE
+	ORDER BY last_bump_ts
+	LIMIT 1
+	`, board).Scan(&id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return -1, &internal_errors.ErrorWithStatusCode{Message: "There are no threads", StatusCode: 404}
+		}
+		return -1, err
+	}
+	return id, nil
+}

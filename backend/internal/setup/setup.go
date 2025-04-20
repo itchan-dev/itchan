@@ -40,7 +40,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 
 	auth := service.NewAuth(storage, email, jwt)
 	board := service.NewBoard(storage, &utils.BoardNameValidator{})
-	thread := service.NewThread(storage, &utils.ThreadTitleValidator{})
+	thread := service.NewThread(storage, &utils.ThreadTitleValidator{}, cfg.Public)
 	message := service.NewMessage(storage, &utils.MessageValidator{})
 
 	h := handler.New(auth, board, thread, message, cfg)

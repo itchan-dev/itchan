@@ -37,10 +37,10 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 
 	var id int64
 	err = tx.QueryRow(`
-	INSERT INTO messages(author_id, text, created, attachments, thread_id, n) 
-	VALUES($1, $2, $3, $4, $5, $6) 
+	INSERT INTO messages(author_id, text, created, modified, attachments, thread_id, n) 
+	VALUES($1, $2, $3, $4, $5, $6, $7) 
 	RETURNING id`,
-		author.Id, text, createdTs, attachments, threadId, n).Scan(&id)
+		author.Id, text, createdTs, createdTs, attachments, threadId, n).Scan(&id)
 	if err != nil {
 		return -1, err
 	}
@@ -60,10 +60,11 @@ func (s *Storage) GetMessage(id int64) (*domain.Message, error) {
 		author_id,
 		text,
 		created,
+		modified,
 		attachments,
 		thread_id
 	FROM messages
-	WHERE id = $1`, id).Scan(&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt, &msg.Attachments, &msg.ThreadId)
+	WHERE id = $1`, id).Scan(&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt, &msg.ModifiedAt, &msg.Attachments, &msg.ThreadId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &internal_errors.ErrorWithStatusCode{Message: "Message not found", StatusCode: 404}
@@ -84,7 +85,8 @@ func (s *Storage) DeleteMessage(board string, id int64) error {
 	result, err := tx.Exec(`
 	UPDATE messages SET
 		text = 'msg deleted',
-		attachments = NULL
+		attachments = NULL,
+		modified = (now() at time zone 'utc')
 	WHERE id = $1`, id)
 	if err != nil {
 		return err

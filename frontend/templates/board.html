@@ -5,7 +5,12 @@
         <hr>
     </div>
 
-    <!-- New Thread Form (remains the same) -->
+    <!-- Display Error Message -->
+    {{if .Error}}
+    <div class="error-message">{{.Error}}</div>
+    {{end}}
+
+    <!-- New Thread Form -->
     <div class="post-form-container">
         <form action="/{{ .Board.ShortName }}" method="post" id="new-thread-form">
              <input type="hidden" name="form_action" value="new_thread">
@@ -26,9 +31,7 @@
                  </tbody>
              </table>
         </form>
-        {{if .Error}}
-        <div class="error-message">{{.Error}}</div>
-        {{end}}
+        {{/* Removed error display from here, moved it above the form */}}
     </div>
 
     <hr class="section-separator">
@@ -51,6 +54,13 @@
                             <span class="post-id">
                                 No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $opMessage.Id }}">{{ $opMessage.Id }}</a>
                             </span>
+                            {{/* --- START: Thread Delete Button --- */}}
+                            {{if $.User.Admin}}
+                            <form method="POST" action="/{{ $thread.Board }}/{{ $thread.Id }}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete thread No.{{ $thread.Id }}? This cannot be undone.');">
+                                [<button type="submit" class="delete-button">Delete Thread</button>]
+                            </form>
+                            {{end}}
+                            {{/* --- END: Thread Delete Button --- */}}
                             <span class="reply-link">[<a href="/{{ $thread.Board }}/{{ $thread.Id }}">Reply</a>]</span>
                         </div>
                         {{ if $opMessage.Attachments }}
@@ -77,6 +87,7 @@
                                 <span class="post-id">
                                     No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $reply.Id }}">{{ $reply.Id }}</a>
                                 </span>
+                                {{/* No delete button for replies in preview */}}
                             </div>
                             {{ if $reply.Attachments }}
                                 <div class="post-attachments">
