@@ -20,8 +20,27 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
-	var n int64
+	// step 1: update board metadata
 	createdTs := time.Now().UTC().Round(time.Microsecond) // database anyway round to microsecond
+	result, err := tx.Exec(`
+	UPDATE boards SET
+		last_activity = $2
+	WHERE short_name = $1
+	`,
+		board, createdTs)
+	if err != nil {
+		return -1, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return -1, err
+	}
+	if affected == 0 {
+		return -1, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
+	}
+
+	// step 2: update thread metadata
+	var n int64
 	err = tx.QueryRow(`
 	UPDATE threads
 	SET reply_count = reply_count + 1, last_bump_ts = CASE WHEN reply_count > $1 THEN last_bump_ts ELSE $2 END -- if reply_count over bump limit then dont update last_bump_ts
@@ -35,11 +54,13 @@ func (s *Storage) CreateMessage(board string, author *domain.User, text string, 
 		return -1, err
 	}
 
+	// step 3: create message
 	var id int64
 	err = tx.QueryRow(`
 	INSERT INTO messages(author_id, text, created, modified, attachments, thread_id, n) 
 	VALUES($1, $2, $3, $4, $5, $6, $7) 
-	RETURNING id`,
+	RETURNING id
+	`,
 		author.Id, text, createdTs, createdTs, attachments, threadId, n).Scan(&id)
 	if err != nil {
 		return -1, err
@@ -82,12 +103,32 @@ func (s *Storage) DeleteMessage(board string, id int64) error {
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
+	deletedTs := time.Now().UTC().Round(time.Microsecond) // database anyway round to microsecond
 	result, err := tx.Exec(`
+	UPDATE boards SET
+		last_activity = $2
+	WHERE short_name = $1
+	`,
+		board, deletedTs)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
+	}
+
+	result, err = tx.Exec(`
 	UPDATE messages SET
 		text = 'msg deleted',
 		attachments = NULL,
-		modified = (now() at time zone 'utc')
-	WHERE id = $1`, id)
+		modified = $2
+	WHERE id = $1
+	`,
+		id, deletedTs)
 	if err != nil {
 		return err
 	}

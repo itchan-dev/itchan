@@ -19,9 +19,26 @@ func (s *Storage) CreateThread(title, board string, msg *domain.Message) (int64,
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
+	createdTs := time.Now().UTC().Round(time.Microsecond) // database anyway round to microsecond
+	result, err := tx.Exec(`
+	UPDATE boards SET
+		last_activity = $2
+	WHERE short_name = $1
+	`,
+		board, createdTs)
+	if err != nil {
+		return -1, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return -1, err
+	}
+	if affected == 0 {
+		return -1, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
+	}
+
 	var id int64
-	var createdTs time.Time
-	err = tx.QueryRow("INSERT INTO messages(author_id, text, attachments) VALUES($1, $2, $3) RETURNING id, created", msg.Author.Id, msg.Text, msg.Attachments).Scan(&id, &createdTs)
+	err = tx.QueryRow("INSERT INTO messages(author_id, text, attachments, created, modified) VALUES($1, $2, $3, $4, $5) RETURNING id", msg.Author.Id, msg.Text, msg.Attachments, createdTs, createdTs).Scan(&id)
 	if err != nil { // catch unique violation error and raise "user already exists"
 		return -1, err
 	}
@@ -103,7 +120,24 @@ func (s *Storage) DeleteThread(board string, id int64) error {
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
-	result, err := tx.Exec("DELETE FROM messages WHERE COALESCE(thread_id, id) = $1", id)
+	result, err := tx.Exec(`
+	UPDATE boards SET
+		last_activity = (now() at time zone 'utc')
+	WHERE short_name = $1
+	`,
+		board)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
+	}
+
+	result, err = tx.Exec("DELETE FROM messages WHERE COALESCE(thread_id, id) = $1", id)
 	if err != nil {
 		return err
 	}

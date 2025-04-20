@@ -14,4 +14,5 @@ type Board struct {
 	Threads       []*Thread
 	AllowedEmails *Emails
 	CreatedAt     time.Time
+	LastActivity  time.Time
 }
