@@ -381,7 +381,18 @@ blockquote a:hover {
    Board Page Specifics
    ========================================== */
 .board-header h1 {
-     margin-bottom: 5px;
+    margin-bottom: 5px;
+    text-align: center;
+    font-size: 2.3em;
+}
+
+.board-header h1 a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.board-header h1 a:hover {
+    text-decoration: underline;
 }
 
 .reply-summary {
@@ -467,6 +478,37 @@ blockquote a:hover {
 .footer-info p {
     margin: 2px 0;
 }
+
+/* ==========================================
+   Pagination Styles
+   ========================================== */
+   .pagination {
+    text-align: center; /* Center the pagination links */
+    margin: 15px 0; /* Add some space around it */
+    font-size: 1.1em; /* Make links slightly larger */
+    font-weight: bold;
+}
+
+.pagination span {
+    /* Style for the current page number (not a link) */
+    color: #555; /* Grey out the current page */
+    margin: 0 3px; /* Add spacing */
+}
+
+.pagination a {
+    text-decoration: none; /* Remove underline from page numbers */
+    margin: 0 3px; /* Add spacing */
+    color: #0000ee; /* Standard link blue */
+}
+
+.pagination a:hover {
+    color: #dd0000; /* Red hover */
+    text-decoration: underline;
+}
+
+/* ==========================================
+   End of Pagination Styles
+   ========================================== */
 
 /* ==========================================
    End of Stylesheet

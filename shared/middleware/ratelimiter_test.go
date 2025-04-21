@@ -66,6 +66,40 @@ func TestRateLimit(t *testing.T) {
 		assert.Equal(t, "Rate limit exceeded, try again later\n", w2.Body.String())
 	})
 
+	t.Run("allow admin request exceeding rate limit", func(t *testing.T) {
+		rl := ratelimiter.New(1, 1, time.Minute)
+		defer rl.Stop()
+		middleware := RateLimit(rl, func(r *http.Request) (string, error) { return "user1", nil })
+		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		req1 := httptest.NewRequest("GET", "/", nil)
+		w1 := httptest.NewRecorder()
+		handler.ServeHTTP(w1, req1)
+		assert.Equal(t, http.StatusOK, w1.Code)
+
+		// forbid for non admin
+		user := &domain.User{Admin: false}
+		req2 := httptest.NewRequest("GET", "/", nil)
+		ctx2 := context.WithValue(req2.Context(), UserClaimsKey, user)
+		req2 = req2.WithContext(ctx2)
+		w2 := httptest.NewRecorder()
+		handler.ServeHTTP(w2, req2)
+
+		assert.Equal(t, http.StatusTooManyRequests, w2.Code)
+
+		// accept for admin
+		user = &domain.User{Admin: true}
+		req3 := httptest.NewRequest("GET", "/", nil)
+		ctx3 := context.WithValue(req3.Context(), UserClaimsKey, user)
+		req3 = req2.WithContext(ctx3)
+		w3 := httptest.NewRecorder()
+		handler.ServeHTTP(w3, req3)
+
+		assert.Equal(t, http.StatusOK, w3.Code)
+	})
+
 	t.Run("allows request after rate limit reset", func(t *testing.T) {
 		rl := ratelimiter.New(1, 1, time.Millisecond*100)
 		defer rl.Stop()
