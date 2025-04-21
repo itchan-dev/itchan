@@ -1,9 +1,13 @@
 {{define "title"}}/{{ .Thread.Board }}/ - Thread No.{{ .Thread.Id }}{{end}}
 {{define "content"}}
+    <div class="board-header">
+        <h1><a href="/{{ .Thread.Board }}">/{{ .Thread.Board }}/</a></h1>
+        <hr>
+    </div>
+
     <div class="thread-header">
         <!-- Thread title isn't usually repeated prominently on the thread page itself -->
         <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
-        <hr>
     </div>
 
     <!-- Display Error Message -->
@@ -83,6 +87,6 @@
 
     <div id="bottom"></div> <!-- Anchor for bottom link -->
     <hr>
-     <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
+    <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
 
 {{ end }}

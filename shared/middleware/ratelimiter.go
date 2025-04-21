@@ -13,6 +13,11 @@ import (
 func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request) (string, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if user := GetUserFromContext(r); user != nil && user.Admin { // disable for admin
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			identity, err := getIdentity(r)
 			if err != nil {
 				utils.WriteErrorAndStatusCode(w, err)

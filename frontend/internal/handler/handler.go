@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings" // Added for splitAndTrim if not already imported elsewhere
 
 	"github.com/gorilla/mux"
@@ -420,11 +421,11 @@ func BoardDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, targetURL, http.StatusSeeOther)
 }
 
-func getBoardPreview(r *http.Request, shortName string, page string) (*domain.Board, error) {
+func getBoardPreview(r *http.Request, shortName string, page int) (*domain.Board, error) {
 	// Construct URL carefully, handling empty page param
 	apiURL := fmt.Sprintf("http://api:8080/v1/%s", shortName)
-	if page != "" {
-		apiURL = fmt.Sprintf("%s?page=%s", apiURL, url.QueryEscape(page))
+	if page > 1 {
+		apiURL = fmt.Sprintf("%s?page=%d", apiURL, page)
 	}
 
 	req, err := requestWithCookie(r, "GET", apiURL, nil, "accessToken")
@@ -458,14 +459,24 @@ func getBoardPreview(r *http.Request, shortName string, page string) (*domain.Bo
 
 func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Board *domain.Board
-		Error template.HTML
-		User  *domain.User
+		Board       *domain.Board
+		Error       template.HTML
+		User        *domain.User
+		CurrentPage int
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	shortName := mux.Vars(r)["board"]
-	page := r.URL.Query().Get("page")
 	templateData.Error, _ = parseMessagesFromQuery(r) // Get error from query param
+
+	pageStr := r.URL.Query().Get("page")
+	page := 1 // Default to page 1
+	if pageStr != "" {
+		pageInt, err := strconv.Atoi(pageStr)
+		if err == nil && pageInt > 0 {
+			page = pageInt
+		}
+	}
+	templateData.CurrentPage = page
 
 	board, err := getBoardPreview(r, shortName, page)
 	if err != nil {

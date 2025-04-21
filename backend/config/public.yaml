@@ -1,5 +1,5 @@
 jwt_ttl: 2629800000000000
-threads_per_page: 50
+threads_per_page: 3
 n_last_msg: 3
 bump_limit: 450
 board_preview_refresh_internval: 1

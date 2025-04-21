@@ -1,7 +1,7 @@
 {{define "title"}}/{{ .Board.ShortName }}/ - {{ .Board.Name }}{{end}}
 {{ define "content" }}
     <div class="board-header">
-        <h1>/{{ .Board.ShortName }}/ - {{ .Board.Name }}</h1>
+        <h1><a href="{{ .Board.ShortName }}">/{{ .Board.ShortName }}/ - {{ .Board.Name }}</a></h1>
         <hr>
     </div>
 
@@ -136,9 +136,31 @@
             <p>No threads on this board yet. Why not create one?</p>
         {{ end }}
     </div> <!-- End threads-container -->
-
-    <!-- Add Pagination controls if needed -->
-    <!-- <div class="pagination">[ Prev / 1 / 2 / 3 / Next ]</div> -->
+    
+    {{ $currentPage := .CurrentPage }}
+    <div class="pagination">
+        {{ $prevPage := sub $currentPage 1 }}
+        {{ $nextPage := add $currentPage 1 }}
+        {{ if gt $currentPage 1 }}
+        <a href="?page={{ $prevPage }}">&lt&lt prev</a>
+        {{ end }}
+        [
+        {{ if eq $currentPage 1 }}
+            <span>1</span> /
+            <a href="?page=2">2</a> /
+            <a href="?page=3">3</a>
+        {{ else if gt $currentPage 0 }}
+            {{ if gt $currentPage 2 }}
+            <a href="?page=1">1</a> /
+            <span>...</span> /
+            {{ end }}
+            <a href="?page={{ $prevPage }}">{{ $prevPage }}</a> /
+            <span>{{ $currentPage }}</span> /
+            <a href="?page={{ $nextPage }}">{{ $nextPage }}</a>
+        {{ end }}
+        ]
+        <a href="?page={{ $nextPage }}">next &gt&gt</a>
+    </div>
 
     <!-- Delete Form -->
     <!-- <form id="delete-form" action="/delete" method="post"> ... </form> -->
