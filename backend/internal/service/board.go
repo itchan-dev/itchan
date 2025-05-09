@@ -4,12 +4,11 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-// to mock service in tests
 type BoardService interface {
-	Create(name, shortName string, allowedEmails *domain.Emails) error
-	Get(shortName string, page int) (*domain.Board, error)
-	Delete(shortName string) error
-	GetAll(user *domain.User) ([]domain.Board, error)
+	Create(creationData domain.BoardCreationData) error
+	Get(shortName domain.BoardShortName, page int) (domain.Board, error)
+	Delete(shortName domain.BoardShortName) error
+	GetAll(user domain.User) ([]domain.Board, error)
 }
 
 type Board struct {
@@ -18,54 +17,54 @@ type Board struct {
 }
 
 type BoardStorage interface {
-	CreateBoard(name, shortName string, allowedEmails *domain.Emails) error
-	GetBoard(shortName string, page int) (*domain.Board, error)
-	DeleteBoard(shortName string) error
-	GetBoards(user *domain.User) ([]domain.Board, error)
+	CreateBoard(creationData domain.BoardCreationData) error
+	GetBoard(shortName domain.BoardShortName, page int) (domain.Board, error)
+	DeleteBoard(shortName domain.BoardShortName) error
+	GetBoardsByUser(user domain.User) ([]domain.Board, error)
 }
 
 type BoardValidator interface {
-	Name(name string) error
-	ShortName(name string) error
+	Name(name domain.BoardName) error
+	ShortName(name domain.BoardShortName) error
 }
 
 func NewBoard(storage BoardStorage, validator BoardValidator) BoardService {
 	return &Board{storage, validator}
 }
 
-func (b *Board) Create(name, shortName string, allowedEmails *domain.Emails) error {
-	if err := b.nameValidator.Name(name); err != nil {
+func (b *Board) Create(creationData domain.BoardCreationData) error {
+	if err := b.nameValidator.Name(creationData.Name); err != nil {
 		return err
 	}
-	if err := b.nameValidator.ShortName(shortName); err != nil {
+	if err := b.nameValidator.ShortName(creationData.ShortName); err != nil {
 		return err
 	}
-	if err := b.storage.CreateBoard(name, shortName, allowedEmails); err != nil {
+	if err := b.storage.CreateBoard(creationData); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (b *Board) Get(shortName string, page int) (*domain.Board, error) {
+func (b *Board) Get(shortName domain.BoardShortName, page int) (domain.Board, error) {
 	page = max(1, page)
 
 	if err := b.nameValidator.ShortName(shortName); err != nil {
-		return nil, err
+		return domain.Board{}, err
 	}
 
 	board, err := b.storage.GetBoard(shortName, page)
 	if err != nil {
-		return nil, err
+		return domain.Board{}, err
 	}
 	return board, nil
 }
 
-func (b *Board) GetAll(user *domain.User) ([]domain.Board, error) {
-	return b.storage.GetBoards(user)
+func (b *Board) GetAll(user domain.User) ([]domain.Board, error) {
+	return b.storage.GetBoardsByUser(user)
 }
 
-func (b *Board) Delete(shortName string) error {
+func (b *Board) Delete(shortName domain.BoardShortName) error {
 	if err := b.nameValidator.ShortName(shortName); err != nil {
 		return err
 	}

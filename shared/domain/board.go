@@ -2,17 +2,24 @@ package domain
 
 import (
 	"time"
-
-	"github.com/lib/pq"
 )
 
-type Emails = pq.StringArray
+// to iterate thru layers: handler -> service -> storage
+type BoardCreationData struct {
+	Name          BoardName
+	ShortName     BoardShortName
+	AllowedEmails *Emails
+}
 
-type Board struct {
-	Name          string
-	ShortName     string
-	Threads       []*Thread
+type BoardMetadata struct {
+	Name          BoardName
+	ShortName     BoardShortName
 	AllowedEmails *Emails
 	CreatedAt     time.Time
 	LastActivity  time.Time
+}
+
+type Board struct {
+	BoardMetadata
+	Threads []Thread
 }

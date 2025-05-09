@@ -51,7 +51,7 @@ func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container, conte
 	}
 
 	container, err := postgres.Run(ctx,
-		"postgres:15.3-alpine",
+		"postgres:17.4-alpine",
 		postgres.WithInitScripts(initScriptPath),
 		postgres.WithDatabase(dbName),
 		postgres.WithUsername(dbUser),
@@ -121,39 +121,41 @@ func teardown(ctx context.Context) {
 }
 
 // Helper functions
-func setupBoard(t *testing.T) string {
+func setupBoard(t *testing.T) domain.BoardShortName {
 	t.Helper()
 	boardName := "testboard"
 	boardShortName := generateString(t)
-	err := storage.CreateBoard(boardName, boardShortName, nil)
+	err := storage.CreateBoard(domain.BoardCreationData{Name: boardName, ShortName: boardShortName, AllowedEmails: nil})
 	require.NoError(t, err, "CreateBoard should not return an error")
 
 	t.Cleanup(func() {
 		// cleanup every thread and msg
 		err := storage.DeleteBoard(boardShortName)
-		require.NoError(t, err, "DeleteBoard should not return an error")
+		if err != nil {
+			requireNotFoundError(t, err) // already deleted in test
+		}
 	})
 
 	return boardShortName
 }
 
-func setupBoardAndThread(t *testing.T) (string, int64) {
+func setupBoardAndThread(t *testing.T) (domain.BoardShortName, domain.ThreadId) {
 	t.Helper()
 	boardShortName := setupBoard(t)
 
-	threadID, err := storage.CreateThread(generateString(t), boardShortName, &domain.Message{Author: domain.User{Id: 1}, Text: "Test OP"})
+	threadID, err := storage.CreateThread(domain.ThreadCreationData{Title: generateString(t), Board: boardShortName, OpMessage: domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 1}, Text: "Test OP"}})
 	require.NoError(t, err, "CreateThread should not return an error")
 
 	return boardShortName, threadID
 }
 
-func setupBoardAndThreadAndMessage(t *testing.T) (string, int64, int64) {
+func setupBoardAndThreadAndMessage(t *testing.T) (domain.BoardShortName, domain.ThreadId, domain.MsgId) {
 	t.Helper()
 	boardShortName, threadID := setupBoardAndThread(t)
 
-	author := &domain.User{Id: 2}
+	author := domain.User{Id: 2}
 	attachments := &domain.Attachments{"file1.jpg", "file2.png"}
-	msgID, err := storage.CreateMessage(boardShortName, author, generateString(t), attachments, threadID)
+	msgID, err := storage.CreateMessage(domain.MessageCreationData{Board: boardShortName, Author: author, Text: generateString(t), Attachments: attachments, ThreadId: threadID}, false, nil)
 	require.NoError(t, err, "CreateMessage should not return an error")
 
 	return boardShortName, threadID, msgID
@@ -171,19 +173,21 @@ func requireNotFoundError(t *testing.T, err error) {
 	require.Equal(t, 404, e.StatusCode)
 }
 
-func createTestThread(t *testing.T, boardShortName, title string, msg *domain.Message) int64 {
-	threadID, err := storage.CreateThread(title, boardShortName, msg)
+func createTestThread(t *testing.T, thread domain.ThreadCreationData) domain.ThreadId {
+	t.Helper()
+	threadID, err := storage.CreateThread(thread)
 	require.NoError(t, err)
 	return threadID
 }
 
-func createTestMessage(t *testing.T, boardShortName string, user *domain.User, text string, attachments *domain.Attachments, threadID int64) int64 {
-	msgID, err := storage.CreateMessage(boardShortName, user, text, attachments, threadID)
+func createTestMessage(t *testing.T, message domain.MessageCreationData) domain.MsgId {
+	t.Helper()
+	msgID, err := storage.CreateMessage(message, false, nil)
 	require.NoError(t, err)
 	return msgID
 }
 
-func requireThreadOrder(t *testing.T, threads []*domain.Thread, expectedTitles []string) {
+func requireThreadOrder(t *testing.T, threads []domain.Thread, expectedTitles []string) {
 	t.Helper()
 	require.Len(t, threads, len(expectedTitles))
 	for i, title := range expectedTitles {
@@ -191,7 +195,7 @@ func requireThreadOrder(t *testing.T, threads []*domain.Thread, expectedTitles [
 	}
 }
 
-func requireMessageOrder(t *testing.T, messages []*domain.Message, expectedTexts []string) {
+func requireMessageOrder(t *testing.T, messages []domain.Message, expectedTexts []string) {
 	t.Helper()
 	require.Len(t, messages, len(expectedTexts))
 	for i, text := range expectedTexts {

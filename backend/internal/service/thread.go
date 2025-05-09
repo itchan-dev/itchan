@@ -8,9 +8,9 @@ import (
 )
 
 type ThreadService interface {
-	Create(title string, board string, msg *domain.Message) (int64, error)
-	Get(id int64) (*domain.Thread, error)
-	Delete(board string, id int64) error
+	Create(creationData domain.ThreadCreationData) (domain.MsgId, error)
+	Get(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error)
+	Delete(board domain.BoardShortName, id domain.MsgId) error
 }
 
 type Thread struct {
@@ -20,41 +20,41 @@ type Thread struct {
 }
 
 type ThreadStorage interface {
-	CreateThread(title, board string, msg *domain.Message) (int64, error)
-	GetThread(id int64) (*domain.Thread, error)
-	DeleteThread(board string, id int64) error
-	ThreadCount(board string) (int, error)
-	LastThreadId(board string) (int64, error)
+	CreateThread(creationData domain.ThreadCreationData) (domain.MsgId, error)
+	GetThread(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	DeleteThread(board domain.BoardShortName, id domain.MsgId) error
+	ThreadCount(board domain.BoardShortName) (int, error)
+	LastThreadId(board domain.BoardShortName) (domain.MsgId, error)
 }
 
 type ThreadValidator interface {
-	Title(title string) error
+	Title(title domain.ThreadTitle) error
 }
 
 func NewThread(storage ThreadStorage, validator ThreadValidator, config config.Public) ThreadService {
 	return &Thread{storage, validator, config}
 }
 
-func (b *Thread) Create(title string, board string, msg *domain.Message) (int64, error) {
-	err := b.validator.Title(title)
+func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+	err := b.validator.Title(creationData.Title)
 	if err != nil {
 		return -1, err
 	}
-	threadId, err := b.storage.CreateThread(title, board, msg)
+	threadId, err := b.storage.CreateThread(creationData)
 	if err != nil {
 		return -1, err
 	}
 	if b.config.MaxThreadCount != nil {
-		threadCount, err := b.storage.ThreadCount(board)
+		threadCount, err := b.storage.ThreadCount(creationData.Board)
 		if err != nil {
 			return threadId, err
 		}
 		if threadCount > *b.config.MaxThreadCount {
-			lastThreadId, err := b.storage.LastThreadId(board)
+			lastThreadId, err := b.storage.LastThreadId(creationData.Board)
 			if err != nil {
 				return threadId, err
 			}
-			if err := b.Delete(board, lastThreadId); err != nil {
+			if err := b.Delete(creationData.Board, lastThreadId); err != nil {
 				return threadId, err
 			}
 		}
@@ -62,14 +62,14 @@ func (b *Thread) Create(title string, board string, msg *domain.Message) (int64,
 	return threadId, nil
 }
 
-func (b *Thread) Get(id int64) (*domain.Thread, error) {
-	thread, err := b.storage.GetThread(id)
+func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
+	thread, err := b.storage.GetThread(board, id)
 	if err != nil {
-		return nil, err
+		return domain.Thread{}, err
 	}
 	return thread, nil
 }
 
-func (b *Thread) Delete(board string, id int64) error {
+func (b *Thread) Delete(board domain.BoardShortName, id domain.MsgId) error {
 	return b.storage.DeleteThread(board, id)
 }

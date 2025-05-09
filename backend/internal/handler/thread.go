@@ -29,9 +29,9 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	op_msg := domain.Message{Author: *user, Text: body.Text, Attachments: body.Attachments}
+	opMsg := domain.MessageCreationData{Author: *user, Text: body.Text, Attachments: body.Attachments}
 
-	id, err := h.thread.Create(body.Title, mux.Vars(r)["board"], &op_msg)
+	id, err := h.thread.Create(domain.ThreadCreationData{Title: body.Title, Board: mux.Vars(r)["board"], OpMessage: opMsg})
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -42,7 +42,7 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
-	// board := mux.Vars(r)["board"]
+	board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
@@ -51,7 +51,7 @@ func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	thread, err := h.thread.Get(int64(threadId))
+	thread, err := h.thread.Get(board, domain.ThreadId(threadId))
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

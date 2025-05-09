@@ -2,168 +2,321 @@ package pg
 
 import (
 	"database/sql"
-	"fmt"
-	"time"
-
+	_ "embed"
 	"errors"
+	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+
+	"github.com/lib/pq"
 )
 
 var emptyAllowedEmailsError = errors.New("allowedEmails should be either nil or not empty")
 
-func (s *Storage) CreateBoard(name, shortName string, allowedEmails *domain.Emails) error {
-	if allowedEmails != nil && len(*allowedEmails) == 0 {
-		return emptyAllowedEmailsError
+//go:embed templates/board_view_template.sql
+var viewTmpl string
+
+//go:embed templates/partition_template.sql
+var partitionTmpl string
+
+func (s *Storage) CreateBoard(creationData domain.BoardCreationData) error {
+	if creationData.AllowedEmails != nil && len(*creationData.AllowedEmails) == 0 {
+		return fmt.Errorf("%w: allowed_emails cannot be empty", emptyAllowedEmailsError)
 	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
+	defer tx.Rollback()
 
-	_, err = tx.Exec("INSERT INTO boards(name, short_name, allowed_emails) VALUES($1, $2, $3)", name, shortName, allowedEmails)
-	if err != nil { // catch unique violation error and raise "user already exists"
-		return err
-	}
-
-	query := fmt.Sprintf(view_query, getViewName(shortName), shortName, shortName, s.cfg.Public.NLastMsg, getViewName(shortName))
-	_, err = tx.Exec(query)
+	// Insert board metadata
+	_, err = tx.Exec(`
+        INSERT INTO boards (name, short_name, allowed_emails)
+        VALUES ($1, $2, $3)`,
+		creationData.Name,
+		creationData.ShortName,
+		creationData.AllowedEmails,
+	)
 	if err != nil {
-		return err
+		// Check for unique constraint violation for short_name specifically if pq driver allows
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" { // Unique violation
+			return fmt.Errorf("failed to insert board, possibly duplicate short_name '%s': %w", creationData.ShortName, err)
+		}
+		return fmt.Errorf("failed to insert board: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
+	// Create partitions for threads and messages
+	for _, table := range []string{"threads", "messages"} {
+		seqName := fmt.Sprintf("%s_id_seq_%s", table, creationData.ShortName)
+		// PartitionName returns an already quoted identifier
+		query := fmt.Sprintf(partitionTmpl,
+			pq.QuoteIdentifier(seqName),
+			PartitionName(creationData.ShortName, table),
+			pq.QuoteIdentifier(table), // Parent table name
+			pq.QuoteLiteral(seqName),
+			pq.QuoteLiteral(creationData.ShortName),
+		)
+		if _, err = tx.Exec(query); err != nil {
+			return fmt.Errorf("failed to create %s partition for board '%s': %w", table, creationData.ShortName, err)
+		}
+	}
+
+	// Create materialized view for board preview
+	// ViewTableName returns an already quoted identifier
+	viewQuery := fmt.Sprintf(viewTmpl,
+		ViewTableName(creationData.ShortName),
+		s.cfg.Public.NLastMsg,
+		pq.QuoteLiteral(creationData.ShortName),
+	)
+	if _, err = tx.Exec(viewQuery); err != nil {
+		return fmt.Errorf("failed to create materialized view for board '%s': %w", creationData.ShortName, err)
+	}
+
+	if err = tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
 }
 
-func (s *Storage) GetBoard(shortName string, page int) (*domain.Board, error) {
-	// At first, get board metadata
-	type metadata struct {
-		name          string
-		shortName     string
-		allowedEmails *domain.Emails
-		createdAt     time.Time
-		lastActivity  time.Time
-	}
-	var m metadata
-	err := s.db.QueryRow("SELECT name, short_name, allowed_emails, created, last_activity FROM boards WHERE short_name = $1", shortName).Scan(&m.name, &m.shortName, &m.allowedEmails, &m.createdAt, &m.lastActivity)
+func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Board, error) {
+	var metadata domain.BoardMetadata
+	err := s.db.QueryRow(`
+        SELECT name, short_name, allowed_emails, created, last_activity
+        FROM boards
+        WHERE short_name = $1`,
+		shortName,
+	).Scan(
+		&metadata.Name,
+		&metadata.ShortName,
+		&metadata.AllowedEmails,
+		&metadata.CreatedAt,
+		&metadata.LastActivity,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
+			return domain.Board{}, &internal_errors.ErrorWithStatusCode{
+				Message:    fmt.Sprintf("Board '%s' not found", shortName),
+				StatusCode: http.StatusNotFound,
+			}
 		}
-		return nil, err
+		return domain.Board{}, fmt.Errorf("failed to fetch board metadata for '%s': %w", shortName, err)
 	}
-	// Then get and parse front page data from materialized view
-	rows, err := s.db.Query(fmt.Sprintf(`
-	SELECT 
-		*
-	FROM %s
-	WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
-	ORDER BY thread_order, created
-	`, getViewName(shortName)), s.cfg.Public.ThreadsPerPage, page)
+
+	// Fetch threads and their messages from the materialized view
+	// ViewTableName returns an already quoted identifier
+	rows, err := s.db.Query(
+		fmt.Sprintf(`
+            SELECT thread_title, num_replies, last_bump_ts, thread_id,
+                   msg_id, author_id, text, created, attachments, op
+            FROM %s
+            WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
+            ORDER BY thread_order, created`, // `created` for message order within thread
+			ViewTableName(shortName),
+		),
+		s.cfg.Public.ThreadsPerPage,
+		page,
+	)
 	if err != nil {
-		return nil, err
+		return domain.Board{}, fmt.Errorf("failed to fetch threads for board '%s': %w", shortName, err)
 	}
 	defer rows.Close()
 
-	var threads []*domain.Thread
-	var thread domain.Thread
-	var row struct {
-		threadTitle string
-		nReplies    int
-		lastBumpTs  time.Time
-		threadId    sql.NullInt64
-		msgId       int64
-		authorId    int64
-		text        string
-		created     time.Time
-		attachments *domain.Attachments
-		op          bool
-		replyNumber int
-		threadOrder int64
+	// Temporary structure to hold flat row data from the view
+	type rawThreadMessageData struct {
+		ThreadTitle domain.ThreadTitle
+		NReplies    int
+		LastBumpTs  time.Time
+		ThreadID    domain.ThreadId
+		MsgID       domain.MsgId
+		AuthorID    domain.UserId
+		Text        domain.MsgText
+		Created     time.Time
+		Attachments *domain.Attachments
+		Op          bool
 	}
+	var allRowData []rawThreadMessageData
+
 	for rows.Next() {
-		err = rows.Scan(&row.threadTitle, &row.nReplies, &row.lastBumpTs, &row.threadId, &row.msgId, &row.authorId, &row.text, &row.created, &row.attachments, &row.op, &row.replyNumber, &row.threadOrder)
-		if err != nil {
-			return nil, err
+		var rtd rawThreadMessageData
+		if err := rows.Scan(
+			&rtd.ThreadTitle, &rtd.NReplies, &rtd.LastBumpTs, &rtd.ThreadID,
+			&rtd.MsgID, &rtd.AuthorID, &rtd.Text, &rtd.Created, &rtd.Attachments, &rtd.Op,
+		); err != nil {
+			return domain.Board{}, fmt.Errorf("failed to scan thread/message row: %w", err)
 		}
-		if row.op { // op message means new thread begins
-			if len(thread.Messages) != 0 { // check if this is first parsed row. otherwise thread have atleast 1 message
-				copyThread := thread
-				threads = append(threads, &copyThread)
+		allRowData = append(allRowData, rtd)
+	}
+	if err = rows.Err(); err != nil {
+		return domain.Board{}, fmt.Errorf("error iterating thread/message rows: %w", err)
+	}
+
+	// Process allRowData to build domain.Board.Threads
+	var threads []domain.Thread
+	// Map threadID to its index in the `threads` slice to efficiently append messages
+	threadIndexMap := make(map[domain.ThreadId]int)
+
+	for _, rtd := range allRowData {
+		idx, exists := threadIndexMap[rtd.ThreadID]
+		if !exists {
+			// This is the first time we're seeing this thread_id from the view's current page
+			newThread := domain.Thread{
+				ThreadMetadata: domain.ThreadMetadata{
+					Id:         rtd.ThreadID,
+					Title:      rtd.ThreadTitle,
+					Board:      shortName, // Board shortName from the outer scope
+					NumReplies: rtd.NReplies,
+					LastBumped: rtd.LastBumpTs,
+					// IsSticky is not in the view, if needed, it has to be added or fetched separately
+				},
+				Messages: []domain.Message{},
 			}
-			thread = domain.Thread{Title: row.threadTitle, Board: m.shortName, NumReplies: row.nReplies, LastBumped: row.lastBumpTs}
+			threads = append(threads, newThread)
+			idx = len(threads) - 1 // Get the index of the newly added thread
+			threadIndexMap[rtd.ThreadID] = idx
 		}
-		msg := domain.Message{Id: row.msgId, Author: domain.User{Id: row.authorId}, Text: row.text, CreatedAt: row.created, Attachments: row.attachments, ThreadId: row.threadId}
-		thread.Messages = append(thread.Messages, &msg)
+
+		// Append the message to the correct thread
+		// The view is ordered by thread_order, then created, so OP should be first for a thread.
+		threads[idx].Messages = append(threads[idx].Messages, domain.Message{
+			MessageMetadata: domain.MessageMetadata{
+				Id:        rtd.MsgID,
+				Author:    domain.User{Id: rtd.AuthorID},
+				CreatedAt: rtd.Created,
+				ThreadId:  rtd.ThreadID,
+				Op:        rtd.Op,
+				Board:     shortName, // Board shortName from the outer scope
+				// Ordinal and ModifiedAt are not in the view
+			},
+			Text:        rtd.Text,
+			Attachments: rtd.Attachments,
+		})
 	}
-	if len(thread.Messages) != 0 {
-		copyThread := thread
-		threads = append(threads, &copyThread)
-	}
-	if rows.Err() != nil {
-		return nil, err
-	}
-	board := domain.Board{Name: m.name, ShortName: m.shortName, Threads: threads, AllowedEmails: m.allowedEmails, CreatedAt: m.createdAt, LastActivity: m.lastActivity}
-	return &board, nil
+
+	return domain.Board{
+		BoardMetadata: metadata,
+		Threads:       threads,
+	}, nil
 }
 
-func (s *Storage) DeleteBoard(shortName string) error {
+func (s *Storage) DeleteBoard(shortName domain.BoardShortName) error {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
+	defer tx.Rollback()
 
-	// Cleanup messages, threads will cascade delete
-	if _, err := tx.Exec("DELETE FROM messages USING threads WHERE threads.board = $1 AND COALESCE(messages.thread_id, messages.id) = threads.id", shortName); err != nil {
-		return err
+	// Drop materialized view
+	// ViewTableName returns an already quoted identifier
+	if _, err := tx.Exec(fmt.Sprintf("DROP MATERIALIZED VIEW IF EXISTS %s", ViewTableName(shortName))); err != nil {
+		return fmt.Errorf("failed to drop view for board '%s': %w", shortName, err)
 	}
+
+	// Drop partitions
+	for _, table := range []string{"messages", "threads"} {
+		// PartitionName returns an already quoted identifier
+		partition := PartitionName(shortName, table)
+		if _, err := tx.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", partition)); err != nil {
+			return fmt.Errorf("failed to drop %s partition for board '%s': %w", table, shortName, err)
+		}
+	}
+
+	// Delete board metadata
 	result, err := tx.Exec("DELETE FROM boards WHERE short_name = $1", shortName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete board '%s': %w", shortName, err)
 	}
-	deleted, err := result.RowsAffected()
-	if err != nil {
-		return err
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return &internal_errors.ErrorWithStatusCode{
+			Message:    fmt.Sprintf("Board '%s' not found for deletion", shortName),
+			StatusCode: http.StatusNotFound,
+		}
 	}
-	if deleted == 0 {
-		return &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: 404}
-	}
-	if _, err := tx.Exec(fmt.Sprintf("DROP MATERIALIZED VIEW %s", getViewName(shortName))); err != nil {
-		return err
-	}
+
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
 }
 
-func (s *Storage) GetBoardsAllowedEmails() ([]domain.Board, error) {
+func (s *Storage) GetBoards() ([]domain.Board, error) {
 	var boards []domain.Board
 	rows, err := s.db.Query(`
 	SELECT
-		name,
-		short_name,
-		allowed_emails
+		name, short_name, allowed_emails, created, last_activity
 	FROM boards
-	WHERE allowed_emails IS NOT NULL
 	ORDER BY created
-	`)
+	`) // Querying all fields that constitute BoardMetadata
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query boards: %w", err)
 	}
+	defer rows.Close()
+
 	for rows.Next() {
-		board := domain.Board{}
-		err = rows.Scan(&board.Name, &board.ShortName, &board.AllowedEmails)
+		var boardMeta domain.BoardMetadata
+		err = rows.Scan(
+			&boardMeta.Name,
+			&boardMeta.ShortName,
+			&boardMeta.AllowedEmails,
+			&boardMeta.CreatedAt,
+			&boardMeta.LastActivity,
+		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan board metadata: %w", err)
 		}
-		boards = append(boards, board)
+		boards = append(boards, domain.Board{BoardMetadata: boardMeta, Threads: nil}) // Threads are not fetched here
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating board rows: %w", err)
+	}
+	return boards, nil
+}
+
+func (s *Storage) GetBoardsByUser(user domain.User) ([]domain.Board, error) {
+	if user.Admin { // return all boards if user = admin
+		return s.GetBoards()
+	}
+	var boards []domain.Board
+	var err error
+	var rows *sql.Rows
+
+	// restrict boards for non-admins
+	userEmailDomain, domainErr := user.EmailDomain()
+	if domainErr != nil {
+		return nil, fmt.Errorf("could not determine user email domain for '%s': %w", user.Email, domainErr)
+	}
+	rows, err = s.db.Query(`
+		SELECT
+			name, short_name, allowed_emails, created, last_activity
+		FROM boards
+		WHERE (allowed_emails IS NULL) OR ($1 = ANY(allowed_emails))
+		ORDER BY created
+		`, userEmailDomain)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query boards for user: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var boardMeta domain.BoardMetadata
+		err = rows.Scan(
+			&boardMeta.Name,
+			&boardMeta.ShortName,
+			&boardMeta.AllowedEmails,
+			&boardMeta.CreatedAt,
+			&boardMeta.LastActivity,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan board data for user: %w", err)
+		}
+		boards = append(boards, domain.Board{BoardMetadata: boardMeta, Threads: nil}) // Threads are not fetched here
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating board rows for user: %w", err)
 	}
 	return boards, nil
 }
@@ -178,57 +331,57 @@ func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error
 	WHERE EXTRACT(EPOCH FROM ((now() at time zone 'utc') - last_activity)) < $1
 	`, interval.Seconds())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query active boards: %w", err)
 	}
+	defer rows.Close()
+
 	for rows.Next() {
-		board := domain.Board{}
-		// err = rows.Scan(&board.ShortName)
-		err = rows.Scan(&board.ShortName)
-		if err != nil {
-			return nil, err
+		var board domain.Board // Only BoardMetadata.ShortName is populated
+		if err = rows.Scan(&board.ShortName); err != nil {
+			return nil, fmt.Errorf("failed to scan active board short_name: %w", err)
 		}
 		boards = append(boards, board)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating active board rows: %w", err)
 	}
 	return boards, nil
 }
 
-func (s *Storage) GetBoards(user *domain.User) ([]domain.Board, error) {
-	var boards []domain.Board
-	var err error
-	var rows *sql.Rows
-	if user.Admin {
-		rows, err = s.db.Query(`
-	SELECT
-		name,
-		short_name
-	FROM boards
-	ORDER BY created
-	`)
-	} else {
-		// restrict boards for non-admins
-		domain, err := user.Domain()
-		if err != nil {
-			return nil, err
-		}
-		rows, err = s.db.Query(`
-	SELECT
-		name,
-		short_name
-	FROM boards
-	where (allowed_emails is null) or ($1 =any(allowed_emails))
-	ORDER BY created
-	`, domain)
-	}
+func (s *Storage) ThreadCount(board domain.BoardShortName) (int, error) {
+	var count int
+	err := s.db.QueryRow(`
+	SELECT 
+		count(*) as count
+	FROM threads 
+	WHERE board = $1
+	`, board).Scan(&count)
 	if err != nil {
-		return nil, err
+		return -1, fmt.Errorf("failed to count threads for board '%s': %w", board, err)
 	}
-	for rows.Next() {
-		board := domain.Board{}
-		err = rows.Scan(&board.Name, &board.ShortName)
-		if err != nil {
-			return nil, err
+	return count, nil
+}
+
+func (s *Storage) LastThreadId(board domain.BoardShortName) (domain.MsgId, error) {
+	var id int64
+	err := s.db.QueryRow(`
+	SELECT 
+		id
+	FROM threads 
+	WHERE 
+		board = $1 
+		AND is_sticky = FALSE 
+	ORDER BY last_bump_ts ASC 
+	LIMIT 1
+	`, board).Scan(&id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return -1, &internal_errors.ErrorWithStatusCode{
+				Message:    fmt.Sprintf("No non-sticky threads found on board '%s'", board),
+				StatusCode: http.StatusNotFound,
+			}
 		}
-		boards = append(boards, board)
+		return -1, fmt.Errorf("failed to get last thread ID for board '%s': %w", board, err)
 	}
-	return boards, nil
+	return id, nil
 }

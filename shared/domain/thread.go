@@ -4,14 +4,24 @@ import (
 	"time"
 )
 
-type Thread struct {
-	Title      string
-	Messages   []*Message // all other metainfo = 1st message metainfo
-	Board      string
-	NumReplies int
-	LastBumped time.Time
+// to iterate thru layers: handler -> service -> storage
+type ThreadCreationData struct {
+	Title     ThreadTitle
+	Board     BoardShortName
+	IsSticky  bool
+	OpMessage MessageCreationData
 }
 
-func (t *Thread) Id() int64 {
-	return t.Messages[0].Id
+type ThreadMetadata struct {
+	Id         ThreadId
+	Title      ThreadTitle
+	Board      BoardShortName
+	NumReplies int
+	LastBumped time.Time
+	IsSticky   bool
+}
+
+type Thread struct {
+	ThreadMetadata
+	Messages []Message // all other metainfo = 1st message metainfo
 }

@@ -13,7 +13,7 @@ import (
 )
 
 type JwtService interface {
-	NewToken(user *domain.User) (string, error)
+	NewToken(user domain.User) (string, error)
 	DecodeToken(jwtStr string) (*jwt.Token, error)
 }
 
@@ -26,7 +26,7 @@ func New(secretKey string, ttl time.Duration) JwtService {
 	return &Jwt{secretKey, ttl}
 }
 
-func (j *Jwt) NewToken(user *domain.User) (string, error) {
+func (j *Jwt) NewToken(user domain.User) (string, error) {
 	claims := jwt.MapClaims{}
 	claims["uid"] = user.Id
 	claims["email"] = user.Email

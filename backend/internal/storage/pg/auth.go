@@ -12,7 +12,7 @@ import (
 )
 
 // Saves user to db
-func (s *Storage) SaveUser(user *domain.User) (int64, error) {
+func (s *Storage) SaveUser(user domain.User) (domain.UserId, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return -1, err
@@ -35,26 +35,26 @@ func (s *Storage) SaveUser(user *domain.User) (int64, error) {
 // Get user from db
 //
 // If user doesn't exist, return error
-func (s *Storage) User(email string) (*domain.User, error) {
+func (s *Storage) User(email domain.Email) (domain.User, error) {
 	var user domain.User
 	err := s.db.QueryRow("SELECT id, email, pass_hash, is_admin FROM users WHERE email = $1", email).Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: http.StatusNotFound}
+			return domain.User{}, &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: http.StatusNotFound}
 		}
-		return nil, err
+		return domain.User{}, err
 	}
-	return &user, nil
+	return user, nil
 }
 
-func (s *Storage) UpdatePassword(email, passHash string) error {
+func (s *Storage) UpdatePassword(creds domain.Credentials) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() // The rollback will be ignored if the tx has been committed later in the function.
 
-	result, err := tx.Exec("UPDATE users SET pass_hash = $1 WHERE email = $2", passHash, email)
+	result, err := tx.Exec("UPDATE users SET pass_hash = $1 WHERE email = $2", creds.Password, creds.Email)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (s *Storage) UpdatePassword(email, passHash string) error {
 // Delete user from db
 //
 // If user doesn't exist, return error
-func (s *Storage) DeleteUser(email string) error {
+func (s *Storage) DeleteUser(email domain.Email) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func (s *Storage) DeleteUser(email string) error {
 	return nil
 }
 
-func (s *Storage) SaveConfirmationData(data *domain.ConfirmationData) error {
+func (s *Storage) SaveConfirmationData(data domain.ConfirmationData) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -119,20 +119,20 @@ func (s *Storage) SaveConfirmationData(data *domain.ConfirmationData) error {
 	return nil
 }
 
-func (s *Storage) ConfirmationData(email string) (*domain.ConfirmationData, error) {
+func (s *Storage) ConfirmationData(email domain.Email) (domain.ConfirmationData, error) {
 	var data domain.ConfirmationData
 	err := s.db.QueryRow("SELECT email, new_pass_hash, confirmation_code_hash, (confirmation_expires at time zone 'utc') FROM confirmation_data WHERE email = $1", email).Scan(
 		&data.Email, &data.NewPassHash, &data.ConfirmationCodeHash, &data.Expires)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &internal_errors.ErrorWithStatusCode{Message: "ConfirmationData not found", StatusCode: http.StatusNotFound}
+			return domain.ConfirmationData{}, &internal_errors.ErrorWithStatusCode{Message: "ConfirmationData not found", StatusCode: http.StatusNotFound}
 		}
-		return nil, err
+		return domain.ConfirmationData{}, err
 	}
-	return &data, nil
+	return data, nil
 }
 
-func (s *Storage) DeleteConfirmationData(email string) error {
+func (s *Storage) DeleteConfirmationData(email domain.Email) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err

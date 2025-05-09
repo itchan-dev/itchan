@@ -9,185 +9,446 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// --- Mocks ---
+
 // MockBoardStorage mocks the BoardStorage interface.
 type MockBoardStorage struct {
-	createBoardFunc func(name, shortName string, allowedEmails *domain.Emails) error
-	getBoardFunc    func(shortName string, page int) (*domain.Board, error)
-	deleteBoardFunc func(shortName string) error
-	getBoardsFunc   func(user *domain.User) ([]domain.Board, error)
+	createBoardFunc func(creationData domain.BoardCreationData) error
+	getBoardFunc    func(shortName domain.BoardShortName, page int) (domain.Board, error)
+	deleteBoardFunc func(shortName domain.BoardShortName) error
+	getBoardsFunc   func(user domain.User) ([]domain.Board, error)
 }
 
-func (m *MockBoardStorage) CreateBoard(name, shortName string, allowedEmails *domain.Emails) error {
+func (m *MockBoardStorage) CreateBoard(creationData domain.BoardCreationData) error {
 	if m.createBoardFunc != nil {
-		return m.createBoardFunc(name, shortName, allowedEmails)
+		return m.createBoardFunc(creationData)
 	}
-	return nil
+	return nil // Default success
 }
 
-func (m *MockBoardStorage) GetBoard(shortName string, page int) (*domain.Board, error) {
+func (m *MockBoardStorage) GetBoard(shortName domain.BoardShortName, page int) (domain.Board, error) {
 	if m.getBoardFunc != nil {
 		return m.getBoardFunc(shortName, page)
 	}
-	return nil, nil
+	// Default success case returns a board with the requested shortName
+	return domain.Board{BoardMetadata: domain.BoardMetadata{ShortName: shortName}}, nil
 }
 
-func (m *MockBoardStorage) DeleteBoard(shortName string) error {
+func (m *MockBoardStorage) DeleteBoard(shortName domain.BoardShortName) error {
 	if m.deleteBoardFunc != nil {
 		return m.deleteBoardFunc(shortName)
 	}
-	return nil
+	return nil // Default success
 }
 
-func (m *MockBoardStorage) GetBoards(user *domain.User) ([]domain.Board, error) {
+func (m *MockBoardStorage) GetBoardsByUser(user domain.User) ([]domain.Board, error) {
 	if m.getBoardsFunc != nil {
 		return m.getBoardsFunc(user)
 	}
-	return nil, nil
+	// Default success returns an empty list
+	return []domain.Board{}, nil
 }
 
 // MockBoardValidator mocks the BoardValidator interface.
 type MockBoardValidator struct {
-	nameFunc      func(name string) error
-	shortNameFunc func(shortName string) error
+	nameFunc      func(name domain.BoardName) error
+	shortNameFunc func(shortName domain.BoardShortName) error
 }
 
-func (m *MockBoardValidator) Name(name string) error {
+func (m *MockBoardValidator) Name(name domain.BoardName) error {
 	if m.nameFunc != nil {
 		return m.nameFunc(name)
 	}
-	return nil
+	return nil // Default valid
 }
 
-func (m *MockBoardValidator) ShortName(shortName string) error {
+func (m *MockBoardValidator) ShortName(shortName domain.BoardShortName) error {
 	if m.shortNameFunc != nil {
 		return m.shortNameFunc(shortName)
 	}
-	return nil
+	return nil // Default valid
 }
 
+// --- Tests ---
+
 func TestBoardCreate(t *testing.T) {
-	testCases := []struct {
-		name        string
-		nameInput   string
-		shortInput  string
-		mockError   error
-		expectError bool
-	}{
-		{name: "Successful Creation", nameInput: "test", shortInput: "t", mockError: nil, expectError: false},
-		{name: "Invalid Name", nameInput: "", shortInput: "t", mockError: errors.New("invalid name"), expectError: true},
-		{name: "Invalid Short Name", nameInput: "test", shortInput: "", mockError: errors.New("invalid short name"), expectError: true},
-		{name: "Storage Error", nameInput: "test", shortInput: "t", mockError: errors.New("storage error"), expectError: true},
-	}
+	validName := "Test Board"
+	validShortName := "tst"
+	validEmails := &domain.Emails{"test@example.com"}
+	validCreationData := domain.BoardCreationData{Name: validName, ShortName: validShortName, AllowedEmails: validEmails}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			mockStorage := &MockBoardStorage{
-				createBoardFunc: func(name, shortName string, allowedEmails *domain.Emails) error {
-					return tc.mockError
-				},
-			}
-			mockValidator := &MockBoardValidator{
-				nameFunc: func(name string) error {
-					if tc.nameInput == "" {
-						return errors.New("invalid name")
-					}
-					return nil
-				},
-				shortNameFunc: func(shortName string) error {
-					if tc.shortInput == "" {
-						return errors.New("invalid short name")
-					}
-					return nil
-				},
-			}
+	t.Run("Successful Creation", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageCalled := false
 
-			s := NewBoard(mockStorage, mockValidator)
-			err := s.Create(tc.nameInput, tc.shortInput, nil)
+		mockStorage.createBoardFunc = func(creationData domain.BoardCreationData) error {
+			storageCalled = true
+			assert.Equal(t, validCreationData, creationData)
+			return nil
+		}
+		mockValidator.nameFunc = func(name domain.BoardName) error {
+			assert.Equal(t, validName, name)
+			return nil
+		}
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			assert.Equal(t, validShortName, shortName)
+			return nil
+		}
 
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		err := service.Create(validCreationData)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, storageCalled, "Storage CreateBoard should be called")
+	})
+
+	t.Run("Invalid Name", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{} // Storage should not be called
+		mockValidator := &MockBoardValidator{}
+		validationError := errors.New("invalid name format")
+		invalidData := domain.BoardCreationData{Name: "Invalid Name!", ShortName: validShortName}
+
+		mockValidator.nameFunc = func(name domain.BoardName) error {
+			return validationError
+		}
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			// This should not be called if Name validation fails first
+			t.Fatal("ShortName validation should not be called when Name validation fails")
+			return nil
+		}
+		mockStorage.createBoardFunc = func(creationData domain.BoardCreationData) error {
+			t.Fatal("Storage CreateBoard should not be called when validation fails")
+			return nil
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		err := service.Create(invalidData)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, validationError))
+	})
+
+	t.Run("Invalid Short Name", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{} // Storage should not be called
+		mockValidator := &MockBoardValidator{}
+		validationError := errors.New("invalid short name format")
+		invalidData := domain.BoardCreationData{Name: validName, ShortName: ""}
+
+		mockValidator.nameFunc = func(name domain.BoardName) error {
+			assert.Equal(t, validName, name)
+			return nil // Name is valid
+		}
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			return validationError
+		}
+		mockStorage.createBoardFunc = func(creationData domain.BoardCreationData) error {
+			t.Fatal("Storage CreateBoard should not be called when validation fails")
+			return nil
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		err := service.Create(invalidData)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, validationError))
+	})
+
+	t.Run("Storage Error", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageError := errors.New("database connection failed")
+		storageCalled := false
+
+		// Assume validation passes
+		mockValidator.nameFunc = func(name domain.BoardName) error { return nil }
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error { return nil }
+
+		mockStorage.createBoardFunc = func(creationData domain.BoardCreationData) error {
+			storageCalled = true
+			assert.Equal(t, validCreationData, creationData)
+			return storageError
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		err := service.Create(validCreationData)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, storageError))
+		assert.True(t, storageCalled, "Storage CreateBoard should be called")
+	})
 }
 
 func TestBoardGet(t *testing.T) {
-	mockStorage := &MockBoardStorage{
-		getBoardFunc: func(shortName string, page int) (*domain.Board, error) {
-			if shortName == "invalid" {
-				return nil, errors.New("board not found")
-			}
-			return &domain.Board{ShortName: shortName}, nil
-		},
-	}
+	validShortName := domain.BoardShortName("test")
+	expectedBoard := domain.Board{BoardMetadata: domain.BoardMetadata{ShortName: validShortName}}
 
-	mockValidator := &MockBoardValidator{
-		shortNameFunc: func(shortName string) error {
-			if shortName == "invalid_short_name" {
-				return errors.New("invalid short name")
-			}
+	t.Run("Successful Get", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageCalled := false
+		requestedPage := 2
+
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			assert.Equal(t, validShortName, shortName)
 			return nil
-		},
+		}
+		mockStorage.getBoardFunc = func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+			storageCalled = true
+			assert.Equal(t, validShortName, shortName)
+			assert.Equal(t, requestedPage, page) // Page should be passed directly
+			return expectedBoard, nil
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		board, err := service.Get(validShortName, requestedPage)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, expectedBoard, board)
+		assert.True(t, storageCalled, "Storage GetBoard should be called")
+	})
+
+	t.Run("Invalid Short Name", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{} // Storage should not be called
+		mockValidator := &MockBoardValidator{}
+		validationError := errors.New("invalid short name format")
+		invalidShortName := domain.BoardShortName("")
+
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			return validationError
+		}
+		mockStorage.getBoardFunc = func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+			t.Fatal("Storage GetBoard should not be called when validation fails")
+			return domain.Board{}, nil
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		_, err := service.Get(invalidShortName, 1)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, validationError))
+	})
+
+	t.Run("Storage Error (Board Not Found)", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageError := errors.New("board not found")
+		storageCalled := false
+		requestedPage := 1
+
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			assert.Equal(t, validShortName, shortName)
+			return nil // Assume validation passes
+		}
+		mockStorage.getBoardFunc = func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+			storageCalled = true
+			assert.Equal(t, validShortName, shortName)
+			assert.Equal(t, requestedPage, page)
+			return domain.Board{}, storageError
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		_, err := service.Get(validShortName, requestedPage)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, storageError))
+		assert.True(t, storageCalled, "Storage GetBoard should be called")
+	})
+
+	t.Run("Page Less Than One Corrected", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageCalled := false
+		requestedPage := 0 // Service should correct this to 1
+
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			assert.Equal(t, validShortName, shortName)
+			return nil
+		}
+		mockStorage.getBoardFunc = func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+			storageCalled = true
+			assert.Equal(t, validShortName, shortName)
+			// IMPORTANT: Service logic corrects page to 1 before calling storage
+			assert.Equal(t, 1, page, "Page passed to storage should be corrected to 1")
+			return expectedBoard, nil
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		board, err := service.Get(validShortName, requestedPage)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, expectedBoard, board)
+		assert.True(t, storageCalled, "Storage GetBoard should be called")
+	})
+}
+
+func TestBoardGetAll(t *testing.T) {
+	testUser := domain.User{Id: 1, Email: "test@example.com"}
+	expectedBoards := []domain.Board{
+		{BoardMetadata: domain.BoardMetadata{ShortName: "b", Name: "Board B"}},
+		{BoardMetadata: domain.BoardMetadata{ShortName: "a", Name: "Board A"}},
 	}
 
-	s := NewBoard(mockStorage, mockValidator)
+	t.Run("Successful GetAll", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{} // Validator not used in GetAll
+		storageCalled := false
 
-	t.Run("ValidShortName", func(t *testing.T) {
-		board, err := s.Get("test", 1)
+		mockStorage.getBoardsFunc = func(user domain.User) ([]domain.Board, error) {
+			storageCalled = true
+			assert.Equal(t, testUser, user)
+			return expectedBoards, nil
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		boards, err := service.GetAll(testUser)
+
+		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, "test", board.ShortName)
+		assert.Equal(t, expectedBoards, boards)
+		assert.True(t, storageCalled, "Storage GetBoards should be called")
 	})
 
-	t.Run("InvalidShortName", func(t *testing.T) {
-		_, err := s.Get("invalid_short_name", 1)
+	t.Run("Storage Error on GetAll", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageError := errors.New("failed to retrieve boards")
+		storageCalled := false
+
+		mockStorage.getBoardsFunc = func(user domain.User) ([]domain.Board, error) {
+			storageCalled = true
+			assert.Equal(t, testUser, user)
+			return nil, storageError
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		_, err := service.GetAll(testUser)
+
+		// Assert
 		require.Error(t, err)
-	})
-
-	t.Run("BoardNotFound", func(t *testing.T) {
-		_, err := s.Get("invalid", 1)
-		require.Error(t, err)
-	})
-
-	t.Run("PageLessThanOne", func(t *testing.T) {
-		board, err := s.Get("test", 0) // Simulate page less than 1
-		require.NoError(t, err)
-		assert.Equal(t, "test", board.ShortName)
+		assert.True(t, errors.Is(err, storageError))
+		assert.True(t, storageCalled, "Storage GetBoards should be called")
 	})
 }
 
 func TestBoardDelete(t *testing.T) {
-	// Test cases for Delete
-	testCases := []struct {
-		name        string
-		shortName   string
-		mockError   error
-		expectError bool
-	}{
-		{name: "Successful Deletion", shortName: "test", mockError: nil, expectError: false},
-		{name: "Board Not Found", shortName: "nonexistent", mockError: errors.New("board not found"), expectError: true},
-		{name: "Invalid Short Name", shortName: "", mockError: errors.New("invalid short name"), expectError: true},
-	}
+	validShortName := domain.BoardShortName("test")
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			mockStorage := &MockBoardStorage{
-				deleteBoardFunc: func(shortName string) error { return tc.mockError },
-			}
-			mockValidator := &MockBoardValidator{
-				shortNameFunc: func(shortName string) error {
-					if shortName == "" {
-						return errors.New("invalid short name")
-					}
-					return nil
-				},
-			}
+	t.Run("Successful Deletion", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageCalled := false
 
-			s := NewBoard(mockStorage, mockValidator)
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			assert.Equal(t, validShortName, shortName)
+			return nil
+		}
+		mockStorage.deleteBoardFunc = func(shortName domain.BoardShortName) error {
+			storageCalled = true
+			assert.Equal(t, validShortName, shortName)
+			return nil
+		}
 
-			err := s.Delete(tc.shortName)
-			assert.Equal(t, tc.expectError, err != nil)
-		})
-	}
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		err := service.Delete(validShortName)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, storageCalled, "Storage DeleteBoard should be called")
+	})
+
+	t.Run("Invalid Short Name", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{} // Storage should not be called
+		mockValidator := &MockBoardValidator{}
+		validationError := errors.New("invalid short name format")
+		invalidShortName := domain.BoardShortName("")
+
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			return validationError
+		}
+		mockStorage.deleteBoardFunc = func(shortName domain.BoardShortName) error {
+			t.Fatal("Storage DeleteBoard should not be called when validation fails")
+			return nil
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		err := service.Delete(invalidShortName)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, validationError))
+	})
+
+	t.Run("Storage Error (Board Not Found)", func(t *testing.T) {
+		// Arrange
+		mockStorage := &MockBoardStorage{}
+		mockValidator := &MockBoardValidator{}
+		storageError := errors.New("board not found")
+		storageCalled := false
+		nonExistentShortName := domain.BoardShortName("nonex")
+
+		mockValidator.shortNameFunc = func(shortName domain.BoardShortName) error {
+			assert.Equal(t, nonExistentShortName, shortName)
+			return nil // Assume validation passes
+		}
+		mockStorage.deleteBoardFunc = func(shortName domain.BoardShortName) error {
+			storageCalled = true
+			assert.Equal(t, nonExistentShortName, shortName)
+			return storageError
+		}
+
+		service := NewBoard(mockStorage, mockValidator)
+
+		// Act
+		err := service.Delete(nonExistentShortName)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, storageError))
+		assert.True(t, storageCalled, "Storage DeleteBoard should be called")
+	})
 }

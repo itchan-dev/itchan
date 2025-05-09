@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (u *User) Domain() (string, error) {
+func (u *User) EmailDomain() (string, error) {
 	emailParts := strings.Split(u.Email, "@")
 	if len(emailParts) != 2 {
 		log.Printf("Cant split user email: %s", u.Email)
@@ -32,7 +32,7 @@ func (m *Message) String() string {
 }
 
 func (t *Thread) String() string {
-	s := fmt.Sprintf("[title:%s, board:%s, reply_count:%d, last_bumped:%v, messages:[", t.Title, t.Board, t.NumReplies, t.LastBumped)
+	s := fmt.Sprintf("[title:%s, board:%s, num_replies:%d, last_bumped:%v, messages:[", t.Title, t.Board, t.NumReplies, t.LastBumped)
 	for i, msg := range t.Messages {
 		if i > 0 {
 			s += ", "

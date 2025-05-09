@@ -8,7 +8,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
+
+	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
+	"github.com/itchan-dev/itchan/shared/domain"
 )
 
 func copyCookies(dst *http.Request, src *http.Request) {
@@ -138,4 +142,53 @@ func parseMessagesFromQuery(r *http.Request) (errMsg template.HTML, successMsg t
 		// }
 	}
 	return errMsg, successMsg
+}
+
+var (
+	messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`) // Use > because text is likely HTML escaped
+)
+
+// processMessageLinks finds >>N patterns and converts them to internal links
+// with attributes for the preview functionality. It returns template.HTML
+// to prevent double-escaping in the template.
+func processMessageLinks(message domain.Message) template.HTML {
+	// The input 'text' might already be HTML escaped by a markdown processor or similar.
+	// We specifically look for '>>' followed by digits.
+	// ReplaceAllStringFunc allows custom replacement logic for each match.
+	processedText := messageLinkRegex.ReplaceAllStringFunc(message.Text, func(match string) string {
+		// Extract the numeric ID part from the match (e.g., "123" from ">>123")
+		idStr := match[len(">>"):]
+
+		// Create the link HTML
+		// - href points to the anchor #p<ID> on the current page.
+		// - class="message-link" identifies it for JS hover listeners.
+		// - data-message-id stores the ID for the JS to fetch the preview.
+		return fmt.Sprintf(`<a href="/%[2]s/%[3]d#p%[1]s" class="message-link" data-message-id="%[1]s">>>%[1]s</a>`,
+			idStr, message.Board, message.ThreadId)
+	})
+
+	return template.HTML(processedText)
+}
+
+func RenderMessage(message domain.Message) frontend_domain.Message {
+	renderedMessage := frontend_domain.Message{Message: message}
+	renderedMessage.Text = processMessageLinks(message)
+	return renderedMessage
+}
+
+// render all messages and proccess links
+func RenderThread(thread domain.Thread) frontend_domain.Thread {
+	renderedThread := frontend_domain.Thread{ThreadMetadata: thread.ThreadMetadata, Messages: make([]frontend_domain.Message, len(thread.Messages))}
+	for i, msg := range thread.Messages {
+		renderedThread.Messages[i] = RenderMessage(msg)
+	}
+	return renderedThread
+}
+
+func RenderBoard(board domain.Board) frontend_domain.Board {
+	renderedBoard := frontend_domain.Board{BoardMetadata: board.BoardMetadata, Threads: make([]frontend_domain.Thread, len(board.Threads))}
+	for i, thread := range board.Threads {
+		renderedBoard.Threads[i] = RenderThread(thread)
+	}
+	return renderedBoard
 }

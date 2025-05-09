@@ -9,7 +9,7 @@ import (
 )
 
 type Storage interface {
-	GetBoardsAllowedEmails() ([]domain.Board, error)
+	GetBoards() ([]domain.Board, error)
 }
 
 type BoardAccess struct {
@@ -24,7 +24,7 @@ func New() *BoardAccess {
 }
 
 func (b *BoardAccess) Update(s Storage) error {
-	boards, err := s.GetBoardsAllowedEmails()
+	boards, err := s.GetBoards()
 	if err != nil {
 		return err
 	}
@@ -35,7 +35,9 @@ func (b *BoardAccess) Update(s Storage) error {
 	// Replace the entire map to avoid stale entries
 	newData := make(map[string][]string)
 	for _, board := range boards {
-		newData[board.ShortName] = *board.AllowedEmails
+		if board.AllowedEmails != nil {
+			newData[board.ShortName] = *board.AllowedEmails
+		}
 	}
 	b.data = newData
 

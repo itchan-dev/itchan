@@ -510,6 +510,39 @@ blockquote a:hover {
    End of Pagination Styles
    ========================================== */
 
+   .message-preview {
+    position: absolute;
+    border: 1px solid #ccc;
+    background-color: #f9f9f9;
+    padding: 5px 10px;
+    font-size: 0.9em;
+    max-width: 400px; /* Limit width */
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    z-index: 100; /* Ensure it's above other content */
+    pointer-events: none; /* Allow clicks to go through to elements below */
+}
+.message-preview .post-header {
+    font-size: 0.8em;
+    color: #555;
+    border-bottom: 1px dashed #ddd;
+    margin-bottom: 5px;
+    padding-bottom: 3px;
+}
+ .message-preview .post-body {
+    margin: 0;
+    padding: 0;
+    max-height: 150px; /* Limit height */
+    overflow: hidden; /* Hide overflow */
+    text-overflow: ellipsis; /* Add ellipsis for overflow */
+}
+/* Style for the message links */
+.message-link {
+    /* text-decoration: underline; */
+    /* color: #007bff; */
+    cursor: pointer;
+}
+
+
 /* ==========================================
    End of Stylesheet
    ========================================== */

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/domain"
 
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 )
 
@@ -50,6 +52,34 @@ func (s *Storage) Cleanup() error {
 	return s.db.Close()
 }
 
-func getViewName(boardName string) string {
-	return fmt.Sprintf("board_%s_view", boardName)
+func messagesPartitionName(shortName domain.BoardShortName) string {
+	return fmt.Sprintf("messages_%s", shortName)
+}
+
+func MessagesPartitionName(shortName domain.BoardShortName) string {
+	return pq.QuoteIdentifier(messagesPartitionName(shortName))
+}
+
+func threadsPartitionName(shortName domain.BoardShortName) string {
+	return fmt.Sprintf("threads_%s", shortName)
+}
+
+func ThreadsPartitionName(shortName domain.BoardShortName) string {
+	return pq.QuoteIdentifier(threadsPartitionName(shortName))
+}
+
+func PartitionName(shortName domain.BoardShortName, table string) string {
+	if table == "messages" {
+		return MessagesPartitionName(shortName)
+	} else {
+		return ThreadsPartitionName(shortName)
+	}
+}
+
+func viewTableName(shortName domain.BoardShortName) string {
+	return fmt.Sprintf("board_preview_%s", shortName)
+}
+
+func ViewTableName(shortName domain.BoardShortName) string {
+	return pq.QuoteIdentifier(viewTableName(shortName))
 }

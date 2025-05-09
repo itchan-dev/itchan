@@ -1,13 +1,15 @@
 package service
 
 import (
+	"database/sql"
+
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
 type MessageService interface {
-	Create(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error)
-	Get(id int64) (*domain.Message, error)
-	Delete(board string, id int64) error
+	Create(creationData domain.MessageCreationData) (domain.MsgId, error)
+	Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
+	Delete(board domain.BoardShortName, id domain.MsgId) error
 }
 
 type Message struct {
@@ -16,40 +18,40 @@ type Message struct {
 }
 
 type MessageStorage interface {
-	CreateMessage(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error)
-	GetMessage(id int64) (*domain.Message, error)
-	DeleteMessage(board string, id int64) error
+	CreateMessage(creationData domain.MessageCreationData, isOp bool, tx *sql.Tx) (domain.MsgId, error)
+	GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
+	DeleteMessage(board domain.BoardShortName, id domain.MsgId) error
 }
 
 type MessageValidator interface {
-	Text(text string) error
+	Text(text domain.MsgText) error
 }
 
 func NewMessage(storage MessageStorage, validator MessageValidator) MessageService {
 	return &Message{storage, validator}
 }
 
-func (b *Message) Create(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
-	err := b.validator.Text(text)
+func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
+	err := b.validator.Text(creationData.Text)
 	if err != nil {
 		return 0, err
 	}
 
-	id, err := b.storage.CreateMessage(board, author, text, attachments, threadId)
+	id, err := b.storage.CreateMessage(creationData, false, nil)
 	if err != nil {
 		return 0, err
 	}
 	return id, nil
 }
 
-func (b *Message) Get(id int64) (*domain.Message, error) {
-	message, err := b.storage.GetMessage(id)
+func (b *Message) Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+	message, err := b.storage.GetMessage(board, id)
 	if err != nil {
-		return nil, err
+		return domain.Message{}, err
 	}
 	return message, nil
 }
 
-func (b *Message) Delete(board string, id int64) error {
+func (b *Message) Delete(board domain.BoardShortName, id domain.MsgId) error {
 	return b.storage.DeleteMessage(board, id)
 }

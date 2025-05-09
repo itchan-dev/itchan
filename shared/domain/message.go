@@ -1,20 +1,32 @@
 package domain
 
 import (
-	"database/sql"
 	"time"
-
-	"github.com/lib/pq"
 )
 
-type Attachments = pq.StringArray // to save into postgres. strings of pathes
+// to iterate thru layers: handler -> service -> storage
+type MessageCreationData struct {
+	Board       BoardShortName
+	ThreadId    MsgId
+	Author      User
+	CreatedAt   *time.Time
+	Text        MsgText
+	Attachments *Attachments
+}
+
+type MessageMetadata struct {
+	Board      BoardShortName
+	ThreadId   ThreadId
+	Id         MsgId
+	Author     User
+	CreatedAt  time.Time
+	Ordinal    int
+	ModifiedAt time.Time
+	Op         bool
+}
 
 type Message struct {
-	Id          int64
-	Author      User
-	Text        string
-	CreatedAt   time.Time
-	ModifiedAt  time.Time
+	MessageMetadata
+	Text        MsgText
 	Attachments *Attachments
-	ThreadId    sql.NullInt64
 }

@@ -7,59 +7,85 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/backend/internal/service" // Use service interface from internal/service
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
+	mw "github.com/itchan-dev/itchan/shared/middleware" // Use shared middleware
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// MockMessageService implements the service.MessageService interface
 type MockMessageService struct {
-	MockCreate func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error)
-	MockGet    func(id int64) (*domain.Message, error)
-	MockDelete func(board string, id int64) error
+	MockCreate func(creationData domain.MessageCreationData) (domain.MsgId, error)
+	MockGet    func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
+	MockDelete func(board domain.BoardShortName, id domain.MsgId) error
 }
 
-func (m *MockMessageService) Create(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
+func (m *MockMessageService) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
 	if m.MockCreate != nil {
-		return m.MockCreate(board, author, text, attachments, threadId)
+		return m.MockCreate(creationData)
 	}
 	return 0, nil // Default behavior
 }
 
-func (m *MockMessageService) Get(id int64) (*domain.Message, error) {
+func (m *MockMessageService) Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
 	if m.MockGet != nil {
-		return m.MockGet(id)
+		return m.MockGet(board, id)
 	}
-	return nil, nil // Default behavior
+	return domain.Message{}, nil // Default behavior
 }
 
-func (m *MockMessageService) Delete(board string, id int64) error {
+func (m *MockMessageService) Delete(board domain.BoardShortName, id domain.MsgId) error {
 	if m.MockDelete != nil {
 		return m.MockDelete(board, id)
 	}
 	return nil // Default behavior
 }
 
-func TestCreateMessageHandler(t *testing.T) {
-	h := &Handler{}
-	route := "/b/1"
+// Setup function to create handler with mock service
+func setupMessageTestHandler(messageService service.MessageService) (*Handler, *mux.Router) {
+	h := &Handler{
+		message: messageService,
+		// auth, cfg, board, thread services would be added here if needed by message handlers
+	}
 	router := mux.NewRouter()
-	router.HandleFunc("/{board}/{thread}", h.CreateMessage).Methods("POST")
-	requestBody := []byte(`{"text": "test text", "attachments": ["one", "two"]}`)
+	// Define routes used in tests, matching refactored_package.txt
+	router.HandleFunc("/{board}/{thread}", h.CreateMessage).Methods(http.MethodPost)
+	router.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods(http.MethodGet)
+	router.HandleFunc("/{board}/{thread}/{message}", h.DeleteMessage).Methods(http.MethodDelete)
+
+	return h, router
+}
+
+func TestCreateMessageHandler(t *testing.T) {
+	board := "b"
+	threadId := domain.ThreadId(1)
+	threadIdStr := strconv.FormatInt(threadId, 10)
+	route := "/" + board + "/" + threadIdStr
 	user := domain.User{Id: 1, Email: "test@test.com"}
+	validRequestBody := []byte(`{"text": "test text", "attachments": ["one", "two"]}`)
+	expectedText := "test text"
+	expectedAttachments := &domain.Attachments{"one", "two"}
 
 	t.Run("successful request", func(t *testing.T) {
+		expectedMsgId := domain.MsgId(123)
 		mockService := &MockMessageService{
-			MockCreate: func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
-				return 1, nil
+			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, error) {
+				assert.Equal(t, domain.BoardShortName(board), data.Board)
+				assert.Equal(t, user, data.Author)
+				assert.Equal(t, domain.MsgText(expectedText), data.Text)
+				assert.Equal(t, expectedAttachments, data.Attachments)
+				assert.Equal(t, threadId, data.ThreadId)
+				return expectedMsgId, nil
 			},
 		}
-		h.message = mockService
+		_, router := setupMessageTestHandler(mockService)
 
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(validRequestBody))
 		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
@@ -67,148 +93,224 @@ func TestCreateMessageHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusCreated, rr.Code)
+		assert.Empty(t, rr.Body.String(), "Expected empty body on successful creation")
 	})
 
-	t.Run("invalid request body", func(t *testing.T) {
+	t.Run("invalid request body json", func(t *testing.T) {
+		mockService := &MockMessageService{} // Behavior doesn't matter
+		_, router := setupMessageTestHandler(mockService)
+
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{invalid json::}`)))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user) // Need user to get past auth check
+		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{ivalid json::}`)))
 
 		router.ServeHTTP(rr, req)
+
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Body is invalid json") // Error from utils.DecodeValidate
 	})
 
-	t.Run("no user in context", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+	t.Run("missing required field (text)", func(t *testing.T) {
+		mockService := &MockMessageService{} // Behavior doesn't matter
+		_, router := setupMessageTestHandler(mockService)
+		invalidBody := []byte(`{"attachments": ["one"]}`) // Missing 'text'
 
-		router.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	})
-
-	t.Run("bad threadId", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/b/abc", bytes.NewBuffer(requestBody))
-
-		router.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-	})
-
-	t.Run("service error", func(t *testing.T) {
-		mockService := &MockMessageService{
-			MockCreate: func(board string, author *domain.User, text string, attachments *domain.Attachments, threadId int64) (int64, error) {
-				return 0, errors.New("Mock")
-			},
-		}
-		h.message = mockService
-
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(invalidBody))
 		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Required fields missing") // Error from utils.DecodeValidate (validator)
 	})
-}
 
-func TestGetMessageHandler(t *testing.T) {
-	h := &Handler{}
-	route := "/b/123/321"
-	router := mux.NewRouter()
-	router.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods("GET")
+	t.Run("no user in context", func(t *testing.T) {
+		mockService := &MockMessageService{} // Behavior doesn't matter
+		_, router := setupMessageTestHandler(mockService)
 
-	t.Run("successful", func(t *testing.T) {
-		mockService := &MockMessageService{
-			MockGet: func(id int64) (*domain.Message, error) {
-				return &domain.Message{Id: id}, nil
-			},
-		}
-		h.message = mockService
-
-		req := httptest.NewRequest("GET", route, nil)
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(validRequestBody))
+		// No user injected into context
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
-		require.Equal(t, http.StatusOK, rr.Code)
-
-		var msg domain.Message
-		err := json.NewDecoder(rr.Body).Decode(&msg)
-		require.NoError(t, err, "error decoding response body")
-		assert.Equal(t, int64(321), msg.Id, "expected thread id '321'")
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Unauthorized")
 	})
 
-	t.Run("bad message id", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/b/123/abc", nil)
+	t.Run("bad threadId format", func(t *testing.T) {
+		mockService := &MockMessageService{} // Behavior doesn't matter
+		_, router := setupMessageTestHandler(mockService)
+		badRoute := "/" + board + "/abc" // Non-integer threadId
+
+		req := httptest.NewRequest(http.MethodPost, badRoute, bytes.NewBuffer(validRequestBody))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user) // Need user to get past auth check
+		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Bad request") // Error from strconv.Atoi
 	})
 
-	t.Run("service error", func(t *testing.T) {
+	t.Run("service error during creation", func(t *testing.T) {
+		mockErr := errors.New("database insertion failed")
 		mockService := &MockMessageService{
-			MockGet: func(id int64) (*domain.Message, error) {
-				return nil, errors.New("Mock error")
+			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, error) {
+				// Basic check that data is passed before returning error
+				assert.Equal(t, domain.BoardShortName(board), data.Board)
+				return 0, mockErr
 			},
 		}
-		h.message = mockService
+		_, router := setupMessageTestHandler(mockService)
 
-		req := httptest.NewRequest("GET", route, nil)
+		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(validRequestBody))
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &user)
+		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
+		// Assuming utils.WriteErrorAndStatusCode maps generic errors to 500
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
 }
 
-func TestDeleteMessageHandler(t *testing.T) {
-	h := &Handler{}
-	route := "/b/123/321"
-	router := mux.NewRouter()
-	router.HandleFunc("/{board}/{thread}/{message}", h.DeleteMessage).Methods("DELETE")
+func TestGetMessageHandler(t *testing.T) {
+	board := "b"
+	threadId := domain.ThreadId(123)
+	msgId := domain.MsgId(321)
+	threadIdStr := strconv.FormatInt(threadId, 10)
+	msgIdStr := strconv.FormatInt(msgId, 10)
+	route := "/" + board + "/" + threadIdStr + "/" + msgIdStr
+	expectedMessage := domain.Message{
+		MessageMetadata: domain.MessageMetadata{Id: msgId, ThreadId: threadId},
+		Text:            "Existing message",
+		Attachments:     nil,
+	}
 
-	t.Run("successful", func(t *testing.T) {
+	t.Run("successful get", func(t *testing.T) {
 		mockService := &MockMessageService{
-			MockDelete: func(board string, id int64) error {
-				return nil
+			MockGet: func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+				assert.Equal(t, msgId, id)
+				return expectedMessage, nil
 			},
 		}
-		h.message = mockService
+		_, router := setupMessageTestHandler(mockService)
 
-		req := httptest.NewRequest("DELETE", route, nil)
+		req := httptest.NewRequest(http.MethodGet, route, nil)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusOK, rr.Code)
+
+		var actualMsg domain.Message
+		err := json.Unmarshal(rr.Body.Bytes(), &actualMsg)
+		require.NoError(t, err, "Failed to decode response body")
+		assert.Equal(t, expectedMessage, actualMsg)
 	})
 
-	t.Run("bad message id", func(t *testing.T) {
-		req := httptest.NewRequest("DELETE", "/b/321/abc", nil)
+	t.Run("bad message id format", func(t *testing.T) {
+		mockService := &MockMessageService{} // Behavior doesn't matter
+		_, router := setupMessageTestHandler(mockService)
+		badRoute := "/" + board + "/" + threadIdStr + "/abc" // Non-integer messageId
+
+		req := httptest.NewRequest(http.MethodGet, badRoute, nil)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Bad request") // Error from strconv.Atoi
+	})
+
+	t.Run("service error during get", func(t *testing.T) {
+		mockErr := errors.New("message not found in db")
+		mockService := &MockMessageService{
+			MockGet: func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+				assert.Equal(t, msgId, id)
+				return domain.Message{}, mockErr
+			},
+		}
+		_, router := setupMessageTestHandler(mockService)
+
+		req := httptest.NewRequest(http.MethodGet, route, nil)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		// Assuming utils.WriteErrorAndStatusCode maps generic errors to 500
+		// (Could map specific errors like "not found" to 404 if implemented)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
+	})
+}
+
+func TestDeleteMessageHandler(t *testing.T) {
+	board := "b"
+	threadId := int64(123)
+	msgId := int64(321)
+	threadIdStr := strconv.FormatInt(threadId, 10)
+	msgIdStr := strconv.FormatInt(msgId, 10)
+	route := "/" + board + "/" + threadIdStr + "/" + msgIdStr
+
+	t.Run("successful delete", func(t *testing.T) {
+		mockService := &MockMessageService{
+			MockDelete: func(b domain.BoardShortName, id domain.MsgId) error {
+				assert.Equal(t, domain.BoardShortName(board), b)
+				assert.Equal(t, msgId, id)
+				return nil
+			},
+		}
+		_, router := setupMessageTestHandler(mockService)
+
+		req := httptest.NewRequest(http.MethodDelete, route, nil)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Empty(t, rr.Body.String(), "Expected empty body on successful deletion")
+	})
+
+	t.Run("bad message id format", func(t *testing.T) {
+		mockService := &MockMessageService{} // Behavior doesn't matter
+		_, router := setupMessageTestHandler(mockService)
+		badRoute := "/" + board + "/" + threadIdStr + "/abc" // Non-integer messageId
+
+		req := httptest.NewRequest(http.MethodDelete, badRoute, nil)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Bad request") // Error from strconv.Atoi
 	})
 
-	t.Run("service error", func(t *testing.T) {
+	t.Run("service error during delete", func(t *testing.T) {
+		mockErr := errors.New("permission denied to delete")
 		mockService := &MockMessageService{
-			MockDelete: func(board string, id int64) error {
-				return errors.New("Mock error")
+			MockDelete: func(b domain.BoardShortName, id domain.MsgId) error {
+				assert.Equal(t, domain.BoardShortName(board), b)
+				assert.Equal(t, msgId, id)
+				return mockErr
 			},
 		}
-		h.message = mockService
+		_, router := setupMessageTestHandler(mockService)
 
-		req := httptest.NewRequest("DELETE", route, nil)
+		req := httptest.NewRequest(http.MethodDelete, route, nil)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
+		// Assuming utils.WriteErrorAndStatusCode maps generic errors to 500
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
 }

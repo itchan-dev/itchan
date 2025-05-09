@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -9,219 +9,381 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/domain"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+// MockBoardService implements the service.BoardService interface
 type MockBoardService struct {
-	MockCreate func(name, shortName string, allowedEmails *domain.Emails) error
-	MockGet    func(shortName string, page int) (*domain.Board, error)
-	MockDelete func(shortName string) error
-	MockGetAll func(user *domain.User) ([]domain.Board, error)
+	MockCreate func(creationData domain.BoardCreationData) error
+	MockGet    func(shortName domain.BoardShortName, page int) (domain.Board, error)
+	MockDelete func(shortName domain.BoardShortName) error
+	MockGetAll func(user domain.User) ([]domain.Board, error)
 }
 
-func (m *MockBoardService) Create(name, shortName string, allowedEmails *domain.Emails) error {
+func (m *MockBoardService) Create(creationData domain.BoardCreationData) error {
 	if m.MockCreate != nil {
-		return m.MockCreate(name, shortName, allowedEmails)
+		return m.MockCreate(creationData)
 	}
 	return nil // Default behavior
 }
 
-func (m *MockBoardService) Get(shortName string, page int) (*domain.Board, error) {
+func (m *MockBoardService) Get(shortName domain.BoardShortName, page int) (domain.Board, error) {
 	if m.MockGet != nil {
 		return m.MockGet(shortName, page)
 	}
-	return nil, nil // Default behavior
+	return domain.Board{}, nil // Default behavior
 }
 
-func (m *MockBoardService) Delete(shortName string) error {
+func (m *MockBoardService) Delete(shortName domain.BoardShortName) error {
 	if m.MockDelete != nil {
 		return m.MockDelete(shortName)
 	}
 	return nil // Default behavior
 }
 
-func (m *MockBoardService) GetAll(user *domain.User) ([]domain.Board, error) {
-	if m.MockDelete != nil {
+func (m *MockBoardService) GetAll(user domain.User) ([]domain.Board, error) {
+	if m.MockGetAll != nil {
 		return m.MockGetAll(user)
 	}
-	return nil, nil
+	return []domain.Board{}, nil // Default behavior
+}
+
+// Setup function to create handler with mock service
+// Note: Config is not directly used by board handlers, so passing nil is acceptable for now.
+func setupBoardTestHandler(boardService service.BoardService) (*Handler, *mux.Router) {
+	h := &Handler{
+		board: boardService,
+		// auth, cfg, etc., could be added if needed by other parts of Handler
+	}
+	router := mux.NewRouter()
+	// Define routes used in tests
+	router.HandleFunc("/v1/boards", h.CreateBoard).Methods(http.MethodPost)
+	router.HandleFunc("/v1/boards", h.GetBoards).Methods(http.MethodGet) // Added for GetBoards
+	router.HandleFunc("/v1/{board}", h.GetBoard).Methods(http.MethodGet)
+	router.HandleFunc("/v1/{board}", h.DeleteBoard).Methods(http.MethodDelete)
+
+	return h, router
 }
 
 func TestCreateBoardHandler(t *testing.T) {
-	h := &Handler{} // Create handler
-
 	route := "/v1/boards"
-	router := mux.NewRouter()
-	router.HandleFunc(route, h.CreateBoard).Methods("POST")
-	requestBody := []byte(`{"name": "Test Board", "short_name": "tb"}`)
+	validRequestBody := []byte(`{"name": "Test Board", "short_name": "tb"}`)
+	requestBodyWithEmails := []byte(`{"name": "Test Board Email", "short_name": "tbe", "allowed_emails": ["test@example.com", "another@domain.org"]}`)
+	expectedName := domain.BoardName("Test Board")
+	expectedShortName := domain.BoardShortName("tb")
+	expectedNameEmail := domain.BoardName("Test Board Email")
+	expectedShortNameEmail := domain.BoardShortName("tbe")
+	expectedEmails := &domain.Emails{"test@example.com", "another@domain.org"}
 
-	t.Run("successful request", func(t *testing.T) {
+	t.Run("successful creation without emails", func(t *testing.T) {
 		mockService := &MockBoardService{
-			MockCreate: func(name, shortName string, allowedEmails *domain.Emails) error {
+			MockCreate: func(data domain.BoardCreationData) error {
+				assert.Equal(t, expectedName, data.Name)
+				assert.Equal(t, expectedShortName, data.ShortName)
+				assert.Nil(t, data.AllowedEmails, "AllowedEmails should be nil when not provided")
 				return nil
 			},
 		}
-		h.board = mockService
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
+		_, router := setupBoardTestHandler(mockService)
+
+		req := createRequest(t, http.MethodPost, route, validRequestBody)
 		rr := httptest.NewRecorder()
-
-		router.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusCreated, rr.Code, "expected status code %d, but got %d", http.StatusCreated, rr.Code)
-	})
-
-	t.Run("invalid request body", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer([]byte(`{ivalid json::}`)))
-
-		router.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code, "expected status code %d, but got %d", http.StatusBadRequest, rr.Code)
-	})
-
-	t.Run("service error", func(t *testing.T) {
-		mockService := &MockBoardService{
-			MockCreate: func(name, shortName string, allowedEmails *domain.Emails) error {
-				return errors.New("mock create error")
-			},
-		}
-		h.board = mockService // Set the new mock service
-
-		rr := httptest.NewRecorder() // Reset recorder
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBody))
-
-		router.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusInternalServerError, rr.Code, "expected status code %d, but got %d", http.StatusInternalServerError, rr.Code)
-	})
-
-	// Optional: Test case with AllowedEmails provided
-	t.Run("with allowed emails", func(t *testing.T) {
-		mockService := &MockBoardService{
-			MockCreate: func(name, shortName string, allowedEmails *domain.Emails) error {
-				if allowedEmails == nil || len(*allowedEmails) == 0 {
-					return errors.New("allowedEmails expected")
-				}
-				return nil
-			},
-		}
-		h.board = mockService
-
-		requestBodyWithEmails := []byte(`{"name": "Test Board", "short_name": "tb", "allowed_emails": ["test@example.com"]}`)
-		req := httptest.NewRequest(http.MethodPost, route, bytes.NewBuffer(requestBodyWithEmails))
-		rr := httptest.NewRecorder()
-
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusCreated, rr.Code)
+		assert.Empty(t, rr.Body.String(), "Expected empty body on successful creation")
+	})
+
+	t.Run("successful creation with allowed emails", func(t *testing.T) {
+		mockService := &MockBoardService{
+			MockCreate: func(data domain.BoardCreationData) error {
+				assert.Equal(t, expectedNameEmail, data.Name)
+				assert.Equal(t, expectedShortNameEmail, data.ShortName)
+				require.NotNil(t, data.AllowedEmails, "AllowedEmails should not be nil")
+				assert.Equal(t, *expectedEmails, *data.AllowedEmails)
+				return nil
+			},
+		}
+		_, router := setupBoardTestHandler(mockService)
+
+		req := createRequest(t, http.MethodPost, route, requestBodyWithEmails)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
+		assert.Empty(t, rr.Body.String())
+	})
+
+	t.Run("invalid JSON request body", func(t *testing.T) {
+		mockService := &MockBoardService{} // Behavior doesn't matter
+		_, router := setupBoardTestHandler(mockService)
+		req := createRequest(t, http.MethodPost, route, []byte(`{"name": "Test Board",`)) // Incomplete JSON
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		// Assuming utils.WriteErrorAndStatusCode provides a meaningful message
+		assert.Contains(t, rr.Body.String(), "Body is invalid json")
+	})
+
+	t.Run("missing required field (short_name)", func(t *testing.T) {
+		mockService := &MockBoardService{}
+		_, router := setupBoardTestHandler(mockService)
+		invalidBody := []byte(`{"name": "Test Board Only"}`)
+		req := createRequest(t, http.MethodPost, route, invalidBody)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		// Assuming validator returns a specific error message
+		assert.Contains(t, rr.Body.String(), "Required fields missing") // Check if error mentions the missing field
+	})
+
+	t.Run("service error during creation", func(t *testing.T) {
+		mockErr := errors.New("database connection failed")
+		mockService := &MockBoardService{
+			MockCreate: func(data domain.BoardCreationData) error {
+				// Still check if data was passed correctly before returning error
+				assert.Equal(t, expectedName, data.Name)
+				assert.Equal(t, expectedShortName, data.ShortName)
+				return mockErr
+			},
+		}
+		_, router := setupBoardTestHandler(mockService)
+
+		req := createRequest(t, http.MethodPost, route, validRequestBody)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		// Assuming utils.WriteErrorAndStatusCode writes the error message
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
 }
+
 func TestGetBoardHandler(t *testing.T) {
-	h := &Handler{}
+	boardShortName := "testboard"
+	routePrefix := "/v1/" + boardShortName
+	expectedBoard := domain.Board{
+		BoardMetadata: domain.BoardMetadata{Name: "Test Board", ShortName: boardShortName},
+		Threads:       []domain.Thread{}, // Assuming empty threads for simplicity
+	}
 
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/{board}", h.GetBoard).Methods("GET")
-
-	t.Run("successful", func(t *testing.T) {
+	t.Run("successful get with specific page", func(t *testing.T) {
+		getPage := 2
 		mockService := &MockBoardService{
-			MockGet: func(shortName string, page int) (*domain.Board, error) {
-				return &domain.Board{Name: "Test", ShortName: shortName}, nil
+			MockGet: func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+				assert.Equal(t, boardShortName, shortName)
+				assert.Equal(t, getPage, page)
+				return expectedBoard, nil
 			},
 		}
-		h.board = mockService
+		_, router := setupBoardTestHandler(mockService)
 
-		req := httptest.NewRequest("GET", "/v1/board_name?page=1", nil)
+		req := createRequest(t, http.MethodGet, routePrefix+"?page=2", nil)
 		rr := httptest.NewRecorder()
-
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code, "expected status code %d, but got %d", http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var board domain.Board
-		err := json.NewDecoder(rr.Body).Decode(&board)
-		assert.NoError(t, err, "error decoding response body")
-		assert.Equal(t, "board_name", board.ShortName, "expected board ShortName 'board_name', but got '%s'", board.ShortName)
+		var actualBoard domain.Board
+		err := json.Unmarshal(rr.Body.Bytes(), &actualBoard)
+		require.NoError(t, err, "Failed to decode response body")
+		assert.Equal(t, expectedBoard, actualBoard)
 	})
 
-	t.Run("service error", func(t *testing.T) {
+	t.Run("successful get with default page (page 1)", func(t *testing.T) {
+		defaultPage := 1
 		mockService := &MockBoardService{
-			MockGet: func(shortName string, page int) (*domain.Board, error) {
-				return nil, errors.New("Mock")
+			MockGet: func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+				assert.Equal(t, boardShortName, shortName)
+				assert.Equal(t, defaultPage, page, "Expected default page to be 1")
+				return expectedBoard, nil
 			},
 		}
-		h.board = mockService
-		rr := httptest.NewRecorder()
+		_, router := setupBoardTestHandler(mockService)
 
-		req := httptest.NewRequest("GET", "/v1/board_name?page=1", nil)
+		req := createRequest(t, http.MethodGet, routePrefix, nil) // No page query param
+		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusInternalServerError, rr.Code, "expected status code %d, but got %d", http.StatusInternalServerError, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		var actualBoard domain.Board
+		err := json.Unmarshal(rr.Body.Bytes(), &actualBoard)
+		require.NoError(t, err, "Failed to decode response body")
+		assert.Equal(t, expectedBoard, actualBoard)
 	})
 
-	t.Run("bad pagination param", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/v1/board_name?page=abc", nil)
-		rr := httptest.NewRecorder()
+	t.Run("bad pagination parameter (non-integer)", func(t *testing.T) {
+		mockService := &MockBoardService{} // Mock won't be called
+		_, router := setupBoardTestHandler(mockService)
 
+		req := createRequest(t, http.MethodGet, routePrefix+"?page=abc", nil)
+		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code, "expected status code %d, but got %d", http.StatusBadRequest, rr.Code)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Page param should be integer")
 	})
 
-	t.Run("default pagination param", func(t *testing.T) {
+	t.Run("service error during get", func(t *testing.T) {
+		mockErr := errors.New("board not found")
 		mockService := &MockBoardService{
-			MockGet: func(shortName string, page int) (*domain.Board, error) {
-				if page != default_page {
-					return nil, errors.New("Mock")
-				}
-				return &domain.Board{}, nil
+			MockGet: func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+				assert.Equal(t, boardShortName, shortName)
+				return domain.Board{}, mockErr
 			},
 		}
-		h.board = mockService
+		_, router := setupBoardTestHandler(mockService)
 
-		req := httptest.NewRequest("GET", "/v1/board_name", nil)
+		req := createRequest(t, http.MethodGet, routePrefix+"?page=1", nil)
 		rr := httptest.NewRecorder()
-
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code, "expected status code %d, but got %d", http.StatusOK, rr.Code)
+		// Assuming utils.WriteErrorAndStatusCode maps "not found" to 404, otherwise 500
+		// Let's assume a generic error maps to 500 based on the broken test
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
 }
 
 func TestDeleteBoardHandler(t *testing.T) {
-	h := &Handler{}
+	boardShortName := "todelete"
+	route := "/v1/" + boardShortName
 
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/{board}", h.DeleteBoard).Methods("DELETE")
-
-	t.Run("successful", func(t *testing.T) {
+	t.Run("successful deletion", func(t *testing.T) {
 		mockService := &MockBoardService{
-			MockDelete: func(shortName string) error {
+			MockDelete: func(shortName domain.BoardShortName) error {
+				assert.Equal(t, boardShortName, shortName)
 				return nil
 			},
 		}
-		h.board = mockService
+		_, router := setupBoardTestHandler(mockService)
 
-		req := httptest.NewRequest("DELETE", "/v1/board_name", nil)
+		req := createRequest(t, http.MethodDelete, route, nil)
 		rr := httptest.NewRecorder()
-
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusOK, rr.Code, "expected status code %d, but got %d", http.StatusOK, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Empty(t, rr.Body.String(), "Expected empty body on successful deletion")
 	})
 
-	t.Run("service error", func(t *testing.T) {
+	t.Run("service error during deletion", func(t *testing.T) {
+		mockErr := errors.New("permission denied")
 		mockService := &MockBoardService{
-			MockDelete: func(shortName string) error {
-				return errors.New("Mock")
+			MockDelete: func(shortName domain.BoardShortName) error {
+				assert.Equal(t, boardShortName, shortName)
+				return mockErr
 			},
 		}
-		h.board = mockService
+		_, router := setupBoardTestHandler(mockService)
 
+		req := createRequest(t, http.MethodDelete, route, nil)
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest("DELETE", "/v1/board_name", nil)
-
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusInternalServerError, rr.Code, "expected status code %d, but got %d", http.StatusInternalServerError, rr.Code)
+		// Assuming generic error maps to 500
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
+	})
+
+	t.Run("board not found (simulated via service error)", func(t *testing.T) {
+		// Often, a "not found" scenario in delete might still return OK or a specific error.
+		// Let's simulate it returning an error that maps to a 404 or similar.
+		// If the service always returns a generic error, this test might be identical to "service error".
+		// We'll assume the service returns a specific error type or message that WriteErrorAndStatusCode handles.
+		// For this example, let's stick to the generic error mapping based on previous tests.
+		mockErr := errors.New("board does not exist")
+		mockService := &MockBoardService{
+			MockDelete: func(shortName domain.BoardShortName) error {
+				assert.Equal(t, boardShortName, shortName)
+				return mockErr // You might map this error to 404 in WriteErrorAndStatusCode
+			},
+		}
+		_, router := setupBoardTestHandler(mockService)
+
+		req := createRequest(t, http.MethodDelete, route, nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code) // Adjust if 404 mapping exists
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
+	})
+}
+
+func TestGetBoardsHandler(t *testing.T) {
+	route := "/v1/boards"
+	testUser := domain.User{Id: 1, Email: "test@example.com"}
+	expectedBoards := []domain.Board{
+		{BoardMetadata: domain.BoardMetadata{Name: "Board 1", ShortName: "b1"}},
+		{BoardMetadata: domain.BoardMetadata{Name: "Board 2", ShortName: "b2"}},
+	}
+
+	userContextKey := mw.UserClaimsKey
+
+	t.Run("successful retrieval", func(t *testing.T) {
+		mockService := &MockBoardService{
+			MockGetAll: func(user domain.User) ([]domain.Board, error) {
+				assert.Equal(t, testUser, user)
+				return expectedBoards, nil
+			},
+		}
+		_, router := setupBoardTestHandler(mockService)
+
+		req := createRequest(t, http.MethodGet, route, nil)
+		// Inject user into context
+		ctx := context.WithValue(req.Context(), userContextKey, &testUser)
+		req = req.WithContext(ctx)
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		var actualBoards []domain.Board
+		err := json.Unmarshal(rr.Body.Bytes(), &actualBoards)
+		require.NoError(t, err, "Failed to decode response body")
+		assert.Equal(t, expectedBoards, actualBoards)
+	})
+
+	t.Run("unauthorized access (no user in context)", func(t *testing.T) {
+		mockService := &MockBoardService{} // Mock won't be called
+		_, router := setupBoardTestHandler(mockService)
+
+		req := createRequest(t, http.MethodGet, route, nil) // No user injected
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Contains(t, rr.Body.String(), "Not authorized")
+	})
+
+	t.Run("service error during retrieval", func(t *testing.T) {
+		mockErr := errors.New("failed to query boards")
+		mockService := &MockBoardService{
+			MockGetAll: func(user domain.User) ([]domain.Board, error) {
+				assert.Equal(t, testUser, user)
+				return nil, mockErr
+			},
+		}
+		_, router := setupBoardTestHandler(mockService)
+
+		req := createRequest(t, http.MethodGet, route, nil)
+		// Inject user into context
+		ctx := context.WithValue(req.Context(), userContextKey, &testUser)
+		req = req.WithContext(ctx)
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
 }

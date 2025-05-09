@@ -12,7 +12,7 @@ import (
 
 func TestNewToken(t *testing.T) {
 	j := New("test_secret", time.Hour)
-	user := &domain.User{
+	user := domain.User{
 		Id:    1,
 		Email: "test@example.com",
 		Admin: true,
@@ -43,7 +43,7 @@ func TestNewToken(t *testing.T) {
 
 func TestDecodeToken(t *testing.T) {
 	j := New("test_secret", time.Hour)
-	user := &domain.User{
+	user := domain.User{
 		Id:    1,
 		Email: "test@example.com",
 		Admin: true,
