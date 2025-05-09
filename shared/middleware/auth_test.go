@@ -16,9 +16,9 @@ import (
 func TestAuth(t *testing.T) {
 	jwtService := jwt_internal.New("test_secret", time.Hour)
 	admin := &domain.User{Id: 1, Email: "test@example.com", Admin: true}
-	tokenAdmin, _ := jwtService.NewToken(admin)
+	tokenAdmin, _ := jwtService.NewToken(*admin)
 	user := &domain.User{Id: 1, Email: "test@example.com", Admin: false}
-	token, _ := jwtService.NewToken(user)
+	token, _ := jwtService.NewToken(*user)
 
 	tests := []struct {
 		name           string

@@ -25,7 +25,7 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.board.Create(body.Name, body.ShortName, body.AllowedEmails)
+	err := h.board.Create(domain.BoardCreationData{Name: body.Name, ShortName: body.ShortName, AllowedEmails: body.AllowedEmails})
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -72,7 +72,11 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetBoards(w http.ResponseWriter, r *http.Request) {
 	user := mw.GetUserFromContext(r)
-	boards, err := h.board.GetAll(user)
+	if user == nil {
+		http.Error(w, "Not authorized", http.StatusUnauthorized)
+		return
+	}
+	boards, err := h.board.GetAll(*user)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

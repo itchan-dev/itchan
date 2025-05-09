@@ -42,7 +42,7 @@ func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 			}
 
 			// Fail-safe email format check
-			emailDomain, err := user.Domain()
+			emailDomain, err := user.EmailDomain()
 			if err != nil {
 				http.Error(w, "Access restricted", http.StatusForbidden)
 				return

@@ -34,7 +34,7 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.message.Create(board, user, body.Text, body.Attachments, int64(threadId))
+	_, err = h.message.Create(domain.MessageCreationData{Board: board, Author: *user, Text: body.Text, Attachments: body.Attachments, ThreadId: domain.ThreadId(threadId)})
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -44,7 +44,7 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
-	// board := mux.Vars(r)["board"]
+	board := mux.Vars(r)["board"]
 	msgIdStr := mux.Vars(r)["message"]
 	msgId, err := strconv.Atoi(msgIdStr)
 	if err != nil {
@@ -52,7 +52,7 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.message.Get(int64(msgId))
+	msg, err := h.message.Get(board, domain.MsgId(msgId))
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -70,7 +70,7 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.message.Delete(board, int64(msgId)); err != nil {
+	if err := h.message.Delete(board, domain.MsgId(msgId)); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

@@ -10,3 +10,8 @@ type ErrorWithStatusCode struct {
 func (e *ErrorWithStatusCode) Error() string {
 	return e.Message
 }
+
+func IsNotFound(err error) bool {
+	e, ok := err.(*ErrorWithStatusCode)
+	return ok && e.StatusCode == 404
+}

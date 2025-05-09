@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
@@ -18,7 +19,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.auth.Register(creds.Email, creds.Password); err != nil {
+	if err := h.auth.Register(domain.Credentials{Email: creds.Email, Password: creds.Password}); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
@@ -52,7 +53,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := h.auth.Login(creds.Email, creds.Password)
+	accessToken, err := h.auth.Login(domain.Credentials{Email: creds.Email, Password: creds.Password})
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

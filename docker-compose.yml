@@ -25,7 +25,7 @@ services:
       - api
   db:
     container_name: postgres
-    image: postgres:15.3-alpine
+    image: postgres:17.4-alpine
     restart: unless-stopped
     environment:
       - POSTGRES_USER=itchan

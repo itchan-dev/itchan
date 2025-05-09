@@ -48,7 +48,9 @@ func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 
 	for _, f := range files {
 		if f.Name() != baseTemplate {
-			templates[f.Name()] = template.Must(template.New(baseTemplate).Funcs(template.FuncMap{"sub": sub, "add": add}).ParseFiles(
+			templates[f.Name()] = template.Must(template.New(baseTemplate).Funcs(
+				template.FuncMap{"sub": sub, "add": add},
+			).ParseFiles(
 				path.Join(tmplPath, baseTemplate),
 				path.Join(tmplPath, f.Name()),
 			),

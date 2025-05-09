@@ -17,7 +17,7 @@ type mockStorage struct {
 	err    error
 }
 
-func (m *mockStorage) GetBoardsAllowedEmails() ([]domain.Board, error) {
+func (m *mockStorage) GetBoards() ([]domain.Board, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.boards, m.err
@@ -41,8 +41,10 @@ func TestUpdate(t *testing.T) {
 		ms := &mockStorage{
 			boards: []domain.Board{
 				{
-					ShortName:     "test",
-					AllowedEmails: &domain.Emails{"example.com"},
+					BoardMetadata: domain.BoardMetadata{
+						ShortName:     "test",
+						AllowedEmails: &domain.Emails{"example.com"},
+					},
 				},
 			},
 		}
@@ -66,7 +68,7 @@ func TestUpdate(t *testing.T) {
 	t.Run("should refresh data completely", func(t *testing.T) {
 		ms := &mockStorage{}
 		ms.setBoards([]domain.Board{
-			{ShortName: "old", AllowedEmails: &domain.Emails{"old.com"}},
+			{BoardMetadata: domain.BoardMetadata{ShortName: "old", AllowedEmails: &domain.Emails{"old.com"}}},
 		})
 
 		ba := New()
@@ -74,7 +76,7 @@ func TestUpdate(t *testing.T) {
 
 		// Update mock data
 		ms.setBoards([]domain.Board{
-			{ShortName: "new", AllowedEmails: &domain.Emails{"new.com"}},
+			{BoardMetadata: domain.BoardMetadata{ShortName: "new", AllowedEmails: &domain.Emails{"new.com"}}},
 		})
 
 		require.NoError(t, ba.Update(ms))
@@ -103,7 +105,7 @@ func TestConcurrentAccess(t *testing.T) {
 	ba := New()
 	ms := &mockStorage{
 		boards: []domain.Board{
-			{ShortName: "test", AllowedEmails: &domain.Emails{"example.com"}},
+			{BoardMetadata: domain.BoardMetadata{ShortName: "test", AllowedEmails: &domain.Emails{"example.com"}}},
 		},
 	}
 
@@ -143,7 +145,7 @@ func TestBackgroundUpdates(t *testing.T) {
 
 	// Initial data setup
 	ms.setBoards([]domain.Board{
-		{ShortName: "test", AllowedEmails: &domain.Emails{"initial.com"}},
+		{BoardMetadata: domain.BoardMetadata{ShortName: "test", AllowedEmails: &domain.Emails{"initial.com"}}},
 	})
 
 	ba.StartBackgroundUpdate(interval, ms)
@@ -159,7 +161,7 @@ func TestBackgroundUpdates(t *testing.T) {
 
 	// Update mock data
 	ms.setBoards([]domain.Board{
-		{ShortName: "test", AllowedEmails: &domain.Emails{"updated.com"}},
+		{BoardMetadata: domain.BoardMetadata{ShortName: "test", AllowedEmails: &domain.Emails{"updated.com"}}},
 	})
 
 	// Wait for refresh cycle

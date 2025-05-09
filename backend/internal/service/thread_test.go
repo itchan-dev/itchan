@@ -12,17 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// --- Mocks ---
+
+// MockThreadStorage mocks the ThreadStorage interface.
 type MockThreadStorage struct {
-	CreateThreadFunc func(title, board string, msg *domain.Message) (int64, error)
-	GetThreadFunc    func(id int64) (*domain.Thread, error)
-	DeleteThreadFunc func(board string, id int64) error
-	ThreadCountFunc  func(board string) (int, error)
-	LastThreadIdFunc func(board string) (int64, error)
+	createThreadFunc func(creationData domain.ThreadCreationData) (domain.MsgId, error)
+	getThreadFunc    func(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error)
+	deleteThreadFunc func(board domain.BoardShortName, id domain.MsgId) error
+	threadCountFunc  func(board domain.BoardShortName) (int, error)
+	lastThreadIdFunc func(board domain.BoardShortName) (domain.MsgId, error)
 
 	mu                 sync.Mutex
 	deleteThreadCalled bool
-	deleteBoardArg     string
-	deleteIdArg        int64
+	deleteBoardArg     domain.BoardShortName
+	deleteIdArg        domain.MsgId
 	threadCountCalled  bool
 	getLastIdCalled    bool
 }
@@ -37,65 +40,72 @@ func (m *MockThreadStorage) ResetCallTracking() {
 	m.getLastIdCalled = false
 }
 
-func (m *MockThreadStorage) CreateThread(title, board string, msg *domain.Message) (int64, error) {
-	if m.CreateThreadFunc != nil {
-		return m.CreateThreadFunc(title, board, msg)
+func (m *MockThreadStorage) CreateThread(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+	if m.createThreadFunc != nil {
+		return m.createThreadFunc(creationData)
 	}
+	// Default success returns an arbitrary ID (e.g., 1)
 	return 1, nil
 }
 
-func (m *MockThreadStorage) GetThread(id int64) (*domain.Thread, error) {
-	if m.GetThreadFunc != nil {
-		return m.GetThreadFunc(id)
+func (m *MockThreadStorage) GetThread(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error) {
+	if m.getThreadFunc != nil {
+		return m.getThreadFunc(board, id)
 	}
-	return &domain.Thread{Messages: []*domain.Message{{Id: id}}}, nil
+	// Default success returns a basic thread matching the ID in the first message
+	return domain.Thread{Messages: []domain.Message{{MessageMetadata: domain.MessageMetadata{Id: id}}}}, nil
 }
 
-func (m *MockThreadStorage) DeleteThread(board string, id int64) error {
+func (m *MockThreadStorage) DeleteThread(board domain.BoardShortName, id domain.MsgId) error {
 	m.mu.Lock()
 	m.deleteThreadCalled = true
 	m.deleteBoardArg = board
 	m.deleteIdArg = id
 	m.mu.Unlock()
 
-	if m.DeleteThreadFunc != nil {
-		return m.DeleteThreadFunc(board, id)
+	if m.deleteThreadFunc != nil {
+		return m.deleteThreadFunc(board, id)
 	}
-	return nil
+	return nil // Default success
 }
 
-func (m *MockThreadStorage) ThreadCount(board string) (int, error) {
+func (m *MockThreadStorage) ThreadCount(board domain.BoardShortName) (int, error) {
 	m.mu.Lock()
 	m.threadCountCalled = true
 	m.mu.Unlock()
 
-	if m.ThreadCountFunc != nil {
-		return m.ThreadCountFunc(board)
+	if m.threadCountFunc != nil {
+		return m.threadCountFunc(board)
 	}
+	// Default success returns a plausible count
 	return 1, nil
 }
 
-func (m *MockThreadStorage) LastThreadId(board string) (int64, error) {
+func (m *MockThreadStorage) LastThreadId(board domain.BoardShortName) (domain.MsgId, error) {
 	m.mu.Lock()
 	m.getLastIdCalled = true
 	m.mu.Unlock()
 
-	if m.LastThreadIdFunc != nil {
-		return m.LastThreadIdFunc(board)
+	if m.lastThreadIdFunc != nil {
+		return m.lastThreadIdFunc(board)
 	}
+	// Default success returns an arbitrary old ID (e.g., 0)
 	return 0, nil
 }
 
+// MockThreadValidator mocks the ThreadValidator interface.
 type MockThreadValidator struct {
-	TitleFunc func(title string) error
+	titleFunc func(title domain.ThreadTitle) error
 }
 
-func (m *MockThreadValidator) Title(title string) error {
-	if m.TitleFunc != nil {
-		return m.TitleFunc(title)
+func (m *MockThreadValidator) Title(title domain.ThreadTitle) error {
+	if m.titleFunc != nil {
+		return m.titleFunc(title)
 	}
-	return nil
+	return nil // Default valid
 }
+
+// --- Helpers ---
 
 func testConfig(maxThreads *int) config.Public {
 	return config.Public{
@@ -103,30 +113,47 @@ func testConfig(maxThreads *int) config.Public {
 	}
 }
 
+// --- Tests ---
+
 func TestThreadCreate(t *testing.T) {
-	title := "test title"
-	board := "test board"
-	msg := &domain.Message{}
-	newThreadId := int64(10)
-	lastThreadId := int64(1) // Oldest thread ID to be deleted
+	// Common test data
+	validTitle := domain.ThreadTitle("Test Thread Title")
+	validBoard := domain.BoardShortName("tst")
+	validOpMessage := domain.MessageCreationData{Text: "This is the OP message"}
+	validCreationData := domain.ThreadCreationData{
+		Title:     validTitle,
+		Board:     validBoard,
+		OpMessage: validOpMessage,
+	}
+	newThreadId := domain.MsgId(10)
+	lastThreadId := domain.MsgId(1) // Oldest thread ID assumed to be deleted
 
 	t.Run("Successful creation without max thread limit", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		cfg := testConfig(nil) // MaxThreadCount is nil
 		service := NewThread(storage, validator, cfg)
+		createCalled := false
 
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
-			assert.Equal(t, title, tt)
-			assert.Equal(t, board, b)
+		validator.titleFunc = func(title domain.ThreadTitle) error {
+			assert.Equal(t, validTitle, title)
+			return nil
+		}
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+			createCalled = true
+			assert.Equal(t, validCreationData, creationData)
 			return newThreadId, nil
 		}
 
-		createdId, err := service.Create(title, board, msg)
+		// Act
+		createdId, err := service.Create(validCreationData)
 
+		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, newThreadId, createdId)
-		// Assert cleanup methods were NOT called
+		assert.True(t, createCalled, "Storage CreateThread should be called")
 		storage.mu.Lock() // Lock for reading tracker flags
 		assert.False(t, storage.threadCountCalled, "ThreadCount should not be called")
 		assert.False(t, storage.getLastIdCalled, "GetLastThreadId should not be called")
@@ -135,25 +162,32 @@ func TestThreadCreate(t *testing.T) {
 	})
 
 	t.Run("Successful creation below max thread limit", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		maxThreads := 5
 		cfg := testConfig(&maxThreads)
 		service := NewThread(storage, validator, cfg)
+		createCalled := false
 
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+			createCalled = true
+			assert.Equal(t, validCreationData, creationData)
 			return newThreadId, nil
 		}
-		storage.ThreadCountFunc = func(b string) (int, error) {
-			assert.Equal(t, board, b)
-			return maxThreads, nil // Count is exactly the limit (or less)
+		storage.threadCountFunc = func(board domain.BoardShortName) (int, error) {
+			assert.Equal(t, validBoard, board)
+			return maxThreads - 1, nil // Count is below the limit
 		}
 
-		createdId, err := service.Create(title, board, msg)
+		// Act
+		createdId, err := service.Create(validCreationData)
 
+		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, newThreadId, createdId)
-		// Assert cleanup methods (except ThreadCount) were NOT called
+		assert.True(t, createCalled, "Storage CreateThread should be called")
 		storage.mu.Lock()
 		assert.True(t, storage.threadCountCalled, "ThreadCount should be called")
 		assert.False(t, storage.getLastIdCalled, "GetLastThreadId should not be called")
@@ -162,66 +196,71 @@ func TestThreadCreate(t *testing.T) {
 	})
 
 	t.Run("Successful creation exceeding max limit with successful deletion", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		maxThreads := 5
 		cfg := testConfig(&maxThreads)
 		service := NewThread(storage, validator, cfg)
+		createCalled := false
 
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+			createCalled = true
 			return newThreadId, nil
 		}
-		storage.ThreadCountFunc = func(b string) (int, error) {
-			assert.Equal(t, board, b)
+		storage.threadCountFunc = func(board domain.BoardShortName) (int, error) {
+			assert.Equal(t, validBoard, board)
 			return maxThreads + 1, nil // Count exceeds limit
 		}
-		storage.LastThreadIdFunc = func(b string) (int64, error) {
-			assert.Equal(t, board, b)
+		storage.lastThreadIdFunc = func(board domain.BoardShortName) (domain.MsgId, error) {
+			assert.Equal(t, validBoard, board)
 			return lastThreadId, nil
 		}
-		storage.DeleteThreadFunc = func(b string, id int64) error {
-			assert.Equal(t, board, b)
-			assert.Equal(t, lastThreadId, id)
-			return nil // Successful deletion
-		}
+		// DeleteThreadFunc uses the mock's built-in tracking
 
-		createdId, err := service.Create(title, board, msg)
+		// Act
+		createdId, err := service.Create(validCreationData)
 
+		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, newThreadId, createdId)
-		// Assert all relevant cleanup methods were called correctly
+		assert.True(t, createCalled, "Storage CreateThread should be called")
 		storage.mu.Lock()
 		assert.True(t, storage.threadCountCalled, "ThreadCount should be called")
 		assert.True(t, storage.getLastIdCalled, "GetLastThreadId should be called")
 		assert.True(t, storage.deleteThreadCalled, "DeleteThread should be called")
-		assert.Equal(t, board, storage.deleteBoardArg)
+		assert.Equal(t, validBoard, storage.deleteBoardArg)
 		assert.Equal(t, lastThreadId, storage.deleteIdArg)
 		storage.mu.Unlock()
 	})
 
 	t.Run("Validation error", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		cfg := testConfig(nil) // Config doesn't matter here
 		service := NewThread(storage, validator, cfg)
 		validationError := &internal_errors.ErrorWithStatusCode{Message: "Invalid title", StatusCode: 400}
+		createCalled := false
 
-		validator.TitleFunc = func(t string) error {
+		validator.titleFunc = func(title domain.ThreadTitle) error {
+			assert.Equal(t, validTitle, title)
 			return validationError
 		}
-		// Ensure CreateThread is not called if validation fails
-		createCalled := false
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
 			createCalled = true
 			return -1, errors.New("should not be called")
 		}
 
-		_, err := service.Create(title, board, msg)
+		// Act
+		_, err := service.Create(validCreationData)
 
+		// Assert
 		require.Error(t, err)
-		assert.Equal(t, validationError, err)
+		assert.Equal(t, validationError, err) // Check for the specific validation error instance
 		assert.False(t, createCalled, "CreateThread should not be called on validation error")
-		// Assert cleanup methods were NOT called
 		storage.mu.Lock()
 		assert.False(t, storage.threadCountCalled, "ThreadCount should not be called")
 		assert.False(t, storage.getLastIdCalled, "GetLastThreadId should not be called")
@@ -230,21 +269,27 @@ func TestThreadCreate(t *testing.T) {
 	})
 
 	t.Run("Storage error during CreateThread", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		cfg := testConfig(nil)
 		service := NewThread(storage, validator, cfg)
 		storageError := errors.New("db connection lost")
+		createCalled := false
 
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+			createCalled = true
 			return -1, storageError
 		}
 
-		_, err := service.Create(title, board, msg)
+		// Act
+		_, err := service.Create(validCreationData)
 
+		// Assert
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, storageError))
-		// Assert cleanup methods were NOT called
+		assert.True(t, createCalled, "Storage CreateThread should have been attempted")
 		storage.mu.Lock()
 		assert.False(t, storage.threadCountCalled, "ThreadCount should not be called")
 		assert.False(t, storage.getLastIdCalled, "GetLastThreadId should not be called")
@@ -253,29 +298,35 @@ func TestThreadCreate(t *testing.T) {
 	})
 
 	t.Run("Storage error during ThreadCount", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		maxThreads := 5
 		cfg := testConfig(&maxThreads)
 		service := NewThread(storage, validator, cfg)
 		storageError := errors.New("count failed")
+		createCalled := false
 
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+			createCalled = true
 			return newThreadId, nil // Create succeeds
 		}
-		storage.ThreadCountFunc = func(b string) (int, error) {
+		storage.threadCountFunc = func(board domain.BoardShortName) (int, error) {
+			assert.Equal(t, validBoard, board)
 			return 0, storageError // Error during count
 		}
 
-		createdId, err := service.Create(title, board, msg)
+		// Act
+		createdId, err := service.Create(validCreationData)
 
+		// Assert
 		// IMPORTANT: The thread *was* created, but the cleanup failed.
 		// The function should return the created ID *and* the cleanup error.
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, storageError))
-		assert.Equal(t, newThreadId, createdId) // Verify the ID is still returned
-
-		// Assert further cleanup methods were NOT called
+		assert.Equal(t, newThreadId, createdId, "Created thread ID should still be returned on cleanup error")
+		assert.True(t, createCalled, "Storage CreateThread should be called")
 		storage.mu.Lock()
 		assert.True(t, storage.threadCountCalled, "ThreadCount should be called")
 		assert.False(t, storage.getLastIdCalled, "GetLastThreadId should not be called")
@@ -284,30 +335,37 @@ func TestThreadCreate(t *testing.T) {
 	})
 
 	t.Run("Storage error during GetLastThreadId", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		maxThreads := 5
 		cfg := testConfig(&maxThreads)
 		service := NewThread(storage, validator, cfg)
 		storageError := errors.New("get last id failed")
+		createCalled := false
 
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+			createCalled = true
 			return newThreadId, nil
 		}
-		storage.ThreadCountFunc = func(b string) (int, error) {
+		storage.threadCountFunc = func(board domain.BoardShortName) (int, error) {
+			assert.Equal(t, validBoard, board)
 			return maxThreads + 1, nil // Count exceeds limit
 		}
-		storage.LastThreadIdFunc = func(b string) (int64, error) {
+		storage.lastThreadIdFunc = func(board domain.BoardShortName) (domain.MsgId, error) {
+			assert.Equal(t, validBoard, board)
 			return 0, storageError // Error getting last ID
 		}
 
-		createdId, err := service.Create(title, board, msg)
+		// Act
+		createdId, err := service.Create(validCreationData)
 
+		// Assert
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, storageError))
-		assert.Equal(t, newThreadId, createdId) // Verify the ID is still returned
-
-		// Assert DeleteThread was NOT called
+		assert.Equal(t, newThreadId, createdId, "Created thread ID should still be returned on cleanup error")
+		assert.True(t, createCalled, "Storage CreateThread should be called")
 		storage.mu.Lock()
 		assert.True(t, storage.threadCountCalled, "ThreadCount should be called")
 		assert.True(t, storage.getLastIdCalled, "GetLastThreadId should be called")
@@ -316,119 +374,164 @@ func TestThreadCreate(t *testing.T) {
 	})
 
 	t.Run("Storage error during DeleteThread", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		maxThreads := 5
 		cfg := testConfig(&maxThreads)
 		service := NewThread(storage, validator, cfg)
 		storageError := errors.New("delete failed")
+		createCalled := false
 
-		storage.CreateThreadFunc = func(tt, b string, m *domain.Message) (int64, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+			createCalled = true
 			return newThreadId, nil
 		}
-		storage.ThreadCountFunc = func(b string) (int, error) {
+		storage.threadCountFunc = func(board domain.BoardShortName) (int, error) {
 			return maxThreads + 1, nil
 		}
-		storage.LastThreadIdFunc = func(b string) (int64, error) {
+		storage.lastThreadIdFunc = func(board domain.BoardShortName) (domain.MsgId, error) {
 			return lastThreadId, nil
 		}
-		storage.DeleteThreadFunc = func(b string, id int64) error {
+		// DeleteThreadFunc uses the mock's built-in tracking but returns an error
+		storage.deleteThreadFunc = func(b domain.BoardShortName, id domain.MsgId) error {
+			assert.Equal(t, validBoard, b)
+			assert.Equal(t, lastThreadId, id)
 			return storageError // Error during delete
 		}
 
-		createdId, err := service.Create(title, board, msg)
+		// Act
+		createdId, err := service.Create(validCreationData)
 
+		// Assert
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, storageError))
-		assert.Equal(t, newThreadId, createdId) // Verify the ID is still returned
-
-		// Assert all methods up to DeleteThread were called
+		assert.Equal(t, newThreadId, createdId, "Created thread ID should still be returned on cleanup error")
+		assert.True(t, createCalled, "Storage CreateThread should be called")
 		storage.mu.Lock()
 		assert.True(t, storage.threadCountCalled, "ThreadCount should be called")
 		assert.True(t, storage.getLastIdCalled, "GetLastThreadId should be called")
-		assert.True(t, storage.deleteThreadCalled, "DeleteThread should be called") // Delete was attempted
+		assert.True(t, storage.deleteThreadCalled, "DeleteThread should be called (attempted)")
+		assert.Equal(t, validBoard, storage.deleteBoardArg) // Verify args even on failure
+		assert.Equal(t, lastThreadId, storage.deleteIdArg)
 		storage.mu.Unlock()
 	})
 }
 
-// --- Updated TestThreadGet and TestThreadDelete to include config ---
-
 func TestThreadGet(t *testing.T) {
-	id := int64(1)
-	cfg := testConfig(nil) // Default config
+	// Common test data
+	testId := domain.MsgId(1)
+	cfg := testConfig(nil) // Default config, not relevant for Get
 
 	t.Run("Successful get", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
-		validator := &MockThreadValidator{}
+		validator := &MockThreadValidator{} // Not used in Get
 		service := NewThread(storage, validator, cfg)
-		expectedThread := &domain.Thread{Title: "test title", Messages: []*domain.Message{{Id: id}}}
+		// Use domain types consistently
+		expectedThread := domain.Thread{
+			ThreadMetadata: domain.ThreadMetadata{Title: "test title"},
+			Messages:       []domain.Message{{MessageMetadata: domain.MessageMetadata{Id: testId}}},
+		}
+		getCalled := false
 
-		storage.GetThreadFunc = func(i int64) (*domain.Thread, error) {
-			assert.Equal(t, id, i)
+		storage.getThreadFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error) {
+			getCalled = true
+			assert.Equal(t, testId, id)
 			return expectedThread, nil
 		}
 
-		thread, err := service.Get(id)
+		// Act
+		thread, err := service.Get("test", testId)
 
+		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, expectedThread.Id(), thread.Id())
-		assert.Equal(t, expectedThread.Title, thread.Title)
+		assert.Equal(t, expectedThread, thread) // Compare the whole struct
+		assert.True(t, getCalled, "Storage GetThread should be called")
 	})
 
 	t.Run("Storage error", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
 		validator := &MockThreadValidator{}
 		service := NewThread(storage, validator, cfg)
-		mockError := errors.New("mock GetThread error")
+		storageError := errors.New("mock GetThread error")
+		getCalled := false
 
-		storage.GetThreadFunc = func(i int64) (*domain.Thread, error) {
-			return nil, mockError
+		storage.getThreadFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error) {
+			getCalled = true
+			assert.Equal(t, testId, id)
+			return domain.Thread{}, storageError
 		}
 
-		_, err := service.Get(id)
+		// Act
+		_, err := service.Get("test", testId)
 
+		// Assert
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, mockError))
+		assert.True(t, errors.Is(err, storageError))
+		assert.True(t, getCalled, "Storage GetThread should be called")
 	})
 }
 
 func TestThreadDelete(t *testing.T) {
-	board := "test board"
-	id := int64(1)
-	cfg := testConfig(nil) // Default config
+	// Common test data
+	testBoard := domain.BoardShortName("tst")
+	testId := domain.MsgId(1)
+	cfg := testConfig(nil) // Default config, not relevant for Delete
 
 	t.Run("Successful deletion", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
-		validator := &MockThreadValidator{}
+		storage.ResetCallTracking()
+		validator := &MockThreadValidator{} // Not used in Delete
 		service := NewThread(storage, validator, cfg)
 
-		deleteCalledCorrectly := false
-		storage.DeleteThreadFunc = func(b string, i int64) error {
-			assert.Equal(t, board, b)
-			assert.Equal(t, id, i)
-			deleteCalledCorrectly = true
+		// Use built-in mock tracking
+		storage.deleteThreadFunc = func(board domain.BoardShortName, id domain.MsgId) error {
+			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testId, id)
 			return nil
 		}
 
-		err := service.Delete(board, id)
+		// Act
+		err := service.Delete(testBoard, testId)
 
+		// Assert
 		require.NoError(t, err)
-		assert.True(t, deleteCalledCorrectly, "DeleteThreadFunc should have been called")
+		storage.mu.Lock()
+		assert.True(t, storage.deleteThreadCalled, "DeleteThread should have been called")
+		assert.Equal(t, testBoard, storage.deleteBoardArg)
+		assert.Equal(t, testId, storage.deleteIdArg)
+		storage.mu.Unlock()
 	})
 
 	t.Run("Storage error", func(t *testing.T) {
+		// Arrange
 		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		service := NewThread(storage, validator, cfg)
-		mockError := errors.New("mock DeleteThread error")
+		storageError := errors.New("mock DeleteThread error")
 
-		storage.DeleteThreadFunc = func(b string, i int64) error {
-			return mockError
+		// Use built-in mock tracking
+		storage.deleteThreadFunc = func(board domain.BoardShortName, id domain.MsgId) error {
+			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testId, id)
+			return storageError
 		}
 
-		err := service.Delete(board, id)
+		// Act
+		err := service.Delete(testBoard, testId)
 
+		// Assert
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, mockError))
+		assert.True(t, errors.Is(err, storageError))
+		storage.mu.Lock()
+		assert.True(t, storage.deleteThreadCalled, "DeleteThread should have been called (attempted)")
+		assert.Equal(t, testBoard, storage.deleteBoardArg) // Verify args even on failure
+		assert.Equal(t, testId, storage.deleteIdArg)
+		storage.mu.Unlock()
 	})
 }
