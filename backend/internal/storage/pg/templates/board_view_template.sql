@@ -14,7 +14,7 @@ CREATE MATERIALIZED VIEW %[1]s AS
 			m.created as created,
 			m.attachments as attachments,
 			m.op as op,
-			m.ordinal as reply_number
+			m.ordinal as ordinal
 		FROM threads as t
 		JOIN messages as m
 			ON t.id = m.thread_id

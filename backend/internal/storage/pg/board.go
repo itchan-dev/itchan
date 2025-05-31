@@ -65,6 +65,18 @@ func (s *Storage) CreateBoard(creationData domain.BoardCreationData) error {
 		}
 	}
 
+	// Create partition for message_replies
+	query := fmt.Sprintf(`
+		CREATE TABLE %s PARTITION OF message_replies
+		FOR VALUES IN (%s);
+		`,
+		RepliesPartitionName(creationData.ShortName),
+		pq.QuoteLiteral(creationData.ShortName),
+	)
+	if _, err = tx.Exec(query); err != nil {
+		return fmt.Errorf("failed to create message_replies partition for board '%s': %w", creationData.ShortName, err)
+	}
+
 	// Create materialized view for board preview
 	// ViewTableName returns an already quoted identifier
 	viewQuery := fmt.Sprintf(viewTmpl,
@@ -111,10 +123,11 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 	rows, err := s.db.Query(
 		fmt.Sprintf(`
             SELECT thread_title, num_replies, last_bump_ts, thread_id,
-                   msg_id, author_id, text, created, attachments, op
+                   msg_id, author_id, text, created, attachments, op, ordinal
             FROM %s
             WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
-            ORDER BY thread_order, created`, // `created` for message order within thread
+            ORDER BY thread_order, ordinal --at first order by thread then by message inside thread
+			`,
 			ViewTableName(shortName),
 		),
 		s.cfg.Public.ThreadsPerPage,
@@ -126,7 +139,7 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 	defer rows.Close()
 
 	// Temporary structure to hold flat row data from the view
-	type rawThreadMessageData struct {
+	type rowData struct {
 		ThreadTitle domain.ThreadTitle
 		NReplies    int
 		LastBumpTs  time.Time
@@ -137,63 +150,93 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 		Created     time.Time
 		Attachments *domain.Attachments
 		Op          bool
+		Ordinal     int
 	}
-	var allRowData []rawThreadMessageData
 
+	idToMessge := make(map[domain.MsgId]*domain.Message) // further used to add parsed replies
+	var messageIds []domain.MsgId                        // further used to select replies for specific messages
+
+	var threads []domain.Thread
+	var thread domain.Thread
+	firstRow := true // custom logic for first parsed row
 	for rows.Next() {
-		var rtd rawThreadMessageData
+		var rd rowData
 		if err := rows.Scan(
-			&rtd.ThreadTitle, &rtd.NReplies, &rtd.LastBumpTs, &rtd.ThreadID,
-			&rtd.MsgID, &rtd.AuthorID, &rtd.Text, &rtd.Created, &rtd.Attachments, &rtd.Op,
+			&rd.ThreadTitle, &rd.NReplies, &rd.LastBumpTs, &rd.ThreadID, &rd.MsgID,
+			&rd.AuthorID, &rd.Text, &rd.Created, &rd.Attachments, &rd.Op, &rd.Ordinal,
 		); err != nil {
 			return domain.Board{}, fmt.Errorf("failed to scan thread/message row: %w", err)
 		}
-		allRowData = append(allRowData, rtd)
+		// rows are sorted by last_bump_ts and reply_number
+		// so, if rd.ThreadID != thread.Id (basically previous row/rows thread_id)
+		// that means new thread started, and we fully parsed previous thread
+		// we need to add parsed thread to threads and create new thread obj
+		if firstRow || (thread.Id != rd.ThreadID) {
+			if !firstRow {
+				threads = append(threads, thread)
+			}
+			firstRow = false
+			thread = domain.Thread{
+				ThreadMetadata: domain.ThreadMetadata{
+					Id:         rd.ThreadID,
+					Title:      rd.ThreadTitle,
+					Board:      shortName, // Board shortName from the outer scope
+					NumReplies: rd.NReplies,
+					LastBumped: rd.LastBumpTs,
+				},
+				Messages: []domain.Message{},
+			}
+		}
+		msg := domain.Message{
+			MessageMetadata: domain.MessageMetadata{
+				Id:        rd.MsgID,
+				Author:    domain.User{Id: rd.AuthorID},
+				CreatedAt: rd.Created,
+				ThreadId:  rd.ThreadID,
+				Op:        rd.Op,
+				Board:     shortName,
+				Ordinal:   rd.Ordinal,
+			},
+			Text:        rd.Text,
+			Attachments: rd.Attachments,
+		}
+		thread.Messages = append(thread.Messages, msg)
+		idToMessge[msg.Id] = &msg
+		messageIds = append(messageIds, msg.Id) // uniquness ensured by unique index for board materialized view
 	}
 	if err = rows.Err(); err != nil {
 		return domain.Board{}, fmt.Errorf("error iterating thread/message rows: %w", err)
 	}
 
-	// Process allRowData to build domain.Board.Threads
-	var threads []domain.Thread
-	// Map threadID to its index in the `threads` slice to efficiently append messages
-	threadIndexMap := make(map[domain.ThreadId]int)
-
-	for _, rtd := range allRowData {
-		idx, exists := threadIndexMap[rtd.ThreadID]
-		if !exists {
-			// This is the first time we're seeing this thread_id from the view's current page
-			newThread := domain.Thread{
-				ThreadMetadata: domain.ThreadMetadata{
-					Id:         rtd.ThreadID,
-					Title:      rtd.ThreadTitle,
-					Board:      shortName, // Board shortName from the outer scope
-					NumReplies: rtd.NReplies,
-					LastBumped: rtd.LastBumpTs,
-					// IsSticky is not in the view, if needed, it has to be added or fetched separately
-				},
-				Messages: []domain.Message{},
-			}
-			threads = append(threads, newThread)
-			idx = len(threads) - 1 // Get the index of the newly added thread
-			threadIndexMap[rtd.ThreadID] = idx
+	// Enrich parsed messages with replies
+	if len(messageIds) > 0 {
+		rows, err := s.db.Query(`
+		SELECT 
+			sender_message_id,
+			sender_thread_id,
+			receiver_message_id,
+			receiver_thread_id,
+			created
+		FROM message_replies
+		WHERE board = $1 AND receiver_message_id = ANY($2)
+		ORDER BY created
+		`, shortName, pq.Array(messageIds))
+		if err != nil {
+			return domain.Board{}, fmt.Errorf("failed to fetch replies for board page: %w", err)
 		}
-
-		// Append the message to the correct thread
-		// The view is ordered by thread_order, then created, so OP should be first for a thread.
-		threads[idx].Messages = append(threads[idx].Messages, domain.Message{
-			MessageMetadata: domain.MessageMetadata{
-				Id:        rtd.MsgID,
-				Author:    domain.User{Id: rtd.AuthorID},
-				CreatedAt: rtd.Created,
-				ThreadId:  rtd.ThreadID,
-				Op:        rtd.Op,
-				Board:     shortName, // Board shortName from the outer scope
-				// Ordinal and ModifiedAt are not in the view
-			},
-			Text:        rtd.Text,
-			Attachments: rtd.Attachments,
-		})
+		defer rows.Close()
+		for rows.Next() {
+			var reply domain.Reply
+			if err := rows.Scan(&reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
+				return domain.Board{}, fmt.Errorf("failed to scan reply row for board page: %w", err)
+			}
+			if msg, ok := idToMessge[reply.To]; ok {
+				msg.Replies = append(msg.Replies, reply)
+			}
+		}
+		if err = rows.Err(); err != nil {
+			return domain.Board{}, fmt.Errorf("replies iteration error for board page: %w", err)
+		}
 	}
 
 	return domain.Board{
@@ -216,7 +259,7 @@ func (s *Storage) DeleteBoard(shortName domain.BoardShortName) error {
 	}
 
 	// Drop partitions
-	for _, table := range []string{"messages", "threads"} {
+	for _, table := range []string{"replies", "messages", "threads"} {
 		// PartitionName returns an already quoted identifier
 		partition := PartitionName(shortName, table)
 		if _, err := tx.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", partition)); err != nil {

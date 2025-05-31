@@ -18,4 +18,5 @@ type (
 	Attachments = pq.StringArray // to save into postgres REDO TO STRING (attachment)
 	MsgText     = string
 	MsgId       = int64
+	Replies     = []Reply
 )

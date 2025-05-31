@@ -15,7 +15,6 @@
     <div class="error-message">{{.Error}}</div>
     {{end}}
 
-
     <div class="posts-container">
         {{ range $index, $message := .Thread.Messages }}
             {{ $isOP := eq $index 0 }}
@@ -26,8 +25,13 @@
                     <span class="post-author">Anonymous</span>
                     <span class="post-date">{{ $message.CreatedAt.Format "01/02/06(Mon)15:04:05" }}</span>
                     <span class="post-id">
-                        No.<a href="#p{{ $message.Id }}">{{ $message.Id }}</a> <!-- Link to self within page -->
+                        No.<a href="#p{{ $message.Id }}" onclick="addReplyLink({{ $.Thread.Id }}, {{ $message.Id }}); return false;">{{ $message.Id }}</a> <!-- Link to self within page -->
                     </span>
+                    {{ if $message.Replies }}
+                        {{ range $reply := $message.Replies }}
+                            <span class="reply-link">{{ $reply.LinkFromHTML }}</span>
+                        {{ end }}
+                    {{ end }}
                     {{/* --- START: Message Delete Button --- */}}
                     {{if $.User.Admin}}
                     <form method="POST" action="/{{ $.Thread.Board }}/{{ $.Thread.Id }}/{{ $message.Id }}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete post No.{{ $message.Id }}? This cannot be undone.');">
@@ -89,4 +93,17 @@
     <hr>
     <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
 
+    <script>
+        // --- Click-to-Reply Functionality ---
+        function addReplyLink(threadId, messageId) {
+            const textarea = document.getElementById('text-reply-bottom');
+            if (textarea) {
+                const replyText = '>>' + threadId + '/' + messageId + '\n';
+                // Append text and move cursor to the end
+                textarea.value += replyText;
+                textarea.focus(); // Focus the textarea
+                textarea.scrollTop = textarea.scrollHeight; // Scroll to bottom if needed
+            }
+        }
+    </script>
 {{ end }}
