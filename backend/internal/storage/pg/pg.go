@@ -68,11 +68,19 @@ func ThreadsPartitionName(shortName domain.BoardShortName) string {
 	return pq.QuoteIdentifier(threadsPartitionName(shortName))
 }
 
+func RepliesPartitionName(shortName domain.BoardShortName) string {
+	return pq.QuoteIdentifier(fmt.Sprintf("message_replies_%s", shortName))
+}
+
 func PartitionName(shortName domain.BoardShortName, table string) string {
 	if table == "messages" {
 		return MessagesPartitionName(shortName)
-	} else {
+	} else if table == "threads" {
 		return ThreadsPartitionName(shortName)
+	} else if table == "replies" {
+		return RepliesPartitionName(shortName)
+	} else {
+		return "unknown"
 	}
 }
 

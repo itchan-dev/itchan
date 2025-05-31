@@ -62,7 +62,7 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal error: cannot decode response", http.StatusInternalServerError)
 		return
 	}
-	threadRendered := RenderThread(thread)
+	threadRendered := RenderThreadWithReplies(thread)
 	templateData.Thread = threadRendered
 
 	h.renderTemplate(w, "thread.html", templateData)

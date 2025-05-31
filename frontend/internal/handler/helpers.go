@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
@@ -144,43 +145,68 @@ func parseMessagesFromQuery(r *http.Request) (errMsg template.HTML, successMsg t
 	return errMsg, successMsg
 }
 
-var (
-	messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`) // Use > because text is likely HTML escaped
-)
+var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
 
-// processMessageLinks finds >>N patterns and converts them to internal links
-// with attributes for the preview functionality. It returns template.HTML
-// to prevent double-escaping in the template.
-func processMessageLinks(message domain.Message) template.HTML {
-	// The input 'text' might already be HTML escaped by a markdown processor or similar.
-	// We specifically look for '>>' followed by digits.
-	// ReplaceAllStringFunc allows custom replacement logic for each match.
+// processMessageLinks finds >>N/M patterns and converts them to internal links.
+// It also returns a list of all matched strings found in the input.
+func processMessageLinks(message domain.Message) (template.HTML, frontend_domain.Replies) {
+	var matches frontend_domain.Replies
+
 	processedText := messageLinkRegex.ReplaceAllStringFunc(message.Text, func(match string) string {
-		// Extract the numeric ID part from the match (e.g., "123" from ">>123")
-		idStr := match[len(">>"):]
-
-		// Create the link HTML
-		// - href points to the anchor #p<ID> on the current page.
-		// - class="message-link" identifies it for JS hover listeners.
-		// - data-message-id stores the ID for the JS to fetch the preview.
-		return fmt.Sprintf(`<a href="/%[2]s/%[3]d#p%[1]s" class="message-link" data-message-id="%[1]s">>>%[1]s</a>`,
-			idStr, message.Board, message.ThreadId)
+		// Extract the capture groups from the current match
+		submatch := messageLinkRegex.FindStringSubmatch(match)
+		if len(submatch) < 3 {
+			return match // shouldn't happen due to prior match
+		}
+		threadId, err := strconv.ParseInt(submatch[1], 10, 64)
+		if err != nil {
+			return match
+		}
+		messageId, err := strconv.ParseInt(submatch[2], 10, 64)
+		if err != nil {
+			return match
+		}
+		reply := frontend_domain.Reply{Board: message.Board, Thread: threadId, From: message.Id, To: messageId}
+		matches = append(matches, reply)
+		return reply.LinkTo()
 	})
 
-	return template.HTML(processedText)
+	return template.HTML(processedText), matches
 }
 
-func RenderMessage(message domain.Message) frontend_domain.Message {
+func RenderMessage(message domain.Message) (frontend_domain.Message, frontend_domain.Replies) {
 	renderedMessage := frontend_domain.Message{Message: message}
-	renderedMessage.Text = processMessageLinks(message)
-	return renderedMessage
+	renderedText, replyTo := processMessageLinks(message)
+	renderedMessage.Text = renderedText
+	return renderedMessage, replyTo
 }
 
-// render all messages and proccess links
 func RenderThread(thread domain.Thread) frontend_domain.Thread {
 	renderedThread := frontend_domain.Thread{ThreadMetadata: thread.ThreadMetadata, Messages: make([]frontend_domain.Message, len(thread.Messages))}
 	for i, msg := range thread.Messages {
-		renderedThread.Messages[i] = RenderMessage(msg)
+		renderedMessage, _ := RenderMessage(msg)
+		renderedThread.Messages[i] = renderedMessage
+	}
+	return renderedThread
+}
+
+// render thread and process replies
+func RenderThreadWithReplies(thread domain.Thread) frontend_domain.Thread {
+	renderedThread := frontend_domain.Thread{ThreadMetadata: thread.ThreadMetadata, Messages: make([]frontend_domain.Message, len(thread.Messages))}
+	replyMap := make(map[domain.MsgId]frontend_domain.Replies)
+	for i := len(thread.Messages) - 1; i >= 0; i-- { // reverse iterate to collect replies
+		msg := thread.Messages[i]
+		renderedMessage, parsedReplies := RenderMessage(msg)
+		// check if we have replies for current message
+		if replies, ok := replyMap[msg.Id]; ok {
+			renderedMessage.Replies = replies
+		}
+		// add parsed replies to map for future messages
+		for _, reply := range parsedReplies {
+			replyMap[reply.To] = append(replyMap[reply.To], reply)
+		}
+
+		renderedThread.Messages[i] = renderedMessage
 	}
 	return renderedThread
 }
