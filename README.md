@@ -1,20 +1,140 @@
-/shared - for scripts and data structs common for both frontend and backend
-/backend/internal/handlers - handle http request and pass it to service
-/backend/internal/services - business logic, get request from http and do something with storage
-/backend/internal/storage - all interactions with databases. Gets called from services
 
-all errors propagated to top (handlers) level where they linked with status codes. default status code is internal service error. you can customize errors with ErrorWithStatusCode
+# Itchan Imageboard
 
-log errors only once, on the lowest level they occured in internal package (that means log every time you catch error from external code or builtin function)
+A minimal, fast imageboard implemented in Go with a clear three-layer backend (storage → service → handler) and a Go-template frontend. Deployed using Docker Compose.
 
-on handlers level pass every internal error to writeErrorAndStatusCode. Internal error in this context - error in internal module beside "handlers" module
+## Table of Contents
 
-handlers layer should parse request and get arguments for service layer. handlers layers shouldnt validate value of arguments, only ensure that the arguments are presented and have the correct type. Handlers layer also do some web-related work (cookies, http error status handling etc)
+- Features
+- Architecture
+- Getting Started
+- Project Structure
+- Backend Layers
+- Frontend
+- Testing
+- Contributing
+- License
 
-service layer contains business logic: validate input arguments, gather data from different resources, transform data etc
+## Features
 
-storage package interact with different storages and provide data to service level
+- Plain HTML + Go templates, no heavy JS  
+- Fast, concurrent Go server  
+- Simple routing with Gorilla Mux  
+- Pagination, bump limits, replies  
+- JWT-based authentication  
+- Dockerized frontend & backend  
 
-all layers beside handlers should communicate via models defined in domain package
+## Architecture
 
-attachments is file pathes to images/videos on local hard drive
+```
+docker-compose.yml
+├── backend/           # API server
+│   ├── internal/
+│   │   ├── storage/pg
+│   │   │   └── board.go           (#Storage.CreateBoard, #Storage.GetBoard, #Storage.DeleteBoard)
+│   │   │   └── message.go         (#Storage.CreateMessage, #Storage.GetMessage, #Storage.DeleteMessage)
+│   │   ├── service
+│   │   │   └── board.go           (service.Board)
+│   │   │   └── thread.go          (service.Thread)
+│   │   └── handler
+│   │       └── board.go           (Handler.CreateBoard, Handler.GetBoard…)
+│   │       └── message.go         (Handler.CreateMessage etc.)
+│   └── cmd/itchan-api/main.go     (entrypoint)
+└── frontend/          # UI server
+    ├── internal/
+    │   ├── handler
+    │   │   └── board.go            (Handler.BoardGetHandler, Handler.BoardPostHandler)
+    │   │   └── thread.go           (Handler.ThreadGetHandler…)
+    │   │   └── helpers.go          (RenderThreadWithReplies, redirectWithError)
+    │   └── setup/setup.go          (template loader, JWT deps)
+    ├── templates/                   (HTML templates: base.html, index.html, board.html…)
+    └── cmd/frontend/main.go        (entrypoint)
+```
+
+Refer to docker-compose.yml to wire services.
+
+## Getting Started
+
+### Prerequisites
+
+- Docker & Docker Compose  
+- Go 1.24+ (for local development)
+
+### Running Locally
+
+```sh
+git clone https://github.com/itchan-dev/itchan.git
+cd itchan
+docker-compose up --build
+```
+
+- Backend API: http://localhost:8080/v1  
+- Frontend UI: http://localhost:8081  
+
+### Manual Go Run (no Docker)
+
+```sh
+# Backend
+cd backend
+go run cmd/itchan-api/main.go -config_folder ./config
+
+# Frontend
+cd frontend
+go run cmd/frontend/main.go
+```
+
+## Backend Layers
+
+1. **Storage** (pg)  
+   - Implements raw SQL operations and partition logic.  
+   - Key files:  
+     - board.go (`Storage.CreateBoard`, `Storage.GetBoard`, `Storage.DeleteBoard`)  
+     - message.go (`Storage.CreateMessage`, `Storage.GetMessage`, `Storage.DeleteMessage`)  
+
+2. **Service** (service)  
+   - Business rules, validation, bump limits.  
+   - Key files:  
+     - board.go (`service.NewBoard`, `Board.Create`, `Board.Get`)  
+     - thread.go (`service.NewThread`)  
+
+3. **Handler** (handler)  
+   - HTTP endpoints, error mapping, JSON I/O.  
+   - Key files:  
+     - board.go (`Handler.CreateBoard`, `Handler.GetBoard`)  
+     - message.go  
+
+## Frontend
+
+- Uses Go’s `html/template` in handler to render pages.  
+- Template files under templates:  
+  - base.html: layout & navigation  
+  - index.html: list & create boards (with `Handler.IndexGetHandler`)  
+  - board.html, `thread.html`: thread and message UI  
+
+- Entrypoint: cmd/frontend/main.go  
+
+## Testing
+
+```sh
+# Backend unit & integration
+cd backend
+go test ./internal/storage/... ./internal/service/... ./internal/handler/...
+
+# Frontend handlers
+cd frontend
+go test ./internal/handler/...
+```
+
+Integration tests for storage are in integration_board_test.go.
+
+## Contributing
+
+1. Fork & clone  
+2. Create feature branch  
+3. Ensure tests pass  
+4. Submit PR  
+
+## License
+
+MIT &copy; 2023 Itchan Imageboard  
+See LICENSE for details.

@@ -196,6 +196,7 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 				Op:        rd.Op,
 				Board:     shortName,
 				Ordinal:   rd.Ordinal,
+				Replies:   domain.Replies{}, // Initialize empty replies slice
 			},
 			Text:        rd.Text,
 			Attachments: rd.Attachments,
@@ -206,6 +207,11 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 	}
 	if err = rows.Err(); err != nil {
 		return domain.Board{}, fmt.Errorf("error iterating thread/message rows: %w", err)
+	}
+
+	// Add the last thread if any threads were parsed
+	if !firstRow {
+		threads = append(threads, thread)
 	}
 
 	// Enrich parsed messages with replies
@@ -230,6 +236,7 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 			if err := rows.Scan(&reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
 				return domain.Board{}, fmt.Errorf("failed to scan reply row for board page: %w", err)
 			}
+			reply.Board = shortName // Set the board field
 			if msg, ok := idToMessge[reply.To]; ok {
 				msg.Replies = append(msg.Replies, reply)
 			}

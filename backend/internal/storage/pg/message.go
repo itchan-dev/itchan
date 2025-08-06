@@ -99,6 +99,27 @@ func (s *Storage) CreateMessage(creationData domain.MessageCreationData, isOp bo
 		return -1, fmt.Errorf("failed to insert message: %w", err)
 	}
 
+	// Insert replies into message_replies table
+	if creationData.ReplyTo != nil {
+		for _, reply := range *creationData.ReplyTo {
+			_, err := tx.Exec(`
+                INSERT INTO message_replies (
+                    board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+            `,
+				creationData.Board,
+				id,
+				creationData.ThreadId,
+				reply.To,
+				reply.ToThreadId,
+				createdTs,
+			)
+			if err != nil {
+				return -1, fmt.Errorf("failed to insert message reply: %w", err)
+			}
+		}
+	}
+
 	if outerTx == nil {
 		if err := tx.Commit(); err != nil {
 			return -1, fmt.Errorf("failed to commit transaction: %w", err)
@@ -110,11 +131,11 @@ func (s *Storage) CreateMessage(creationData domain.MessageCreationData, isOp bo
 func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
 	var msg domain.Message
 	err := s.db.QueryRow(`
-	SELECT
-		*
-	FROM messages
-	WHERE
-	board = $1
+    SELECT
+        id, author_id, text, created, attachments, thread_id, ordinal, modified, op, board
+    FROM messages
+    WHERE
+    board = $1
 	AND id = $2`, board, id).Scan(
 		&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt, &msg.Attachments, &msg.ThreadId, &msg.Ordinal, &msg.ModifiedAt, &msg.Op, &msg.Board,
 	)
@@ -124,6 +145,28 @@ func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (doma
 		}
 		return domain.Message{}, err
 	}
+
+	// Fetch replies for this message
+	rows, err := s.db.Query(`
+        SELECT sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created
+        FROM message_replies
+        WHERE board = $1 AND receiver_message_id = $2
+        ORDER BY created
+    `, board, id)
+	if err != nil {
+		return domain.Message{}, fmt.Errorf("failed to fetch message replies: %w", err)
+	}
+	defer rows.Close()
+	var replies domain.Replies
+	for rows.Next() {
+		var reply domain.Reply
+		if err := rows.Scan(&reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
+			return domain.Message{}, fmt.Errorf("failed to scan reply row: %w", err)
+		}
+		replies = append(replies, reply)
+	}
+	msg.Replies = replies
+
 	return msg, nil
 }
 

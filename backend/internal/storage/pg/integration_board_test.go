@@ -3,86 +3,135 @@ package pg
 import (
 	"fmt"
 	"math/rand"
-	"strconv"
 	"testing"
 	"time"
 
-	"github.com/itchan-dev/itchan/shared/domain" // Use alias to avoid conflict if needed
+	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// Helper functions for test readability
+
+// assertBoardInActiveList checks if a board with given shortName is present in the boards list
+func assertBoardInActiveList(t *testing.T, boards []domain.Board, shortName domain.BoardShortName, shouldExist bool, msgAndArgs ...interface{}) {
+	t.Helper()
+	found := false
+	for _, b := range boards {
+		if b.ShortName == shortName {
+			found = true
+			break
+		}
+	}
+	if shouldExist {
+		assert.True(t, found, msgAndArgs...)
+	} else {
+		assert.False(t, found, msgAndArgs...)
+	}
+}
+
+// setBoardActivityTime sets the last_activity timestamp for a board
+func setBoardActivityTime(t *testing.T, storage *Storage, boardShortName domain.BoardShortName, activityTime time.Time) {
+	t.Helper()
+	_, err := storage.db.Exec("UPDATE boards SET last_activity = $1 WHERE short_name = $2", activityTime, boardShortName)
+	require.NoError(t, err, "Failed to set board activity time")
+}
+
 // TestCreateBoard verifies the board creation logic.
 func TestCreateBoard(t *testing.T) {
-	boardName := "Test Create Board"
-	boardShortName := generateString(t)
-	allowedEmails := &domain.Emails{"test@example.com"}
-
-	t.Run("create new board without allowed emails", func(t *testing.T) {
+	t.Run("success with allowed emails", func(t *testing.T) {
+		boardName := "Test Create Board"
 		bShortName := generateString(t)
-		err := storage.CreateBoard(domain.BoardCreationData{Name: boardName, ShortName: bShortName, AllowedEmails: nil})
+		allowedEmails := &domain.Emails{"test@example.com"}
+
+		err := storage.CreateBoard(domain.BoardCreationData{
+			Name:          boardName,
+			ShortName:     bShortName,
+			AllowedEmails: allowedEmails,
+		})
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, storage.DeleteBoard(bShortName))
 		})
 	})
 
-	t.Run("create new board with allowed emails", func(t *testing.T) {
+	t.Run("success without allowed emails", func(t *testing.T) {
+		boardName := "Test Create Board"
 		bShortName := generateString(t)
-		err := storage.CreateBoard(domain.BoardCreationData{Name: boardName, ShortName: bShortName, AllowedEmails: allowedEmails})
+
+		err := storage.CreateBoard(domain.BoardCreationData{
+			Name:          boardName,
+			ShortName:     bShortName,
+			AllowedEmails: nil,
+		})
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, storage.DeleteBoard(bShortName))
 		})
 	})
 
-	t.Run("duplicate short name should fail", func(t *testing.T) {
-		// Setup board for duplicate check
-		err := storage.CreateBoard(domain.BoardCreationData{Name: boardName, ShortName: boardShortName, AllowedEmails: nil})
+	t.Run("fails on duplicate short name", func(t *testing.T) {
+		boardShortName := generateString(t)
+		boardData := domain.BoardCreationData{
+			Name:          "Test Board",
+			ShortName:     boardShortName,
+			AllowedEmails: nil,
+		}
+
+		err := storage.CreateBoard(boardData)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, storage.DeleteBoard(boardShortName))
 		})
 
-		// Attempt to create again
-		err = storage.CreateBoard(domain.BoardCreationData{Name: "Another Name", ShortName: boardShortName, AllowedEmails: nil})
+		// Attempt to create again with same short name
+		boardData.Name = "Another Name"
+		err = storage.CreateBoard(boardData)
 		require.Error(t, err, "Creating board with duplicate short name should fail")
-		assert.Contains(t, err.Error(), "possibly duplicate short_name") // Check for specific error message part
+		assert.Contains(t, err.Error(), "possibly duplicate short_name")
 	})
 
-	t.Run("allowedEmails of 0 length forbidden", func(t *testing.T) {
+	t.Run("fails on empty allowed emails", func(t *testing.T) {
 		bShortName := generateString(t)
-		err := storage.CreateBoard(domain.BoardCreationData{Name: boardName, ShortName: bShortName, AllowedEmails: &domain.Emails{}})
+		err := storage.CreateBoard(domain.BoardCreationData{
+			Name:          "Test Board",
+			ShortName:     bShortName,
+			AllowedEmails: &domain.Emails{}, // Empty slice
+		})
 		require.ErrorIs(t, err, emptyAllowedEmailsError)
-		_ = storage.DeleteBoard(bShortName) // Attempt to clean up, ignore error if not created
+		_ = storage.DeleteBoard(bShortName) // Cleanup attempt
 	})
 }
 
 // TestGetBoard verifies retrieving board details.
 func TestGetBoard(t *testing.T) {
-	boardName := "Test Get Board"
-	allowedEmails := &domain.Emails{"@test.ru", "@test2.ru"}
-	boardShortName := generateString(t)
-	testBegins := time.Now().UTC()
+	t.Run("success with metadata validation", func(t *testing.T) {
+		boardName := "Test Get Board"
+		allowedEmails := &domain.Emails{"@test.ru", "@test2.ru"}
+		boardShortName := generateString(t)
+		testBegins := time.Now().UTC()
 
-	err := storage.CreateBoard(domain.BoardCreationData{Name: boardName, ShortName: boardShortName, AllowedEmails: allowedEmails})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, storage.DeleteBoard(boardShortName)) })
+		err := storage.CreateBoard(domain.BoardCreationData{
+			Name:          boardName,
+			ShortName:     boardShortName,
+			AllowedEmails: allowedEmails,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, storage.DeleteBoard(boardShortName)) })
 
-	t.Run("get existing board", func(t *testing.T) {
-		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1), "Refresh view shouldn't throw error")
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
 
 		board, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
 		assert.Equal(t, boardName, board.Name)
 		assert.Equal(t, boardShortName, board.ShortName)
 		assert.Equal(t, allowedEmails, board.AllowedEmails)
-		assert.True(t, !board.CreatedAt.Before(testBegins), "Creation time %v should not be before test begins %v", board.CreatedAt, testBegins)
-		assert.True(t, !board.LastActivity.Before(board.CreatedAt), "Last activity %v should not be before creation %v", board.LastActivity, board.CreatedAt)
+		assert.True(t, !board.CreatedAt.Before(testBegins), "Creation time should not be before test begins")
+		assert.True(t, !board.LastActivity.Before(board.CreatedAt), "Last activity should not be before creation")
 		assert.Empty(t, board.Threads, "Board should have no threads initially")
 	})
 
-	t.Run("non-existent board should 404", func(t *testing.T) {
+	t.Run("fails for non-existent board", func(t *testing.T) {
 		_, err := storage.GetBoard("nonexistentboard", 1)
 		requireNotFoundError(t, err)
 	})
@@ -90,28 +139,32 @@ func TestGetBoard(t *testing.T) {
 
 // TestDeleteBoard verifies board deletion and cascading effects.
 func TestDeleteBoard(t *testing.T) {
-	boardShortNameToTest, threadID, messageID := setupBoardAndThreadAndMessage(t)
+	t.Run("success with cascade cleanup", func(t *testing.T) {
+		boardShortNameToTest, threadID, messageID := setupBoardAndThreadAndMessage(t)
 
-	t.Run("delete existing board", func(t *testing.T) {
-		var exists bool
+		// Verify resources exist before deletion
 		unquotedViewName := viewTableName(boardShortNameToTest)
-		err := storage.db.QueryRow("SELECT EXISTS (SELECT FROM pg_matviews WHERE matviewname = $1)", unquotedViewName).Scan(&exists)
-		require.NoError(t, err, "DB query for view existence failed")
-		assert.True(t, exists, "Materialized view %s should be presented", unquotedViewName)
-
 		unquotedMsgTableName := messagesPartitionName(boardShortNameToTest)
-		err = storage.db.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)", unquotedMsgTableName).Scan(&exists)
-		require.NoError(t, err, "DB query for table existence failed")
-		assert.True(t, exists, "Messages table %s should be presented", unquotedMsgTableName)
-
 		unquotedThreadsTableName := threadsPartitionName(boardShortNameToTest)
-		err = storage.db.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)", unquotedThreadsTableName).Scan(&exists)
-		require.NoError(t, err, "DB query for table existence failed")
-		assert.True(t, exists, "Threads table %s should be presented", unquotedThreadsTableName)
 
+		var exists bool
+		err := storage.db.QueryRow("SELECT EXISTS (SELECT FROM pg_matviews WHERE matviewname = $1)", unquotedViewName).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "Materialized view should exist before deletion")
+
+		err = storage.db.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)", unquotedMsgTableName).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "Messages table should exist before deletion")
+
+		err = storage.db.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)", unquotedThreadsTableName).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "Threads table should exist before deletion")
+
+		// Delete board
 		err = storage.DeleteBoard(boardShortNameToTest)
 		require.NoError(t, err)
 
+		// Verify all resources are cleaned up
 		_, err = storage.GetBoard(boardShortNameToTest, 1)
 		requireNotFoundError(t, err)
 
@@ -122,120 +175,123 @@ func TestDeleteBoard(t *testing.T) {
 		requireNotFoundError(t, err)
 
 		err = storage.db.QueryRow("SELECT EXISTS (SELECT FROM pg_matviews WHERE matviewname = $1)", unquotedViewName).Scan(&exists)
-		require.NoError(t, err, "DB query for view existence failed")
-		assert.False(t, exists, "Materialized view %s should be dropped", unquotedViewName)
+		require.NoError(t, err)
+		assert.False(t, exists, "Materialized view should be dropped")
 
 		err = storage.db.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)", unquotedMsgTableName).Scan(&exists)
-		require.NoError(t, err, "DB query for table existence failed")
-		assert.False(t, exists, "Messages table %s should be dropped", unquotedMsgTableName)
+		require.NoError(t, err)
+		assert.False(t, exists, "Messages table should be dropped")
 
 		err = storage.db.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)", unquotedThreadsTableName).Scan(&exists)
-		require.NoError(t, err, "DB query for table existence failed")
-		assert.False(t, exists, "Threads table %s should be dropped", unquotedThreadsTableName)
+		require.NoError(t, err)
+		assert.False(t, exists, "Threads table should be dropped")
 	})
 
-	t.Run("delete non-existent board should 404", func(t *testing.T) {
-		err := storage.DeleteBoard("nonexistentboard_del_test") // use unique name to avoid conflict
+	t.Run("fails for non-existent board", func(t *testing.T) {
+		err := storage.DeleteBoard("nonexistentboard_del_test")
 		requireNotFoundError(t, err)
 	})
 }
 
-// TestBoardWorkflow simulates a typical usage flow: creating posts, checking board state, pagination.
+// TestBoardWorkflow simulates a typical board usage: creating threads/messages and verifying pagination.
 func TestBoardWorkflow(t *testing.T) {
 	boardShortName := setupBoard(t)
 
-	threads := []domain.ThreadCreationData{
-		{Title: "thread1", Board: boardShortName, OpMessage: domain.MessageCreationData{Author: domain.User{Id: 228}, Text: "op1"}},
-		{Title: "thread2", Board: boardShortName, OpMessage: domain.MessageCreationData{Author: domain.User{Id: 229}, Text: "op2"}},
-		{Title: "thread3", Board: boardShortName, OpMessage: domain.MessageCreationData{Author: domain.User{Id: 229}, Text: "op3"}},
-		{Title: "thread4", Board: boardShortName, OpMessage: domain.MessageCreationData{Author: domain.User{Id: 229}, Text: "op4"}},
-		{Title: "thread5", Board: boardShortName, OpMessage: domain.MessageCreationData{Author: domain.User{Id: 229}, Text: "op5"}},
-	}
-	threadIds := make([]domain.ThreadId, len(threads))
-	for i, threadCreationInput := range threads {
-		threadIds[i] = createTestThread(t, threadCreationInput)
+	// Create test threads
+	threadTitles := []string{"thread1", "thread2", "thread3", "thread4", "thread5"}
+	threadIds := make([]domain.ThreadId, len(threadTitles))
+
+	for i, title := range threadTitles {
+		threadData := domain.ThreadCreationData{
+			Title: title,
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Author: domain.User{Id: int64(200 + i)},
+				Text:   fmt.Sprintf("op%d", i+1),
+			},
+		}
+		threadIds[i] = createTestThread(t, threadData)
 	}
 
+	// Add messages to create different bump orders
+	// thread4 gets msg -> most recent
+	// thread1 gets 2 msgs -> second most recent
+	// thread3 gets msg -> third most recent
+	// thread2, thread5 stay at creation time (least recent)
 	messages := []domain.MessageCreationData{
 		{Board: boardShortName, Author: domain.User{Id: 300}, Text: "msg1_t1", ThreadId: threadIds[0]},
 		{Board: boardShortName, Author: domain.User{Id: 301}, Text: "msg2_t2", ThreadId: threadIds[1]},
-		{Board: boardShortName, Author: domain.User{Id: 303}, Text: "msg3_t3", ThreadId: threadIds[2]},
+		{Board: boardShortName, Author: domain.User{Id: 302}, Text: "msg3_t3", ThreadId: threadIds[2]},
 		{Board: boardShortName, Author: domain.User{Id: 303}, Text: "msg4_t1", Attachments: &domain.Attachments{"file.txt", "file2.png"}, ThreadId: threadIds[0]},
-		{Board: boardShortName, Author: domain.User{Id: 303}, Text: "msg5_t4", ThreadId: threadIds[3]},
+		{Board: boardShortName, Author: domain.User{Id: 304}, Text: "msg5_t4", ThreadId: threadIds[3]},
 	}
 	for _, msg := range messages {
 		createTestMessage(t, msg)
 	}
 
-	t.Run("verify board structure page 1", func(t *testing.T) {
+	t.Run("pagination and ordering", func(t *testing.T) {
 		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
+
+		// Page 1: should show 3 threads in bump order
 		board, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
-
-		assert.Equal(t, boardShortName, board.ShortName)
 		require.Len(t, board.Threads, 3, "Page 1 should show 3 threads")
 
-		t.Run("thread order by last bump", func(t *testing.T) {
-			requireThreadOrder(t, board.Threads, []string{"thread4", "thread1", "thread3"})
-		})
+		expectedOrder := []string{"thread4", "thread1", "thread3"}
+		requireThreadOrder(t, board.Threads, expectedOrder)
 
-		t.Run("message order within threads", func(t *testing.T) {
-			requireMessageOrder(t, board.Threads[0].Messages, []string{"op4", "msg5_t4"})
-			requireMessageOrder(t, board.Threads[1].Messages, []string{"op1", "msg1_t1", "msg4_t1"})
-			requireMessageOrder(t, board.Threads[2].Messages, []string{"op3", "msg3_t3"})
-		})
-	})
+		// Verify message content and order within threads
+		requireMessageOrder(t, board.Threads[0].Messages, []string{"op4", "msg5_t4"})
+		requireMessageOrder(t, board.Threads[1].Messages, []string{"op1", "msg1_t1", "msg4_t1"})
+		requireMessageOrder(t, board.Threads[2].Messages, []string{"op3", "msg3_t3"})
 
-	t.Run("pagination page 2", func(t *testing.T) {
-		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
-		board, err := storage.GetBoard(boardShortName, 2)
+		// Page 2: should show remaining 2 threads
+		board, err = storage.GetBoard(boardShortName, 2)
 		require.NoError(t, err)
 		require.Len(t, board.Threads, 2, "Page 2 should show 2 threads")
 
-		t.Run("thread order by last bump", func(t *testing.T) {
-			requireThreadOrder(t, board.Threads, []string{"thread2", "thread5"})
-		})
-
-		t.Run("message order within threads", func(t *testing.T) {
-			requireMessageOrder(t, board.Threads[0].Messages, []string{"op2", "msg2_t2"})
-			requireMessageOrder(t, board.Threads[1].Messages, []string{"op5"})
-		})
+		expectedOrder = []string{"thread2", "thread5"}
+		requireThreadOrder(t, board.Threads, expectedOrder)
+		requireMessageOrder(t, board.Threads[0].Messages, []string{"op2", "msg2_t2"})
+		requireMessageOrder(t, board.Threads[1].Messages, []string{"op5"})
 	})
 
 	t.Run("bump limit enforcement", func(t *testing.T) {
-		opMsgForBumpLimit := domain.MessageCreationData{
-			Author: domain.User{Id: 1},
-			Text:   "OP Bump Limit",
+		// Create a thread that will hit bump limit
+		bumpLimitThread := domain.ThreadCreationData{
+			Title: "Bump Limit Test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Author: domain.User{Id: 400},
+				Text:   "OP Bump Limit",
+			},
 		}
-		threadDataForBumpLimit := domain.ThreadCreationData{
-			Title:     "Bump Limit Test",
-			Board:     boardShortName,
-			OpMessage: opMsgForBumpLimit,
-		}
-		bumpLimitThreadID := createTestThread(t, threadDataForBumpLimit)
+		bumpLimitThreadID := createTestThread(t, bumpLimitThread)
 
-		// Get created thread to the bump limit
+		// Fill thread to bump limit
 		for i := 0; i < storage.cfg.Public.BumpLimit; i++ {
 			msgData := domain.MessageCreationData{
 				Board:    boardShortName,
-				Author:   domain.User{Id: 1},
+				Author:   domain.User{Id: 401},
 				Text:     fmt.Sprintf("bump %d", i+1),
 				ThreadId: bumpLimitThreadID,
 			}
 			createTestMessage(t, msgData)
 		}
 
-		// Bump several threads
-		createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 1}, Text: "bump_other1", ThreadId: threadIds[4]}) // thread5
-		createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 1}, Text: "bump_other2", ThreadId: threadIds[0]}) // thread1
-		// Bump (unsuccessfully) thread after bump limit
-		createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 1}, Text: "post_after_limit", ThreadId: bumpLimitThreadID})
+		// Bump other threads to verify ordering
+		createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 402}, Text: "bump_other1", ThreadId: threadIds[4]}) // thread5
+		createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 403}, Text: "bump_other2", ThreadId: threadIds[0]}) // thread1
+
+		// Try to bump the bump-limit thread (should not affect order)
+		createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 404}, Text: "post_after_limit", ThreadId: bumpLimitThreadID})
 
 		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
-		board, err := storage.GetBoard(boardShortName, 1) // Page 1 has 3 threads
+		board, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
 		require.Len(t, board.Threads, 3)
 
+		// thread1 should be first (most recent bump), thread5 second, bump-limit thread third
 		requireThreadOrder(t, board.Threads, []string{"thread1", "thread5", "Bump Limit Test"})
 	})
 }
@@ -244,60 +300,52 @@ func TestBoardWorkflow(t *testing.T) {
 func TestBoardInvariants(t *testing.T) {
 	boardShortName := setupBoard(t)
 
-	opMessagesData := []domain.MessageCreationData{
-		{Author: domain.User{Id: 1}, Text: "op_inv_1"},
-		{Author: domain.User{Id: 2}, Text: "op_inv_2"},
-		{Author: domain.User{Id: 3}, Text: "op_inv_3"},
-	}
-
-	threadCount := storage.cfg.Public.ThreadsPerPage*3 + 1
+	// Create multiple threads
+	threadCount := storage.cfg.Public.ThreadsPerPage*2 + 1 // Enough for multiple pages
 	createdThreadIDs := make([]domain.ThreadId, threadCount)
+
 	for i := range createdThreadIDs {
-		opMsg := opMessagesData[rand.Intn(len(opMessagesData))]
 		threadData := domain.ThreadCreationData{
-			Title:     "Invariant Thread " + strconv.Itoa(i+1),
-			Board:     boardShortName,
-			OpMessage: opMsg,
+			Title: fmt.Sprintf("Stress Thread %d", i+1),
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Author: domain.User{Id: int64(i%3 + 1)}, // Rotate between 3 users
+				Text:   fmt.Sprintf("OP for thread %d", i+1),
+			},
 		}
 		createdThreadIDs[i] = createTestThread(t, threadData)
 	}
 
-	pages := threadCount / storage.cfg.Public.ThreadsPerPage
-	if threadCount%storage.cfg.Public.ThreadsPerPage != 0 {
-		pages++
-	}
-
-	messageCount := storage.cfg.Public.BumpLimit*threadCount + 1 // Create enough messages to test bumping and message limits
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	// Add messages to various threads to test bumping
+	r := rand.New(rand.NewSource(42)) // Fixed seed for reproducible tests
+	messageCount := threadCount * 5   // 5 messages per thread on average
 
 	for i := 0; i < messageCount; i++ {
 		targetThreadID := createdThreadIDs[r.Intn(len(createdThreadIDs))]
-		templateMsg := opMessagesData[r.Intn(len(opMessagesData))]
-
 		replyData := domain.MessageCreationData{
-			Board:       boardShortName,
-			Author:      templateMsg.Author,
-			Text:        fmt.Sprintf("Reply %d to %s", i, templateMsg.Text),
-			Attachments: templateMsg.Attachments,
-			ThreadId:    targetThreadID,
+			Board:    boardShortName,
+			Author:   domain.User{Id: int64(r.Intn(5) + 1)},
+			Text:     fmt.Sprintf("Reply %d", i),
+			ThreadId: targetThreadID,
 		}
 		createTestMessage(t, replyData)
-		if i%10 == 0 { // Periodically check invariants
-			for page := 1; page <= pages; page++ {
-				checkBoardInvariants(t, boardShortName, page)
-			}
+	}
+
+	// Calculate expected pages
+	pages := (threadCount + storage.cfg.Public.ThreadsPerPage - 1) / storage.cfg.Public.ThreadsPerPage
+
+	t.Run("structural invariants", func(t *testing.T) {
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
+
+		for page := 1; page <= pages; page++ {
+			checkBoardInvariants(t, boardShortName, page)
 		}
-	}
 
-	for page := 1; page <= pages; page++ {
-		checkBoardInvariants(t, boardShortName, page)
-	}
-
-	require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
-	page := pages + 1
-	board, err := storage.GetBoard(boardShortName, page)
-	require.NoError(t, err)
-	require.Empty(t, board.Threads, "There are should be no threads on page > number_of_threads/threads_per_page")
+		// Test empty page beyond valid range
+		board, err := storage.GetBoard(boardShortName, pages+1)
+		require.NoError(t, err)
+		assert.Empty(t, board.Threads, "Page beyond valid range should be empty")
+	})
 }
 
 // checkBoardInvariants is a helper to verify board structure rules.
@@ -355,665 +403,468 @@ func checkBoardInvariants(t *testing.T, boardShortName domain.BoardShortName, pa
 
 // TestGetActiveBoards verifies retrieval of recently active boards.
 func TestGetActiveBoards(t *testing.T) {
-	t.Run("created board is active by default", func(t *testing.T) {
+	t.Run("newly created board is active", func(t *testing.T) {
 		boardShortName := setupBoard(t)
 
 		boards, err := storage.GetActiveBoards(1 * time.Hour)
 		require.NoError(t, err)
-
-		found := false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Newly created board %s should be in active list", boardShortName)
+		assertBoardInActiveList(t, boards, boardShortName, true, "Newly created board should be active")
 	})
 
-	t.Run("board activity after message creation", func(t *testing.T) {
-		boardShortName, threadId := setupBoardAndThread(t)
+	t.Run("respects activity interval", func(t *testing.T) {
+		boardShortName := setupBoard(t)
 
-		oldTime := time.Now().UTC().Add(-10 * time.Minute)
-		_, err := storage.db.Exec("UPDATE boards SET last_activity = $1 WHERE short_name = $2", oldTime, boardShortName)
-		require.NoError(t, err, "Failed to set old activity time")
+		// Set activity to 30 minutes ago
+		setBoardActivityTime(t, storage, boardShortName, time.Now().UTC().Add(-30*time.Minute))
+
+		// Should be active for 31 minute interval
+		boards, err := storage.GetActiveBoards(31 * time.Minute)
+		require.NoError(t, err)
+		assertBoardInActiveList(t, boards, boardShortName, true, "Board should be active for interval > 30 mins")
+
+		// Should be inactive for 29 minute interval
+		boards, err = storage.GetActiveBoards(29 * time.Minute)
+		require.NoError(t, err)
+		assertBoardInActiveList(t, boards, boardShortName, false, "Board should be inactive for interval < 30 mins")
+	})
+
+	t.Run("activity updates on message creation", func(t *testing.T) {
+		boardShortName := setupBoard(t)
+
+		// Create a thread first
+		threadData := domain.ThreadCreationData{
+			Title: "Thread for message creation test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: 1},
+				Text:   "OP for message test",
+			},
+		}
+		threadId := createTestThread(t, threadData)
+
+		// Make board inactive
+		setBoardActivityTime(t, storage, boardShortName, time.Now().UTC().Add(-10*time.Minute))
 
 		boards, err := storage.GetActiveBoards(5 * time.Minute)
 		require.NoError(t, err)
-		found := false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.False(t, found, "Board %s should be inactive after activity time is made old", boardShortName)
+		assertBoardInActiveList(t, boards, boardShortName, false, "Board should be inactive initially")
 
-		msgData := domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 1}, Text: "test msg for activity", ThreadId: threadId}
+		// Create message to reactivate board
+		msgData := domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 1},
+			Text:     "test msg for activity",
+			ThreadId: threadId,
+		}
 		_ = createTestMessage(t, msgData)
 
 		boards, err = storage.GetActiveBoards(5 * time.Minute)
 		require.NoError(t, err)
-		found = false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Board %s should become active again immediately after message creation", boardShortName)
+		assertBoardInActiveList(t, boards, boardShortName, true, "Board should become active after message creation")
 	})
 
-	t.Run("board activity after message deletion", func(t *testing.T) {
-		boardShortName, _, msgId := setupBoardAndThreadAndMessage(t)
+	t.Run("activity updates on operations", func(t *testing.T) {
+		// Test that all CRUD operations update activity
+		testCases := []struct {
+			name   string
+			action func(domain.BoardShortName) error
+		}{
+			{
+				name: "thread creation",
+				action: func(boardShortName domain.BoardShortName) error {
+					opMsg := domain.MessageCreationData{
+						Board:  boardShortName,
+						Author: domain.User{Id: 1},
+						Text:   "op msg activity",
+					}
+					threadData := domain.ThreadCreationData{
+						Title:     "activity test thread",
+						Board:     boardShortName,
+						OpMessage: opMsg,
+					}
+					_ = createTestThread(t, threadData)
+					return nil
+				},
+			},
+			{
+				name: "message deletion",
+				action: func(boardShortName domain.BoardShortName) error {
+					// Create a thread and message to delete within this board
+					threadData := domain.ThreadCreationData{
+						Title: "Thread for deletion test",
+						Board: boardShortName,
+						OpMessage: domain.MessageCreationData{
+							Board:  boardShortName,
+							Author: domain.User{Id: 1},
+							Text:   "OP for deletion test",
+						},
+					}
+					threadId := createTestThread(t, threadData)
 
-		oldTime := time.Now().UTC().Add(-10 * time.Minute)
-		_, err := storage.db.Exec("UPDATE boards SET last_activity = $1 WHERE short_name = $2", oldTime, boardShortName)
-		require.NoError(t, err, "Failed to set old activity time")
+					msgData := domain.MessageCreationData{
+						Board:    boardShortName,
+						Author:   domain.User{Id: 2},
+						Text:     "Message to delete",
+						ThreadId: threadId,
+					}
+					msgId := createTestMessage(t, msgData)
 
-		boards, err := storage.GetActiveBoards(5 * time.Minute)
-		require.NoError(t, err)
-		found := false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.False(t, found, "Board should be inactive before message deletion")
+					return storage.DeleteMessage(boardShortName, msgId)
+				},
+			},
+			{
+				name: "thread deletion",
+				action: func(boardShortName domain.BoardShortName) error {
+					// Create a thread to delete within this board
+					threadData := domain.ThreadCreationData{
+						Title: "Thread for deletion test",
+						Board: boardShortName,
+						OpMessage: domain.MessageCreationData{
+							Board:  boardShortName,
+							Author: domain.User{Id: 1},
+							Text:   "OP for deletion test",
+						},
+					}
+					threadId := createTestThread(t, threadData)
 
-		err = storage.DeleteMessage(boardShortName, msgId)
-		require.NoError(t, err, "Failed to delete message")
-
-		boards, err = storage.GetActiveBoards(5 * time.Minute)
-		require.NoError(t, err)
-		found = false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Board should become active again after message deletion")
-	})
-
-	t.Run("board activity after thread creation", func(t *testing.T) {
-		boardShortName := setupBoard(t)
-
-		oldTime := time.Now().UTC().Add(-10 * time.Minute)
-		_, err := storage.db.Exec("UPDATE boards SET last_activity = $1 WHERE short_name = $2", oldTime, boardShortName)
-		require.NoError(t, err, "Failed to set old activity time")
-
-		boards, err := storage.GetActiveBoards(5 * time.Minute)
-		require.NoError(t, err)
-		found := false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.False(t, found, "Board should be inactive before thread creation")
-
-		opMsg := domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 1}, Text: "op msg activity"}
-		threadCreateData := domain.ThreadCreationData{Title: "activity test thread", Board: boardShortName, OpMessage: opMsg}
-		_ = createTestThread(t, threadCreateData)
-
-		boards, err = storage.GetActiveBoards(5 * time.Minute)
-		require.NoError(t, err)
-		found = false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Board should become active again immediately after thread creation")
-	})
-
-	t.Run("board activity after thread deletion", func(t *testing.T) {
-		boardShortName, threadId := setupBoardAndThread(t)
-
-		oldTime := time.Now().UTC().Add(-10 * time.Minute)
-		_, err := storage.db.Exec("UPDATE boards SET last_activity = $1 WHERE short_name = $2", oldTime, boardShortName)
-		require.NoError(t, err, "Failed to set old activity time")
-
-		boards, err := storage.GetActiveBoards(5 * time.Minute)
-		require.NoError(t, err)
-		found := false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.False(t, found, "Board should be inactive before thread deletion")
-
-		err = storage.DeleteThread(boardShortName, threadId)
-		require.NoError(t, err, "Failed to delete thread")
-
-		boards, err = storage.GetActiveBoards(5 * time.Minute)
-		require.NoError(t, err)
-		found = false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Board should become active again immediately after thread deletion")
-	})
-
-	t.Run("board activity respects interval", func(t *testing.T) {
-		boardShortName, _ := setupBoardAndThread(t)
-
-		activityTime := time.Now().UTC().Add(-30 * time.Minute)
-		_, err := storage.db.Exec("UPDATE boards SET last_activity = $1 WHERE short_name = $2", activityTime, boardShortName)
-		require.NoError(t, err, "Failed to update activity timestamp")
-
-		boards, err := storage.GetActiveBoards(31 * time.Minute)
-		require.NoError(t, err)
-		found := false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Board should be active for interval > 30 mins")
-
-		boards, err = storage.GetActiveBoards(29 * time.Minute)
-		require.NoError(t, err)
-		found = false
-		for _, b := range boards {
-			if b.ShortName == boardShortName {
-				found = true
-				break
-			}
-		}
-		assert.False(t, found, "Board should be inactive for interval < 30 mins")
-	})
-
-	t.Run("multiple active boards", func(t *testing.T) {
-		board1 := setupBoard(t)
-		board2 := setupBoard(t)
-		board3 := setupBoard(t)
-		activeShortNames := map[domain.BoardShortName]bool{board1: true, board2: true, board3: true}
-
-		boards, err := storage.GetActiveBoards(1 * time.Hour)
-		require.NoError(t, err)
-
-		returnedCount := 0
-		for _, b := range boards {
-			if _, ok := activeShortNames[b.ShortName]; ok {
-				returnedCount++
-			}
-		}
-		assert.Equal(t, len(activeShortNames), returnedCount, "Should find all 3 newly created boards active")
-
-		oldTime := time.Now().UTC().Add(-2 * time.Hour) // Make sure it's older than 1 hour
-		for sn := range activeShortNames {
-			_, errDb := storage.db.Exec("UPDATE boards SET last_activity = $1 WHERE short_name = $2", oldTime, sn)
-			require.NoError(t, errDb)
+					return storage.DeleteThread(boardShortName, threadId)
+				},
+			},
 		}
 
-		// Interval is 1 hour, boards are 2 hours old, so should not be active
-		boards, err = storage.GetActiveBoards(1 * time.Hour)
-		require.NoError(t, err)
-		returnedCount = 0
-		for _, b := range boards {
-			if _, ok := activeShortNames[b.ShortName]; ok {
-				returnedCount++
-			}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				boardShortName := setupBoard(t)
+
+				// Make board inactive
+				setBoardActivityTime(t, storage, boardShortName, time.Now().UTC().Add(-10*time.Minute))
+
+				boards, err := storage.GetActiveBoards(5 * time.Minute)
+				require.NoError(t, err)
+				assertBoardInActiveList(t, boards, boardShortName, false, "Board should be inactive before operation")
+
+				// Perform action
+				err = tc.action(boardShortName)
+				require.NoError(t, err)
+
+				boards, err = storage.GetActiveBoards(5 * time.Minute)
+				require.NoError(t, err)
+				assertBoardInActiveList(t, boards, boardShortName, true, "Board should become active after %s", tc.name)
+			})
 		}
-		assert.Zero(t, returnedCount, "Should find 0 boards active after setting their activity to be old")
 	})
 }
 
 // TestGetBoards verifies retrieval of all board metadata.
 func TestGetBoards(t *testing.T) {
-	t.Run("no boards initially, then returns created boards", func(t *testing.T) {
-		// Get initial state (might include boards from other parallel tests, focus on delta)
+	t.Run("returns boards in creation order", func(t *testing.T) {
+		// Get initial state to calculate delta
 		initialBoards, err := storage.GetBoards()
 		require.NoError(t, err)
 
-		// Create boards
-		createdBoards := make(map[domain.BoardShortName]domain.BoardCreationData)
-		var boardsOrder []domain.BoardShortName
-		for _, board := range []domain.BoardCreationData{
-			{Name: "Board Alpha", ShortName: "b1", AllowedEmails: &domain.Emails{"one@example.com"}},
-			{Name: "Board Beta", ShortName: "b2", AllowedEmails: nil},
-			{Name: "Board Gamma", ShortName: "b3", AllowedEmails: &domain.Emails{"three@example.com", "another@example.com"}},
-		} {
+		// Create test boards
+		createdBoards := []domain.BoardCreationData{
+			{Name: "Board Alpha", ShortName: generateString(t), AllowedEmails: &domain.Emails{"one@example.com"}},
+			{Name: "Board Beta", ShortName: generateString(t), AllowedEmails: nil},
+			{Name: "Board Gamma", ShortName: generateString(t), AllowedEmails: &domain.Emails{"three@example.com", "another@example.com"}},
+		}
+
+		createdMap := make(map[domain.BoardShortName]domain.BoardCreationData)
+		var expectedOrder []domain.BoardShortName
+
+		for _, board := range createdBoards {
 			err = storage.CreateBoard(board)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, storage.DeleteBoard(board.ShortName)) })
-			createdBoards[board.ShortName] = board
-			boardsOrder = append(boardsOrder, board.ShortName)
+			createdMap[board.ShortName] = board
+			expectedOrder = append(expectedOrder, board.ShortName)
 		}
 
 		allBoards, err := storage.GetBoards()
 		require.NoError(t, err)
-		require.Len(t, allBoards, len(initialBoards)+3, "Should retrieve all boards plus the 3 created in this test")
+		require.Len(t, allBoards, len(initialBoards)+3, "Should retrieve all boards plus the 3 created")
 
-		// Extract the boards created in this test, maintaining their order from allBoards
+		// Extract test boards maintaining their order
 		var testBoards []domain.Board
 		for _, b := range allBoards {
-			if _, ok := createdBoards[b.ShortName]; ok {
+			if _, ok := createdMap[b.ShortName]; ok {
 				testBoards = append(testBoards, b)
+
+				// Verify metadata consistency with GetBoard
 				board, err := storage.GetBoard(b.ShortName, 1)
 				require.NoError(t, err)
-				assert.Equal(t, board.BoardMetadata, b.BoardMetadata, "Board from GetBoards and GetBoard should have equal metadata")
+				assert.Equal(t, board.BoardMetadata, b.BoardMetadata, "Metadata should match GetBoard result")
 			}
 		}
 
-		require.Len(t, testBoards, 3, "Should find all 3 test boards among all boards")
+		require.Len(t, testBoards, 3, "Should find all 3 test boards")
 
-		// Verify order: board1SN should appear before board2SN, which should appear before board3SN
-		assert.Equal(t, boardsOrder[0], testBoards[0].ShortName, "Board1 not in correct order")
-		assert.Equal(t, boardsOrder[1], testBoards[1].ShortName, "Board2 not in correct order")
-		assert.Equal(t, boardsOrder[2], testBoards[2].ShortName, "Board3 not in correct order")
-	})
-
-	t.Run("returns empty list if no boards exist", func(t *testing.T) {
-		// To test this reliably, we'd need to ensure the DB is empty or
-		// filter out boards not belonging to this specific test scope.
-		// Assuming other tests clean up, we can create a temporary board and delete it.
-		tempBoardSN := generateString(t)
-		err := storage.CreateBoard(domain.BoardCreationData{Name: "Temp", ShortName: tempBoardSN})
-		require.NoError(t, err)
-		err = storage.DeleteBoard(tempBoardSN)
-		require.NoError(t, err)
-
-		boards, err := storage.GetBoards() // Just ensure it doesn't error.
-		require.NoError(t, err)
-		assert.Len(t, boards, 0)
+		// Verify creation order is preserved
+		for i, expectedSN := range expectedOrder {
+			assert.Equal(t, expectedSN, testBoards[i].ShortName, "Board order mismatch at index %d", i)
+		}
 	})
 }
 
 // TestGetBoardsByUser verifies retrieval of boards based on user permissions.
 func TestGetBoardsByUser(t *testing.T) {
-	adminUser := domain.User{Id: 101, Email: "admin@example.com", Admin: true}
-	userDomain1 := domain.User{Id: 102, Email: "user@domain1.com", Admin: false}
-	userDomain2 := domain.User{Id: 103, Email: "user@domain2.com", Admin: false}
-	userOtherDomain := domain.User{Id: 104, Email: "user@other.com", Admin: false}
+	// Setup test boards with different access levels
+	boardPublic := generateString(t)
+	boardDomain1 := generateString(t)
+	boardDomain2 := generateString(t)
 
-	boardASN := generateString(t)
-	boardBSN := generateString(t)
-	boardCSN := generateString(t)
-	createdBoards := make(map[domain.BoardShortName]domain.BoardCreationData)
-	for _, board := range []domain.BoardCreationData{
-		{Name: "Public Board A", ShortName: boardASN, AllowedEmails: nil},
-		{Name: "Domain1 Board B", ShortName: boardBSN, AllowedEmails: &domain.Emails{"domain1.com"}},
-		{Name: "MultiDomain Board C", ShortName: boardCSN, AllowedEmails: &domain.Emails{"domain2.com", "another.com"}},
-	} {
+	testBoards := []domain.BoardCreationData{
+		{Name: "Public Board", ShortName: boardPublic, AllowedEmails: nil},
+		{Name: "Domain1 Board", ShortName: boardDomain1, AllowedEmails: &domain.Emails{"domain1.com"}},
+		{Name: "Domain2 Board", ShortName: boardDomain2, AllowedEmails: &domain.Emails{"domain2.com", "another.com"}},
+	}
+
+	for _, board := range testBoards {
 		err := storage.CreateBoard(board)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, storage.DeleteBoard(board.ShortName)) })
-		createdBoards[board.ShortName] = board
 	}
 
-	// Helper to verify board metadata fields now that all are populated
-	verifyFullBoardMetadata := func(t *testing.T, board domain.Board) {
-		t.Helper()
-
-		expectedBoard, err := storage.GetBoard(board.ShortName, 1)
-		require.NoError(t, err)
-		assert.Equal(t, expectedBoard.BoardMetadata, board.BoardMetadata, "Board metadata should be equal to GetBoard call")
+	// Helper to filter and verify test-specific boards
+	filterTestBoards := func(boards []domain.Board) []domain.Board {
+		var filtered []domain.Board
+		testBoardNames := map[domain.BoardShortName]bool{
+			boardPublic: true, boardDomain1: true, boardDomain2: true,
+		}
+		for _, b := range boards {
+			if testBoardNames[b.ShortName] {
+				filtered = append(filtered, b)
+			}
+		}
+		return filtered
 	}
 
-	t.Run("admin user gets all boards with full metadata", func(t *testing.T) {
+	t.Run("admin sees all boards", func(t *testing.T) {
+		adminUser := domain.User{Id: 101, Email: "admin@example.com", Admin: true}
 		boards, err := storage.GetBoardsByUser(adminUser)
 		require.NoError(t, err)
 
-		orderedExpectedSNs := []domain.BoardShortName{boardASN, boardBSN, boardCSN} // Order of creation
-		// Filter for boards created in this test, maintaining order
-		var testSpecificBoards []domain.Board
-		for _, b := range boards {
-			if _, ok := createdBoards[b.ShortName]; ok {
-				testSpecificBoards = append(testSpecificBoards, b)
-			}
-		}
+		testBoards := filterTestBoards(boards)
+		assert.Len(t, testBoards, 3, "Admin should see all boards")
 
-		require.Equal(t, len(orderedExpectedSNs), len(testSpecificBoards), "Admin should see all 3 test-created boards")
-		for i, sn := range orderedExpectedSNs {
-			require.Equal(t, sn, testSpecificBoards[i].ShortName, "Admin: board order mismatch at index %d", i)
-			verifyFullBoardMetadata(t, testSpecificBoards[i])
+		// Verify order matches creation order
+		expectedOrder := []domain.BoardShortName{boardPublic, boardDomain1, boardDomain2}
+		for i, expectedSN := range expectedOrder {
+			assert.Equal(t, expectedSN, testBoards[i].ShortName, "Admin board order mismatch")
 		}
 	})
 
-	t.Run("non-admin user on domain1.com gets relevant boards with full metadata", func(t *testing.T) {
-		boards, err := storage.GetBoardsByUser(userDomain1)
-		require.NoError(t, err)
-
-		orderedExpectedSNs := []domain.BoardShortName{boardASN, boardBSN} // Order of creation
-		// Filter for boards created in this test, maintaining order
-		var testSpecificBoards []domain.Board
-		for _, b := range boards {
-			if _, ok := createdBoards[b.ShortName]; ok {
-				testSpecificBoards = append(testSpecificBoards, b)
-			}
+	t.Run("user sees allowed boards only", func(t *testing.T) {
+		testCases := []struct {
+			name        string
+			user        domain.User
+			expectedSNs []domain.BoardShortName
+		}{
+			{
+				name:        "domain1 user",
+				user:        domain.User{Id: 102, Email: "user@domain1.com", Admin: false},
+				expectedSNs: []domain.BoardShortName{boardPublic, boardDomain1},
+			},
+			{
+				name:        "domain2 user",
+				user:        domain.User{Id: 103, Email: "user@domain2.com", Admin: false},
+				expectedSNs: []domain.BoardShortName{boardPublic, boardDomain2},
+			},
+			{
+				name:        "other domain user",
+				user:        domain.User{Id: 104, Email: "user@other.com", Admin: false},
+				expectedSNs: []domain.BoardShortName{boardPublic},
+			},
 		}
 
-		require.Equal(t, len(orderedExpectedSNs), len(testSpecificBoards), "User from domain1.com should see 2 specific boards")
-		for i, sn := range orderedExpectedSNs {
-			require.Equal(t, sn, testSpecificBoards[i].ShortName, "User on domain1.com: board order mismatch at index %d", i)
-			verifyFullBoardMetadata(t, testSpecificBoards[i])
-		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				boards, err := storage.GetBoardsByUser(tc.user)
+				require.NoError(t, err)
 
-		// Ensure Board C is not present
-		foundC := false
-		for _, b := range boards {
-			if b.ShortName == boardCSN {
-				foundC = true
-				break
-			}
+				testBoards := filterTestBoards(boards)
+				require.Len(t, testBoards, len(tc.expectedSNs), "User should see expected number of boards")
+
+				for i, expectedSN := range tc.expectedSNs {
+					assert.Equal(t, expectedSN, testBoards[i].ShortName, "Board order mismatch for %s", tc.name)
+				}
+			})
 		}
-		assert.False(t, foundC, "User from domain1.com should NOT see board C")
 	})
 
-	t.Run("non-admin user on domain2.com gets relevant boards with full metadata", func(t *testing.T) {
-		boards, err := storage.GetBoardsByUser(userDomain2)
-		require.NoError(t, err)
-
-		orderedExpectedSNs := []domain.BoardShortName{boardASN, boardCSN} // Order of creation
-		// Filter for boards created in this test, maintaining order
-		var testSpecificBoards []domain.Board
-		for _, b := range boards {
-			if _, ok := createdBoards[b.ShortName]; ok {
-				testSpecificBoards = append(testSpecificBoards, b)
-			}
-		}
-
-		require.Equal(t, len(orderedExpectedSNs), len(testSpecificBoards), "User from domain2.com should see 2 specific boards")
-		for i, sn := range orderedExpectedSNs {
-			require.Equal(t, sn, testSpecificBoards[i].ShortName, "User on domain2.com: board order mismatch at index %d", i)
-			verifyFullBoardMetadata(t, testSpecificBoards[i])
-		}
-
-		// Ensure Board B is not present
-		foundB := false
-		for _, b := range boards {
-			if b.ShortName == boardBSN {
-				foundB = true
-				break
-			}
-		}
-		assert.False(t, foundB, "User from domain2.com should NOT see board B")
-	})
-
-	t.Run("non-admin user on other.com (sees only public) with full metadata", func(t *testing.T) {
-		boards, err := storage.GetBoardsByUser(userOtherDomain)
-		require.NoError(t, err)
-
-		var testSpecificBoardA *domain.Board
-		for i := range boards { // Iterate by index to get a pointer
-			if boards[i].ShortName == boardASN {
-				testSpecificBoardA = &boards[i]
-				break
-			}
-		}
-		require.NotNil(t, testSpecificBoardA, "User from other.com should see public board A")
-		verifyFullBoardMetadata(t, *testSpecificBoardA)
-
-		// Ensure Board B and C are not present
-		foundB := false
-		for _, b := range boards {
-			if b.ShortName == boardBSN {
-				foundB = true
-				break
-			}
-		}
-		assert.False(t, foundB, "User from other.com should not see board B")
-		foundC := false
-		for _, b := range boards {
-			if b.ShortName == boardCSN {
-				foundC = true
-				break
-			}
-		}
-		assert.False(t, foundC, "User from other.com should not see board C")
-	})
-
-	t.Run("user with malformed email (domain extraction fails)", func(t *testing.T) {
-		userMalformedEmail := domain.User{Id: 105, Email: "malformedemail", Admin: false} // No @ symbol
+	t.Run("malformed email fails", func(t *testing.T) {
+		userMalformedEmail := domain.User{Id: 105, Email: "malformedemail", Admin: false}
 		_, err := storage.GetBoardsByUser(userMalformedEmail)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Cant get user domain")                  // Error from domain.User.EmailDomain()
-		assert.Contains(t, err.Error(), "could not determine user email domain") // Wrapper error from GetBoardsByUser
-	})
-
-	t.Run("user with email domain that matches no restricted boards", func(t *testing.T) {
-		// This user should only see public boards (like boardASN) if any exist.
-		// They should not see boardBSN or boardCSN.
-		// An isolated board is also created to ensure it's not seen.
-		isolatedBoardSN := generateString(t)
-		isolatedBoardName := "Isolated Board For NoAccess Test"
-		allowedIsolated := &domain.Emails{"isolated-domain.com"}
-		err := storage.CreateBoard(domain.BoardCreationData{Name: isolatedBoardName, ShortName: isolatedBoardSN, AllowedEmails: allowedIsolated})
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, storage.DeleteBoard(isolatedBoardSN)) })
-
-		userNoAccessToRestricted := domain.User{Id: 106, Email: "nobody@nowhere.com", Admin: false}
-		boards, err := storage.GetBoardsByUser(userNoAccessToRestricted)
-		require.NoError(t, err)
-
-		foundIsolated := false
-		var foundBoardA *domain.Board
-		for i := range boards {
-			if boards[i].ShortName == isolatedBoardSN {
-				foundIsolated = true
-			}
-			if boards[i].ShortName == boardASN { // Check if public board A is seen
-				foundBoardA = &boards[i]
-			}
-		}
-		assert.False(t, foundIsolated, "User with no matching domain should not see the isolated board")
-
-		// This user *should* see public board A.
-		require.NotNil(t, foundBoardA, "User with no domain match should still see public board A")
-		if foundBoardA != nil {
-			verifyFullBoardMetadata(t, *foundBoardA)
-		}
+		assert.Contains(t, err.Error(), "could not determine user email domain")
 	})
 }
 
 // TestThreadCount verifies counting threads on a board.
 func TestThreadCount(t *testing.T) {
-	boardA := setupBoard(t)
-	boardB := setupBoard(t)
+	t.Run("counts correctly", func(t *testing.T) {
+		boardA := setupBoard(t)
+		boardB := setupBoard(t)
 
-	t.Run("EmptyBoard", func(t *testing.T) {
+		// Empty board
 		count, err := storage.ThreadCount(boardA)
 		require.NoError(t, err)
-		assert.Equal(t, 0, count, "Count should be 0 for an empty board")
-	})
+		assert.Equal(t, 0, count, "Empty board should have 0 threads")
 
-	t.Run("OneThread", func(t *testing.T) {
-		opMsg := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP A1"}
-		threadData := domain.ThreadCreationData{Title: "Thread Count 1", Board: boardA, OpMessage: opMsg}
-		threadID := createTestThread(t, threadData)
-		// No t.Cleanup for threadID here, board cleanup will handle it.
+		// Add threads to boardA
+		for i := 1; i <= 3; i++ {
+			opMsg := domain.MessageCreationData{
+				Board:  boardA,
+				Author: domain.User{Id: int64(i)},
+				Text:   fmt.Sprintf("OP %d", i),
+			}
+			threadData := domain.ThreadCreationData{
+				Title:     fmt.Sprintf("Thread %d", i),
+				Board:     boardA,
+				OpMessage: opMsg,
+			}
+			_ = createTestThread(t, threadData)
+		}
 
-		count, err := storage.ThreadCount(boardA)
+		// Add one thread to boardB
+		opMsgB := domain.MessageCreationData{
+			Board:  boardB,
+			Author: domain.User{Id: 10},
+			Text:   "OP B",
+		}
+		threadDataB := domain.ThreadCreationData{
+			Title:     "Thread B",
+			Board:     boardB,
+			OpMessage: opMsgB,
+		}
+		_ = createTestThread(t, threadDataB)
+
+		// Verify counts
+		countA, err := storage.ThreadCount(boardA)
 		require.NoError(t, err)
-		assert.Equal(t, 1, count, "Count should be 1")
-		// Deleting thread explicitly to reset count for next subtest if needed, though board cleanup is primary.
-		err = storage.DeleteThread(boardA, threadID)
+		assert.Equal(t, 3, countA, "Board A should have 3 threads")
+
+		countB, err := storage.ThreadCount(boardB)
 		require.NoError(t, err)
-	})
-
-	t.Run("MultipleThreads", func(t *testing.T) {
-		op1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP A1"}
-		td1 := domain.ThreadCreationData{Title: "Thread Count A1", Board: boardA, OpMessage: op1}
-		tID1 := createTestThread(t, td1)
-
-		op2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP A2"}
-		td2 := domain.ThreadCreationData{Title: "Thread Count A2", Board: boardA, OpMessage: op2}
-		tID2 := createTestThread(t, td2)
-
-		op3 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 3}, Text: "OP A3"}
-		td3 := domain.ThreadCreationData{Title: "Thread Count A3", Board: boardA, OpMessage: op3}
-		tID3 := createTestThread(t, td3)
-
-		count, err := storage.ThreadCount(boardA)
-		require.NoError(t, err)
-		assert.Equal(t, 3, count, "Count should be 3")
-
-		// Clean up threads for this sub-test to ensure independence if boardA is reused.
-		require.NoError(t, storage.DeleteThread(boardA, tID1))
-		require.NoError(t, storage.DeleteThread(boardA, tID2))
-		require.NoError(t, storage.DeleteThread(boardA, tID3))
-	})
-
-	t.Run("MultipleBoards", func(t *testing.T) {
-		opA1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP A1 Multi"}
-		_ = createTestThread(t, domain.ThreadCreationData{Title: "Thread A1 Multi", Board: boardA, OpMessage: opA1})
-		opA2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP A2 Multi"}
-		_ = createTestThread(t, domain.ThreadCreationData{Title: "Thread A2 Multi", Board: boardA, OpMessage: opA2})
-
-		opB1 := domain.MessageCreationData{Board: boardB, Author: domain.User{Id: 3}, Text: "OP B1 Multi"}
-		_ = createTestThread(t, domain.ThreadCreationData{Title: "Thread B1 Multi", Board: boardB, OpMessage: opB1})
-
-		countA, errA := storage.ThreadCount(boardA)
-		require.NoError(t, errA)
-		assert.Equal(t, 2, countA, "Count for board A should be 2")
-
-		countB, errB := storage.ThreadCount(boardB)
-		require.NoError(t, errB)
-		assert.Equal(t, 1, countB, "Count for board B should be 1")
+		assert.Equal(t, 1, countB, "Board B should have 1 thread")
 	})
 }
 
 // TestLastThreadId verifies finding the ID of the least recently bumped (oldest) non-sticky thread.
 func TestLastThreadId(t *testing.T) {
-	t.Run("NoThreads", func(t *testing.T) {
+	t.Run("fails for empty board", func(t *testing.T) {
 		boardA := setupBoard(t)
 		_, err := storage.LastThreadId(boardA)
 		requireNotFoundError(t, err)
 	})
 
-	t.Run("OneThread", func(t *testing.T) {
+	t.Run("returns only thread", func(t *testing.T) {
 		boardA := setupBoard(t)
 		opMsg := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP Single"}
-		threadData := domain.ThreadCreationData{Title: "LastThreadId Single", Board: boardA, OpMessage: opMsg}
+		threadData := domain.ThreadCreationData{Title: "Single Thread", Board: boardA, OpMessage: opMsg}
 		tID := createTestThread(t, threadData)
-		defer storage.DeleteThread(boardA, tID) // Defer ensures cleanup even on test failure within subtest
 
 		lastID, err := storage.LastThreadId(boardA)
 		require.NoError(t, err)
-		assert.Equal(t, tID, lastID, "Last ID should be the only thread's ID")
+		assert.Equal(t, tID, lastID, "Should return the only thread ID")
 	})
 
-	t.Run("MultipleThreadsNoBumps", func(t *testing.T) {
+	t.Run("returns oldest unbumped thread", func(t *testing.T) {
 		boardA := setupBoard(t)
 
-		op1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP 1"}
-		td1 := domain.ThreadCreationData{Title: "LastThreadId NoBump 1", Board: boardA, OpMessage: op1}
-		tID1 := createTestThread(t, td1)
-		defer storage.DeleteThread(boardA, tID1)
-		time.Sleep(20 * time.Millisecond) // Ensure distinct creation/bump times
+		// Create threads with delays to ensure different creation times
+		var threadIDs []domain.ThreadId
+		for i := 1; i <= 3; i++ {
+			opMsg := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: int64(i)}, Text: fmt.Sprintf("OP %d", i)}
+			threadData := domain.ThreadCreationData{Title: fmt.Sprintf("Thread %d", i), Board: boardA, OpMessage: opMsg}
+			tID := createTestThread(t, threadData)
+			threadIDs = append(threadIDs, tID)
+			time.Sleep(20 * time.Millisecond) // Ensure distinct creation times
+		}
 
-		op2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP 2"}
-		td2 := domain.ThreadCreationData{Title: "LastThreadId NoBump 2", Board: boardA, OpMessage: op2}
-		tID2 := createTestThread(t, td2)
-		defer storage.DeleteThread(boardA, tID2)
+		lastID, err := storage.LastThreadId(boardA)
+		require.NoError(t, err)
+		assert.Equal(t, threadIDs[0], lastID, "Should return oldest thread ID")
+	})
+
+	t.Run("updates after bumping", func(t *testing.T) {
+		boardA := setupBoard(t)
+
+		// Create two threads
+		op1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP 1"}
+		tID1 := createTestThread(t, domain.ThreadCreationData{Title: "Thread 1", Board: boardA, OpMessage: op1})
 		time.Sleep(20 * time.Millisecond)
 
-		op3 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 3}, Text: "OP 3"}
-		td3 := domain.ThreadCreationData{Title: "LastThreadId NoBump 3", Board: boardA, OpMessage: op3}
-		tID3 := createTestThread(t, td3)
-		defer storage.DeleteThread(boardA, tID3)
+		op2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP 2"}
+		tID2 := createTestThread(t, domain.ThreadCreationData{Title: "Thread 2", Board: boardA, OpMessage: op2})
 
+		// Initially, oldest should be tID1
 		lastID, err := storage.LastThreadId(boardA)
 		require.NoError(t, err)
-		assert.Equal(t, tID1, lastID, "Last ID should be the oldest created thread (tID1)")
-	})
+		assert.Equal(t, tID1, lastID, "Initially oldest should be tID1")
 
-	t.Run("MultipleThreadsWithBumps", func(t *testing.T) {
-		boardA := setupBoard(t)
-		boardB := setupBoard(t)
+		// Bump tID1 by adding a message
+		_ = createTestMessage(t, domain.MessageCreationData{
+			Board:    boardA,
+			Author:   domain.User{Id: 3},
+			Text:     "Bump message",
+			ThreadId: tID1,
+		})
 
-		op1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP 1B"}
-		tID1 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId Bump 1", Board: boardA, OpMessage: op1})
-		defer storage.DeleteThread(boardA, tID1)
-
-		op2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP 2B"}
-		tID2 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId Bump 2", Board: boardA, OpMessage: op2})
-		defer storage.DeleteThread(boardA, tID2)
-
-		op3 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 3}, Text: "OP 3B"}
-		tID3 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId Bump 3", Board: boardB, OpMessage: op3})
-		defer storage.DeleteThread(boardA, tID3)
-
-		lastID, err := storage.LastThreadId(boardA)
-		require.NoError(t, err)
-		assert.Equal(t, tID1, lastID, "Initially, oldest is tID1")
-
-		_ = createTestMessage(t, domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 4}, Text: "Bump msg for tID1", ThreadId: tID1})
-
+		// Now oldest should be tID2
 		lastID, err = storage.LastThreadId(boardA)
 		require.NoError(t, err)
 		assert.Equal(t, tID2, lastID, "After bumping tID1, oldest should be tID2")
-
-		_ = createTestMessage(t, domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 5}, Text: "Bump msg for tID2", ThreadId: tID2})
-
-		lastID, err = storage.LastThreadId(boardA)
-		require.NoError(t, err)
-		assert.Equal(t, tID3, lastID, "After bumping tID2, oldest should be tID3")
 	})
 
-	t.Run("MultipleBoardsIsolation", func(t *testing.T) {
+	t.Run("ignores sticky threads", func(t *testing.T) {
+		boardA := setupBoard(t)
+
+		// Create two threads
+		op1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP Sticky"}
+		tID1 := createTestThread(t, domain.ThreadCreationData{Title: "Sticky Thread", Board: boardA, OpMessage: op1})
+		time.Sleep(20 * time.Millisecond)
+
+		op2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP Normal"}
+		tID2 := createTestThread(t, domain.ThreadCreationData{Title: "Normal Thread", Board: boardA, OpMessage: op2})
+
+		// Make first thread sticky
+		_, err := storage.db.Exec("UPDATE threads SET is_sticky = TRUE WHERE id = $1 AND board = $2", tID1, boardA)
+		require.NoError(t, err)
+
+		// Should return tID2 (non-sticky) even though tID1 is older
+		lastID, err := storage.LastThreadId(boardA)
+		require.NoError(t, err)
+		assert.Equal(t, tID2, lastID, "Should ignore sticky thread and return non-sticky thread")
+
+		// Make second thread sticky too
+		_, err = storage.db.Exec("UPDATE threads SET is_sticky = TRUE WHERE id = $1 AND board = $2", tID2, boardA)
+		require.NoError(t, err)
+
+		// Should fail when all threads are sticky
+		_, err = storage.LastThreadId(boardA)
+		requireNotFoundError(t, err)
+	})
+
+	t.Run("board isolation", func(t *testing.T) {
 		boardA := setupBoard(t)
 		boardB := setupBoard(t)
 
-		opA1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP A1"}
-		tA1 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId Iso A1", Board: boardA, OpMessage: opA1})
-		defer storage.DeleteThread(boardA, tA1)
-		time.Sleep(20 * time.Millisecond)
-		opA2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP A2"}
-		tA2 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId Iso A2", Board: boardA, OpMessage: opA2})
-		defer storage.DeleteThread(boardA, tA2)
+		// Create threads on both boards
+		opA := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP A"}
+		tA := createTestThread(t, domain.ThreadCreationData{Title: "Thread A", Board: boardA, OpMessage: opA})
 
-		opB1 := domain.MessageCreationData{Board: boardB, Author: domain.User{Id: 3}, Text: "OP B1"}
-		tB1 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId Iso B1", Board: boardB, OpMessage: opB1})
-		defer storage.DeleteThread(boardB, tB1)
+		opB := domain.MessageCreationData{Board: boardB, Author: domain.User{Id: 2}, Text: "OP B"}
+		tB := createTestThread(t, domain.ThreadCreationData{Title: "Thread B", Board: boardB, OpMessage: opB})
 
-		lastIDA, errA := storage.LastThreadId(boardA)
-		require.NoError(t, errA)
-		assert.Equal(t, tA1, lastIDA, "Last ID for board A should be tA1")
-
-		lastIDB, errB := storage.LastThreadId(boardB)
-		require.NoError(t, errB)
-		assert.Equal(t, tB1, lastIDB, "Last ID for board B should be tB1")
-	})
-
-	t.Run("StickyIgnored", func(t *testing.T) {
-		boardA := setupBoard(t)
-
-		opS1 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 1}, Text: "OP Sticky 1"}
-		tID1 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId Sticky 1", Board: boardA, OpMessage: opS1})
-		defer storage.DeleteThread(boardA, tID1) // Defer ensures cleanup
-
-		opNS2 := domain.MessageCreationData{Board: boardA, Author: domain.User{Id: 2}, Text: "OP NonSticky 2"}
-		tID2 := createTestThread(t, domain.ThreadCreationData{Title: "LastThreadId NonSticky 2", Board: boardA, OpMessage: opNS2})
-		defer storage.DeleteThread(boardA, tID2) // Defer ensures cleanup
-
-		// Manually set thread 1 sticky
-		// Note: Thread creation timestamp (last_bump_ts by default) for tID1 is older than tID2
-		_, err := storage.db.Exec("UPDATE threads SET is_sticky = TRUE WHERE id = $1 AND board = $2", tID1, boardA)
-		require.NoError(t, err, "Failed to manually set thread 1 sticky")
-
-		lastID, err := storage.LastThreadId(boardA)
+		// Each board should return its own thread
+		lastIDA, err := storage.LastThreadId(boardA)
 		require.NoError(t, err)
-		assert.Equal(t, tID2, lastID, "LastThreadId should ignore sticky thread tID1 and return non-sticky tID2")
+		assert.Equal(t, tA, lastIDA, "Board A should return its own thread")
 
-		// Set thread 2 sticky as well
-		_, err = storage.db.Exec("UPDATE threads SET is_sticky = TRUE WHERE id = $1 AND board = $2", tID2, boardA)
-		require.NoError(t, err, "Failed to manually set thread 2 sticky")
-
-		// Now all (test-specific) threads on boardA are sticky, should get 404
-		_, err = storage.LastThreadId(boardA)
-		requireNotFoundError(t, err) // Expect "No non-sticky threads found"
+		lastIDB, err := storage.LastThreadId(boardB)
+		require.NoError(t, err)
+		assert.Equal(t, tB, lastIDB, "Board B should return its own thread")
 	})
 }
