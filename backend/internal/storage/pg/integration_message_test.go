@@ -1,6 +1,7 @@
 package pg
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,25 +11,98 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCreateMessage verifies message creation logic, including board activity updates.
+// verifyBoardActivityUnchanged asserts that the board's last_activity has not changed.
+func verifyBoardActivityUnchanged(t *testing.T, before, after domain.Board) {
+	t.Helper()
+	assert.Equal(t, before.LastActivity.UTC(), after.LastActivity.UTC(), "Board last_activity should remain unchanged")
+}
+
 func TestCreateMessage(t *testing.T) {
 	boardShortName, threadID := setupBoardAndThread(t) // Creates board & thread, handles cleanup
-
-	// Get initial board state once *after* thread creation (as thread creation also updates activity)
-	initialBoard, err := storage.GetBoard(boardShortName, 1)
-	require.NoError(t, err, "Setup: Failed to get initial board state for: %s", boardShortName)
-
-	author := domain.User{Id: 2} // Use value type directly as required by MessageCreationData
+	author := domain.User{Id: 2}
 	text := "Test message for create"
 	attachments := &domain.Attachments{"file1.jpg", "file2.png"}
 
-	// --- Subtest: Successful Creation and Verification ---
+	t.Run("Create Message with Reply", func(t *testing.T) {
+		// Create the base message.
+		baseMsgID := createTestMessage(t, domain.MessageCreationData{
+			Board:       boardShortName,
+			Author:      author,
+			Text:        text,
+			Attachments: attachments,
+			ThreadId:    threadID,
+		})
+
+		// Create a reply referencing the base message.
+		replyText := "Reply to first message"
+		replyMsgID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   author,
+			Text:     replyText,
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					FromThreadId: threadID,
+					To:           baseMsgID,
+					ToThreadId:   threadID,
+				},
+			},
+		})
+
+		// Fetch the base message and verify its reply.
+		msg, err := storage.GetMessage(boardShortName, baseMsgID)
+		require.NoError(t, err, "GetMessage should not return an error")
+		require.NotNil(t, msg.Replies, "Replies should not be nil")
+		require.Len(t, msg.Replies, 1, "Base message should have one reply")
+		assert.Equal(t, replyMsgID, msg.Replies[0].From, "Reply From should match reply message ID")
+		assert.Equal(t, baseMsgID, msg.Replies[0].To, "Reply To should match base message ID")
+	})
+
+	t.Run("Multiple Replies Ordering", func(t *testing.T) {
+		// Create a base message that will receive multiple replies.
+		baseMsgID := createTestMessage(t, domain.MessageCreationData{
+			Board:       boardShortName,
+			Author:      author,
+			Text:        "Base for multiple replies",
+			Attachments: attachments,
+			ThreadId:    threadID,
+		})
+
+		// Create several replies with a slight delay to ensure distinct timestamps.
+		replyIDs := []domain.MsgId{}
+		replyTexts := []string{"First reply", "Second reply", "Third reply"}
+		for _, rText := range replyTexts {
+			time.Sleep(10 * time.Millisecond)
+			replyID := createTestMessage(t, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   author,
+				Text:     rText,
+				ThreadId: threadID,
+				ReplyTo: &domain.Replies{
+					{
+						FromThreadId: threadID,
+						To:           baseMsgID,
+						ToThreadId:   threadID,
+					},
+				},
+			})
+			replyIDs = append(replyIDs, replyID)
+		}
+
+		// Verify that the base message now has three replies in order.
+		msg, err := storage.GetMessage(boardShortName, baseMsgID)
+		require.NoError(t, err)
+		require.Len(t, msg.Replies, 3, "Expected 3 replies")
+		for i, rep := range msg.Replies {
+			assert.Equal(t, replyIDs[i], rep.From, fmt.Sprintf("Reply order mismatch at position %d", i))
+		}
+	})
+
 	t.Run("Successful Creation and Verification", func(t *testing.T) {
-		// Add a small delay to ensure the new timestamp is distinct
+		// Delay to ensure the new timestamp is distinct.
 		time.Sleep(50 * time.Millisecond)
 		timeBeforeCreate := time.Now().UTC()
 
-		// Prepare creation data
 		creationData := domain.MessageCreationData{
 			Board:       boardShortName,
 			Author:      author,
@@ -37,12 +111,10 @@ func TestCreateMessage(t *testing.T) {
 			ThreadId:    threadID,
 		}
 
-		// Perform creation
 		msgID, createErr := storage.CreateMessage(creationData, false, nil)
 		require.NoError(t, createErr, "CreateMessage should not return an error")
 		require.Greater(t, msgID, int64(0), "Message ID should be greater than 0")
 
-		// Verify created message details (GetMessage retrieves from main table)
 		createdMsg, err := storage.GetMessage(creationData.Board, msgID)
 		require.NoError(t, err, "Failed to get created message")
 		assert.Equal(t, text, createdMsg.Text, "Message text mismatch")
@@ -53,26 +125,26 @@ func TestCreateMessage(t *testing.T) {
 		assert.Equal(t, threadID, createdMsg.ThreadId, "Thread ID mismatch")
 		assert.False(t, createdMsg.CreatedAt.IsZero(), "CreatedAt should not be zero")
 		assert.False(t, createdMsg.ModifiedAt.IsZero(), "ModifiedAt should not be zero")
-		assert.True(t, createdMsg.CreatedAt.Equal(createdMsg.ModifiedAt), "CreatedAt [%v] should equal ModifiedAt [%v] on creation", createdMsg.CreatedAt, createdMsg.ModifiedAt)
-		// Ensure timestamps are reasonably close and ordered correctly
-		assert.True(t, timeBeforeCreate.Before(createdMsg.CreatedAt) || timeBeforeCreate.Equal(createdMsg.CreatedAt), "timeBeforeCreate [%v] should be before or equal to CreatedAt [%v]", timeBeforeCreate, createdMsg.CreatedAt)
-		assert.WithinDuration(t, timeBeforeCreate, createdMsg.CreatedAt, 2*time.Second, "CreatedAt should be very close to timeBeforeCreate")
+		assert.True(t, createdMsg.CreatedAt.Equal(createdMsg.ModifiedAt),
+			"CreatedAt [%v] should equal ModifiedAt [%v] on creation", createdMsg.CreatedAt, createdMsg.ModifiedAt)
+		assert.True(t, timeBeforeCreate.Before(createdMsg.CreatedAt) || timeBeforeCreate.Equal(createdMsg.CreatedAt),
+			"Time before creation should be before or equal to CreatedAt")
+		assert.WithinDuration(t, timeBeforeCreate, createdMsg.CreatedAt, 2*time.Second,
+			"CreatedAt should be very close to time before creation")
 
-		// Verify board's last_activity update
 		boardAfterCreate, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err, "Failed to get board state after create for: %s", boardShortName)
-
-		// Note: initialBoard.LastActivity reflects thread creation time
-		assert.True(t, boardAfterCreate.LastActivity.After(initialBoard.LastActivity), "Board last_activity [%v] should be after initial activity [%v]", boardAfterCreate.LastActivity, initialBoard.LastActivity)
-		// The refactored code sets board last_activity = message createdTs
-		assert.Equal(t, createdMsg.CreatedAt.UTC(), boardAfterCreate.LastActivity.UTC(), "Board last_activity [%v] should equal message CreatedAt [%v]", boardAfterCreate.LastActivity, createdMsg.CreatedAt)
+		// Board's last_activity should update to message's CreatedAt.
+		assert.True(t, boardAfterCreate.LastActivity.After(timeBeforeCreate),
+			"Board last_activity should be updated after message creation")
+		assert.Equal(t, createdMsg.CreatedAt.UTC(), boardAfterCreate.LastActivity.UTC(),
+			"Board last_activity should equal message CreatedAt")
 	})
 
-	t.Run("Successful Creation of op msg (num_replies remain the same)", func(t *testing.T) {
-		// Get thread before new message
+	t.Run("Op Message does not Increment num_replies", func(t *testing.T) {
 		threadBefore, err := storage.GetThread(boardShortName, threadID)
 		require.NoError(t, err)
-		// Prepare creation data
+
 		creationData := domain.MessageCreationData{
 			Board:       boardShortName,
 			Author:      author,
@@ -80,68 +152,52 @@ func TestCreateMessage(t *testing.T) {
 			Attachments: nil,
 			ThreadId:    threadID,
 		}
-		// Perform creation
-		_, createErr := storage.CreateMessage(creationData, true, nil)
-		require.NoError(t, createErr, "CreateMessage should not return an error")
-		// Get thread after message creation
+		// Creating an op message should not change num_replies.
+		_, err = storage.CreateMessage(creationData, true, nil)
+		require.NoError(t, err, "Op message should be created successfully")
 		threadAfter, err := storage.GetThread(boardShortName, threadID)
 		require.NoError(t, err)
+		assert.Equal(t, threadBefore.NumReplies, threadAfter.NumReplies, "Op message should not increment num_replies")
 
-		assert.Equal(t, threadBefore.NumReplies, threadAfter.NumReplies, "Op msg shouldnt increment num replies")
-		// Test num_replies incrmenet if not op msg
-		_, createErr = storage.CreateMessage(creationData, false, nil)
-		require.NoError(t, createErr, "CreateMessage should not return an error")
-		// Get thread after second message creation
+		// Creating a non-op message should increment num_replies.
+		_, err = storage.CreateMessage(creationData, false, nil)
+		require.NoError(t, err, "Non-op message should be created successfully")
 		threadAfter, err = storage.GetThread(boardShortName, threadID)
 		require.NoError(t, err)
-
-		assert.Equal(t, threadBefore.NumReplies+1, threadAfter.NumReplies, "Non-op msg shouldnt increment num replies")
+		assert.Equal(t, threadBefore.NumReplies+1, threadAfter.NumReplies, "Non-op message should increment num_replies")
 	})
 
-	// --- Subtest: Failure Case - Non-existent Thread ---
 	t.Run("Failure - Non-existent Thread", func(t *testing.T) {
-		// Get board state *before* this specific test run
-		boardBeforeFail, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err, "Failed to get board state before non-existent thread test")
+		boardBefore, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err, "GetBoard should succeed before failing creation")
 
-		// Prepare creation data with invalid thread ID
 		creationData := domain.MessageCreationData{
 			Board:       boardShortName,
 			Author:      author,
 			Text:        text,
 			Attachments: attachments,
-			ThreadId:    -1, // Non-existent thread ID
+			ThreadId:    -1, // Invalid thread ID
 		}
-
-		// Attempt creation
 		_, err = storage.CreateMessage(creationData, false, nil)
-		requireNotFoundError(t, err) // Check it's the expected 404 error
-
-		// Verify board activity did *not* change (transaction rollback)
-		boardAfterFail, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err, "Failed to get board state after failed create (non-existent thread)")
-
-		assert.Equal(t, boardBeforeFail.LastActivity.UTC(), boardAfterFail.LastActivity.UTC(), "Board last_activity [%v] should not change on failed CreateMessage (non-existent thread), expected [%v]", boardAfterFail.LastActivity, boardBeforeFail.LastActivity)
+		requireNotFoundError(t, err)
+		boardAfter, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err, "GetBoard should succeed after failed creation")
+		verifyBoardActivityUnchanged(t, boardBefore, boardAfter)
 	})
 
-	// --- Subtest: Failure Case - Non-existent Board ---
 	t.Run("Failure - Non-existent Board", func(t *testing.T) {
-		// Prepare creation data with invalid board name
 		creationData := domain.MessageCreationData{
-			Board:       "nonexistentboard", // Non-existent board
+			Board:       "nonexistentboard", // Invalid board
 			Author:      author,
 			Text:        text,
 			Attachments: attachments,
-			ThreadId:    threadID, // Valid thread ID, but board doesn't exist
+			ThreadId:    threadID,
 		}
-
 		_, err := storage.CreateMessage(creationData, false, nil)
 		requireNotFoundError(t, err)
-		// No need to check activity on the *valid* board, as the operation targets a non-existent one.
 	})
 
-	// Test for custom CreatedAt timestamp
-	t.Run("Successful Creation with Custom Timestamp", func(t *testing.T) {
+	t.Run("Creation with Custom Timestamp", func(t *testing.T) {
 		customTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
 		creationData := domain.MessageCreationData{
 			Board:     boardShortName,
@@ -152,114 +208,116 @@ func TestCreateMessage(t *testing.T) {
 		}
 		msgID, err := storage.CreateMessage(creationData, false, nil)
 		require.NoError(t, err)
-
 		msg, err := storage.GetMessage(boardShortName, msgID)
 		require.NoError(t, err)
 		assert.True(t, msg.CreatedAt.Equal(customTime), "CreatedAt should match custom timestamp")
 	})
 }
 
-// TestGetMessage verifies retrieving a specific message.
 func TestGetMessage(t *testing.T) {
 	boardShortName, threadID := setupBoardAndThread(t)
-
 	author := domain.User{Id: 2}
 	text := "Test message for get"
 	attachments := &domain.Attachments{"file1.jpg", "file2.png"}
-	msgID := createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: author, Text: text, Attachments: attachments, ThreadId: threadID})
+	msgID := createTestMessage(t, domain.MessageCreationData{
+		Board:       boardShortName,
+		Author:      author,
+		Text:        text,
+		Attachments: attachments,
+		ThreadId:    threadID,
+	})
 
-	t.Run("Get existing message", func(t *testing.T) {
+	t.Run("Get Existing Message with Replies", func(t *testing.T) {
+		// Create a reply to the message.
+		replyText := "Reply for get"
+		replyMsgID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   author,
+			Text:     replyText,
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					FromThreadId: threadID,
+					To:           msgID,
+					ToThreadId:   threadID,
+				},
+			},
+		})
 		msg, err := storage.GetMessage(boardShortName, msgID)
-		require.NoError(t, err, "GetMessage should not return an error")
+		require.NoError(t, err, "GetMessage should succeed")
+		require.NotNil(t, msg.Replies, "Replies should not be nil")
+		require.Len(t, msg.Replies, 1, "Expected one reply")
+		assert.Equal(t, replyMsgID, msg.Replies[0].From, "Reply From should match reply message ID")
+		assert.Equal(t, msgID, msg.Replies[0].To, "Reply To should match original message ID")
+	})
+
+	t.Run("Get Existing Message without Replies", func(t *testing.T) {
+		msg, err := storage.GetMessage(boardShortName, msgID)
+		require.NoError(t, err, "GetMessage should succeed")
 		assert.Equal(t, msgID, msg.Id, "Message ID mismatch")
 		assert.Equal(t, author.Id, msg.Author.Id, "Author ID mismatch")
 		assert.Equal(t, text, msg.Text, "Message text mismatch")
 		require.NotNil(t, msg.Attachments, "Attachments should not be nil")
 		assert.Equal(t, *attachments, *msg.Attachments, "Attachments mismatch")
 		require.NotNil(t, msg.ThreadId, "Thread ID should not be nil")
-		assert.Equal(t, threadID, msg.ThreadId, "Thread ID mismatch") // Dereference pointer
+		assert.Equal(t, threadID, msg.ThreadId, "Thread ID mismatch")
 		assert.False(t, msg.CreatedAt.IsZero(), "CreatedAt should not be zero")
-		assert.False(t, msg.ModifiedAt.IsZero(), "Modified should not be zero")
-		assert.Equal(t, msg.CreatedAt.UTC(), msg.ModifiedAt.UTC(), "ModifiedAt [%v] should equal CreatedAt [%v] initially", msg.ModifiedAt, msg.CreatedAt)
+		assert.False(t, msg.ModifiedAt.IsZero(), "ModifiedAt should not be zero")
+		assert.Equal(t, msg.CreatedAt.UTC(), msg.ModifiedAt.UTC(), "ModifiedAt should equal CreatedAt initially")
 	})
 
-	t.Run("Get non-existent message", func(t *testing.T) {
+	t.Run("Get Non-existent Message", func(t *testing.T) {
 		_, err := storage.GetMessage(boardShortName, -1)
 		requireNotFoundError(t, err)
 	})
 }
 
-// TestDeleteMessage verifies message deletion logic (soft delete) and board activity updates.
 func TestDeleteMessage(t *testing.T) {
-	// --- Shared Setup ---
-	// Use helper that creates board, thread, and a message
+	// Setup: create board, thread and a message.
 	boardShortName, _, msgID := setupBoardAndThreadAndMessage(t)
-
-	// Get initial states *after* setup (which includes message creation)
 	originalMsg, err := storage.GetMessage(boardShortName, msgID)
-	require.NoError(t, err, "Setup: Failed to get original message right after creation")
+	require.NoError(t, err, "Failed to get original message")
 
-	// Get board state *after* the message creation in setup
 	boardAfterCreate, err := storage.GetBoard(boardShortName, 1)
-	require.NoError(t, err, "Setup: Failed to get board state after setup create for: %s", boardShortName)
+	require.NoError(t, err, "Failed to get board state after message creation")
 
-	// --- Subtest: Successful Deletion and State Verification ---
-	t.Run("Successful Deletion and State Verification", func(t *testing.T) {
-		// Add a delay to ensure the delete timestamp is noticeably different
-		time.Sleep(50 * time.Millisecond)
-		timeBeforeDelete := time.Now().UTC() // Record time just before delete
+	t.Run("Successful Deletion and Board Update", func(t *testing.T) {
+		time.Sleep(50 * time.Millisecond) // Ensure timestamp gap.
+		timeBeforeDelete := time.Now().UTC()
 
-		// Perform delete (signature matches refactored code)
 		deleteErr := storage.DeleteMessage(boardShortName, msgID)
-		require.NoError(t, deleteErr, "DeleteMessage should not return an error")
-
-		// Verify message state after deletion (soft delete)
+		require.NoError(t, deleteErr, "DeleteMessage should succeed")
 		updatedMsg, err := storage.GetMessage(boardShortName, msgID)
-		require.NoError(t, err, "GetMessage should still retrieve the message after soft delete")
+		require.NoError(t, err, "Message should be retrievable after soft delete")
 		assert.Equal(t, "deleted", updatedMsg.Text, "Message text should be updated to 'deleted'")
-		assert.Nil(t, updatedMsg.Attachments, "Attachments should be set to nil") // Check explicitly for nil
-		require.False(t, updatedMsg.ModifiedAt.IsZero(), "ModifiedAt timestamp should not be the zero time after update")
+		assert.Nil(t, updatedMsg.Attachments, "Attachments should be nil after deletion")
+		require.False(t, updatedMsg.ModifiedAt.IsZero(), "ModifiedAt should not be zero")
 		assert.True(t, updatedMsg.ModifiedAt.After(originalMsg.ModifiedAt),
-			"Updated ModifiedAt [%v] should be after the original ModifiedAt [%v]", updatedMsg.ModifiedAt, originalMsg.ModifiedAt)
-		// CreatedAt should remain unchanged
-		assert.Equal(t, originalMsg.CreatedAt.UTC(), updatedMsg.CreatedAt.UTC(), "CreatedAt timestamp [%v] should not change on delete, expected [%v]", updatedMsg.CreatedAt, originalMsg.CreatedAt)
-		// ModifiedAt should be close to the time the delete happened
+			"ModifiedAt should be updated after deletion")
+		assert.Equal(t, originalMsg.CreatedAt.UTC(), updatedMsg.CreatedAt.UTC(), "CreatedAt should remain unchanged")
 		assert.WithinDuration(t, timeBeforeDelete, updatedMsg.ModifiedAt, 2*time.Second,
-			"Updated ModifiedAt timestamp [%v] is not recent compared to delete time [%v]", updatedMsg.ModifiedAt, timeBeforeDelete)
+			"ModifiedAt should be close to deletion time")
 
-		// Verify board state after deletion
 		boardAfterDelete, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err, "Failed to get board state after delete for: %s", boardShortName)
-
+		require.NoError(t, err, "Failed to get board state after delete")
 		assert.True(t, boardAfterDelete.LastActivity.After(boardAfterCreate.LastActivity),
-			"Board last_activity after delete [%v] should be after activity after create [%v]", boardAfterDelete.LastActivity, boardAfterCreate.LastActivity)
-		// The refactored code sets board last_activity = deletion timestamp
-		assert.Equal(t, updatedMsg.ModifiedAt.UTC(), boardAfterDelete.LastActivity.UTC(), "Board LastActivity [%v] should be equal to the message's updated ModifiedAt [%v]", boardAfterDelete.LastActivity, updatedMsg.ModifiedAt)
+			"Board last_activity should be updated after deletion")
+		assert.Equal(t, updatedMsg.ModifiedAt.UTC(), boardAfterDelete.LastActivity.UTC(),
+			"Board last_activity should equal message ModifiedAt after deletion")
 	})
 
-	// --- Subtest: Failure Case - Non-existent Message ---
 	t.Run("Failure - Non-existent Message", func(t *testing.T) {
-		// Get board state *before* this specific test run (it might have been updated by the successful delete test)
 		boardBeforeFail, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err, "Failed to get board state before non-existent message test")
-
-		// Attempt deletion of a non-existent message ID
+		require.NoError(t, err, "GetBoard should succeed before deletion failure")
 		err = storage.DeleteMessage(boardShortName, -1)
-		requireNotFoundError(t, err) // Expect 404 because message update affects 0 rows
-
-		// Verify board activity did *not* change (transaction rollback)
+		requireNotFoundError(t, err)
 		boardAfterFail, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err, "Failed to get board state after failed delete (non-existent message)")
-
-		// Use Equal for timestamp comparison
-		assert.Equal(t, boardBeforeFail.LastActivity.UTC(), boardAfterFail.LastActivity.UTC(), "Board last_activity [%v] should not change on failed DeleteMessage (non-existent message), expected [%v]", boardAfterFail.LastActivity, boardBeforeFail.LastActivity)
+		require.NoError(t, err, "GetBoard should succeed after deletion failure")
+		verifyBoardActivityUnchanged(t, boardBeforeFail, boardAfterFail)
 	})
 
-	// --- Subtest: Failure Case - Non-existent Board ---
 	t.Run("Failure - Non-existent Board", func(t *testing.T) {
-		// Attempt deletion using a valid message ID but a non-existent board short name
-		err = storage.DeleteMessage("nonexistentboard", msgID)
-		requireNotFoundError(t, err) // Expect 404 because board update affects 0 rows
-		// No need to check activity on the *valid* board, as the operation targets a non-existent one.
+		err := storage.DeleteMessage("nonexistentboard", msgID)
+		requireNotFoundError(t, err)
 	})
 }

@@ -34,7 +34,8 @@ func TestCreateThread(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		boardBefore, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
-		// Allow some time for potential clock skew or fast operations
+
+		// Allow some time for distinct timestamps
 		time.Sleep(50 * time.Millisecond)
 		creationTimeStart := time.Now()
 
@@ -45,55 +46,54 @@ func TestCreateThread(t *testing.T) {
 		boardAfter, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
 
-		// Verify the created thread using GetThread
 		createdThread, err := storage.GetThread(boardShortName, threadID)
 		require.NoError(t, err, "GetThread should find the newly created thread")
 
 		assert.Equal(t, title, createdThread.Title, "Thread title mismatch")
 		assert.Equal(t, boardShortName, createdThread.Board, "Thread board mismatch")
-		assert.Equal(t, 0, createdThread.NumReplies, "Newly created thread should have 0 replies")
-		require.Len(t, createdThread.Messages, 1, "Newly created thread should have 1 message (OP)")
+		assert.Equal(t, 0, createdThread.NumReplies, "New thread should have 0 replies")
+		require.Len(t, createdThread.Messages, 1, "Thread should contain only the OP message")
 
-		// Verify OP Message details
+		// Verify OP message details
 		op := createdThread.Messages[0]
 		assert.Equal(t, opMsg.Text, op.Text, "OP message text mismatch")
 		assert.Equal(t, opMsg.Author.Id, op.Author.Id, "OP author ID mismatch")
 		require.NotNil(t, op.Attachments, "OP attachments should not be nil")
 		assert.Equal(t, *opMsg.Attachments, *op.Attachments, "OP attachments mismatch")
-		assert.Equal(t, threadID, op.ThreadId, "OP message ThreadId should be equal to threadId")
+		assert.Equal(t, threadID, op.ThreadId, "OP message ThreadId should match thread ID")
 
-		// Verify Timestamps
-		assert.WithinDuration(t, creationTimeStart, createdThread.LastBumped, 5*time.Second, "LastBumped time should be recent")
-		assert.Equal(t, op.CreatedAt, createdThread.LastBumped, "LastBumped time should match OP creation time initially")
-		assert.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Thread creation should update board last activity")
-		// Board activity might be slightly different due to transaction commit time vs message creation time
-		assert.WithinDuration(t, boardAfter.LastActivity, createdThread.LastBumped, 100*time.Millisecond, "Board last activity should be very close to last bump")
+		// Verify timestamps and board last_activity update
+		assert.WithinDuration(t, creationTimeStart, createdThread.LastBumped, 5*time.Second, "LastBumped should be recent")
+		assert.Equal(t, op.CreatedAt, createdThread.LastBumped, "LastBumped should equal OP CreatedAt")
+		assert.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Board last_activity should update on thread creation")
+		assert.WithinDuration(t, boardAfter.LastActivity, createdThread.LastBumped, 100*time.Millisecond, "Board last_activity should be very close to LastBumped")
 
-		// Cleanup the thread manually since it was created within the subtest
+		// Cleanup
 		err = storage.DeleteThread(boardShortName, threadID)
 		require.NoError(t, err, "Failed to cleanup thread in subtest")
 	})
 
 	t.Run("BoardNotFound", func(t *testing.T) {
-		opMsgNonexistingBoard := opMsg
-		opMsgNonexistingBoard.Board = "nonexistentboard"
-		invalidCreationData := domain.ThreadCreationData{
-			Title:     "Test Invalid Board",
+		// Change board for OP msg to an invalid value.
+		opMsgInvalid := opMsg
+		opMsgInvalid.Board = "nonexistentboard"
+		invalidData := domain.ThreadCreationData{
+			Title:     "Invalid Board Thread",
 			Board:     "nonexistentboard",
-			OpMessage: opMsgNonexistingBoard,
+			OpMessage: opMsgInvalid,
 		}
-		_, err := storage.CreateThread(invalidCreationData)
-		requireNotFoundError(t, err) // Expect 404 as board does not exist
+		_, err := storage.CreateThread(invalidData)
+		requireNotFoundError(t, err)
 	})
 
-	t.Run("Create Sticky Thread", func(t *testing.T) {
-		creationData := domain.ThreadCreationData{
+	t.Run("CreateStickyThread", func(t *testing.T) {
+		stickyData := domain.ThreadCreationData{
 			Title:     "Sticky Thread",
 			Board:     boardShortName,
 			IsSticky:  true,
 			OpMessage: opMsg,
 		}
-		threadID, err := storage.CreateThread(creationData)
+		threadID, err := storage.CreateThread(stickyData)
 		require.NoError(t, err)
 
 		thread, err := storage.GetThread(boardShortName, threadID)
@@ -116,37 +116,15 @@ func TestGetThread(t *testing.T) {
 		Attachments: &domain.Attachments{"file1.jpg"},
 	}
 
-	t.Run("NotFound", func(t *testing.T) {
-		_, err := storage.GetThread(boardShortName, -999) // Non-existent ID
-		requireNotFoundError(t, err)
-	})
-
-	t.Run("OnlyOP", func(t *testing.T) {
-		// Use updated helper
-		threadID := createTestThread(t, domain.ThreadCreationData{Title: title + "_OnlyOP", Board: boardShortName, OpMessage: opMsg})
-		t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardShortName, threadID)) })
-
-		thread, err := storage.GetThread(boardShortName, threadID)
-		require.NoError(t, err, "GetThread should not return an error for OP only")
-
-		assert.Equal(t, title+"_OnlyOP", thread.Title)
-		assert.Equal(t, boardShortName, thread.Board)
-		assert.Equal(t, 0, thread.NumReplies)
-		require.Len(t, thread.Messages, 1)
-
-		op := thread.Messages[0]
-		assert.Equal(t, opMsg.Text, op.Text)
-		assert.Equal(t, threadID, threadID)
-		require.NotNil(t, op.Attachments)
-		assert.Equal(t, *opMsg.Attachments, *op.Attachments)
-		assert.Equal(t, op.CreatedAt, thread.LastBumped)
-	})
-
 	t.Run("WithReplies", func(t *testing.T) {
-		threadID := createTestThread(t, domain.ThreadCreationData{Title: title + "_WithReplies", Board: boardShortName, OpMessage: opMsg})
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title:     title + "_WithReplies",
+			Board:     boardShortName,
+			OpMessage: opMsg,
+		})
 		t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardShortName, threadID)) })
 
-		// Add replies
+		// Create two replies
 		replyMsgs := []struct {
 			author domain.User
 			text   string
@@ -154,46 +132,142 @@ func TestGetThread(t *testing.T) {
 			{author: domain.User{Id: 2}, text: "Reply 1 Text"},
 			{author: domain.User{Id: 3}, text: "Reply 2 Text"},
 		}
-		msgID1 := createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: replyMsgs[0].author, Text: replyMsgs[0].text, ThreadId: threadID})
-		time.Sleep(10 * time.Millisecond) // Ensure distinct timestamps for last bump check
-		msgID2 := createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: replyMsgs[1].author, Text: replyMsgs[1].text, ThreadId: threadID})
+		msgID1 := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   replyMsgs[0].author,
+			Text:     replyMsgs[0].text,
+			ThreadId: threadID,
+		})
+		time.Sleep(10 * time.Millisecond) // Ensure distinct timestamps
+		msgID2 := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   replyMsgs[1].author,
+			Text:     replyMsgs[1].text,
+			ThreadId: threadID,
+		})
 
-		// Get the thread
 		thread, err := storage.GetThread(boardShortName, threadID)
 		require.NoError(t, err, "GetThread should not return an error")
 		assert.Equal(t, title+"_WithReplies", thread.Title)
 		assert.Equal(t, boardShortName, thread.Board)
-		assert.Equal(t, 2, thread.NumReplies, "Number of replies mismatch")
+		assert.Equal(t, 2, thread.NumReplies, "Mismatch in reply count")
 		require.Len(t, thread.Messages, 3, "Expected 3 messages (OP + 2 replies)")
 
-		// Check message order and content
+		// Verify ordering using helper
 		requireMessageOrder(t, thread.Messages, []string{opMsg.Text, replyMsgs[0].text, replyMsgs[1].text})
 
-		// Check OP details
+		// Check OP message details
 		op := thread.Messages[0]
 		assert.Equal(t, threadID, op.ThreadId)
 		require.NotNil(t, op.Attachments)
 		assert.Equal(t, *opMsg.Attachments, *op.Attachments)
 
-		// Check reply 1 details
+		// Verify reply 1
 		reply1 := thread.Messages[1]
 		assert.Equal(t, msgID1, reply1.Id)
 		require.NotNil(t, reply1.ThreadId)
 		assert.Equal(t, threadID, reply1.ThreadId)
-		assert.Nil(t, reply1.Attachments) // Attachments were nil when creating
+		assert.Nil(t, reply1.Attachments)
 		assert.Equal(t, replyMsgs[0].author.Id, reply1.Author.Id)
+		assert.Len(t, reply1.Replies, 0, "Reply 1 should have no nested replies")
 
-		// Check reply 2 details
+		// Verify reply 2
 		reply2 := thread.Messages[2]
 		assert.Equal(t, msgID2, reply2.Id)
 		require.NotNil(t, reply2.ThreadId)
 		assert.Equal(t, threadID, reply2.ThreadId)
 		assert.Nil(t, reply2.Attachments)
 		assert.Equal(t, replyMsgs[1].author.Id, reply2.Author.Id)
+		assert.Len(t, reply2.Replies, 0, "Reply 2 should have no nested replies")
 
-		// Check LastBumped time (should match the last reply's creation time)
-		// Assuming CreateMessage updates LastBumped correctly (verified in TestBumpLimit)
-		assert.Equal(t, reply2.CreatedAt, thread.LastBumped)
+		// LastBumped should equal the creation time of the last reply
+		assert.Equal(t, reply2.CreatedAt, thread.LastBumped, "LastBumped should equal last reply's CreatedAt")
+	})
+
+	t.Run("RepliesToMessages", func(t *testing.T) {
+		// Test nested replies (reply to a reply)
+		boardForNested := setupBoard(t)
+		title := "Thread With Message Replies"
+		opMsg := domain.MessageCreationData{
+			Board:       boardForNested,
+			Author:      domain.User{Id: 1},
+			Text:        "OP for replies test",
+			Attachments: &domain.Attachments{"op.png"},
+		}
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title:     title,
+			Board:     boardForNested,
+			OpMessage: opMsg,
+		})
+		t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardForNested, threadID)) })
+
+		// Create first reply to the OP
+		msgID1 := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardForNested,
+			Author:   domain.User{Id: 2},
+			Text:     "First reply",
+			ThreadId: threadID,
+		})
+		// Create second reply replying to the first reply (nested reply)
+		msgID2 := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardForNested,
+			Author:   domain.User{Id: 3},
+			Text:     "Reply to first reply",
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					FromThreadId: threadID,
+					To:           msgID1,
+					ToThreadId:   threadID,
+					CreatedAt:    time.Now().UTC(),
+				},
+			},
+		})
+
+		thread, err := storage.GetThread(boardForNested, threadID)
+		require.NoError(t, err, "GetThread should not return an error")
+		require.Len(t, thread.Messages, 3, "Expected 3 messages (OP, first reply, nested reply)")
+
+		// Find the first reply among messages
+		var firstReply *domain.Message
+		for i := range thread.Messages {
+			if thread.Messages[i].Id == msgID1 {
+				firstReply = &thread.Messages[i]
+				break
+			}
+		}
+
+		require.NotNil(t, firstReply, "First reply must be found")
+		require.Len(t, firstReply.Replies, 1, "First reply should have one nested reply")
+		assert.Equal(t, msgID2, firstReply.Replies[0].From, "Nested reply From mismatch")
+		assert.Equal(t, msgID1, firstReply.Replies[0].To, "Nested reply To should match first reply ID")
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		_, err := storage.GetThread(boardShortName, -999) // Non-existent thread ID
+		requireNotFoundError(t, err)
+	})
+
+	t.Run("OnlyOP", func(t *testing.T) {
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title:     title + "_OnlyOP",
+			Board:     boardShortName,
+			OpMessage: opMsg,
+		})
+		t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardShortName, threadID)) })
+
+		thread, err := storage.GetThread(boardShortName, threadID)
+		require.NoError(t, err, "GetThread should succeed for OP only")
+		assert.Equal(t, title+"_OnlyOP", thread.Title)
+		assert.Equal(t, boardShortName, thread.Board)
+		assert.Equal(t, 0, thread.NumReplies)
+		require.Len(t, thread.Messages, 1, "Only OP message expected")
+
+		op := thread.Messages[0]
+		assert.Equal(t, opMsg.Text, op.Text)
+		require.NotNil(t, op.Attachments)
+		assert.Equal(t, *opMsg.Attachments, *op.Attachments)
+		assert.Equal(t, op.CreatedAt, thread.LastBumped, "LastBumped should equal OP CreatedAt")
 	})
 }
 
@@ -206,55 +280,64 @@ func TestDeleteThread(t *testing.T) {
 	opMsg := domain.MessageCreationData{
 		Board:       boardShortName,
 		Author:      domain.User{Id: 1},
-		Text:        "Test OP Get",
+		Text:        "Test OP for delete",
 		Attachments: &domain.Attachments{"file1.jpg"},
 	}
 
 	t.Run("NotFoundThread", func(t *testing.T) {
-		err := storage.DeleteThread(boardShortName, -999) // Non-existent thread ID
+		err := storage.DeleteThread(boardShortName, -999)
 		requireNotFoundError(t, err)
 	})
 
 	t.Run("NotFoundBoard", func(t *testing.T) {
-		// Create a real thread first to ensure we test board not found, not thread not found
-		threadID := createTestThread(t, domain.ThreadCreationData{Title: "Temp Thread", Board: boardShortName, OpMessage: opMsg})
-		t.Cleanup(func() { _ = storage.DeleteThread(boardShortName, threadID) }) // Cleanup if test fails before deletion
-
-		err := storage.DeleteThread("nonexistentboard", threadID) // Non-existent board
+		// Create a thread to ensure thread exists but board is invalid
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title:     "Temp Thread",
+			Board:     boardShortName,
+			OpMessage: opMsg,
+		})
+		t.Cleanup(func() { _ = storage.DeleteThread(boardShortName, threadID) })
+		err := storage.DeleteThread("nonexistentboard", threadID)
 		requireNotFoundError(t, err)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		// Setup thread with OP and replies
 		title := "Test Delete Thread"
 		opMsgCopy := opMsg
 		opMsgCopy.Text = "Test OP Delete"
-		threadID := createTestThread(t, domain.ThreadCreationData{Title: title, Board: boardShortName, OpMessage: opMsgCopy})
-		_ = createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 2}, Text: "Reply 1 Delete", ThreadId: threadID})
-		_ = createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 3}, Text: "Reply 2 Delete", ThreadId: threadID})
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title:     title,
+			Board:     boardShortName,
+			OpMessage: opMsgCopy,
+		})
+		// Create two replies for the thread
+		_ = createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 2},
+			Text:     "Reply 1 Delete",
+			ThreadId: threadID,
+		})
+		_ = createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 3},
+			Text:     "Reply 2 Delete",
+			ThreadId: threadID,
+		})
 
 		boardBefore, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
 		time.Sleep(50 * time.Millisecond)
 
-		// Delete the thread
 		err = storage.DeleteThread(boardShortName, threadID)
-		require.NoError(t, err, "DeleteThread should not return an error")
+		require.NoError(t, err, "DeleteThread should succeed")
 
-		boardAfter, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err)
-
-		// Verify thread is gone
 		_, err = storage.GetThread(boardShortName, threadID)
 		requireNotFoundError(t, err)
 
-		// Verify messages are gone (implicitly via cascade, checked by GetThread 404)
-		// No need for direct DB query, GetThread failing is sufficient evidence
-
-		// Verify board last activity is updated
-		assert.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Thread deletion should update board last activity")
-		// Check it's recent
-		assert.WithinDuration(t, time.Now(), boardAfter.LastActivity, 5*time.Second)
+		boardAfter, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		assert.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Board last_activity should update after deletion")
+		assert.WithinDuration(t, time.Now(), boardAfter.LastActivity, 5*time.Second, "Board last_activity should be recent")
 	})
 }
 
@@ -263,52 +346,58 @@ func TestDeleteThread(t *testing.T) {
 // ==================
 
 func TestBumpLimit(t *testing.T) {
-	// This test verifies the bump logic implicitly used by CreateMessage,
-	// checking its effect on the thread's LastBumped timestamp and NumReplies.
-	boardShortName, threadID := setupBoardAndThread(t) // Use updated helper
+	boardShortName, threadID := setupBoardAndThread(t)
 	t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardShortName, threadID)) })
 
-	// Send messages up to *just below* the bump limit
-	// NumReplies = BumpLimit - 1
 	bumpLimit := storage.cfg.Public.BumpLimit
-	require.Greater(t, bumpLimit, 0, "BumpLimit must be positive for this test")
+	require.Greater(t, bumpLimit, 0, "BumpLimit must be > 0")
 
+	// Send messages to reach just below the bump limit
 	for i := 0; i < bumpLimit-1; i++ {
-		createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: int64(i + 2)}, Text: fmt.Sprintf("Reply %d", i+1), ThreadId: threadID})
+		createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: int64(i + 2)},
+			Text:     fmt.Sprintf("Reply %d", i+1),
+			ThreadId: threadID,
+		})
 	}
 
-	// Get the thread, the next message *should* bump it.
-	threadBeforeLimit, err := storage.GetThread(boardShortName, threadID)
+	threadBefore, err := storage.GetThread(boardShortName, threadID)
 	require.NoError(t, err)
-	require.Equal(t, bumpLimit-1, threadBeforeLimit.NumReplies)
-	lastBumpTsBeforeLimit := threadBeforeLimit.LastBumped
+	require.Equal(t, bumpLimit-1, threadBefore.NumReplies)
+	lastBumpBefore := threadBefore.LastBumped
 
-	time.Sleep(10 * time.Millisecond) // Ensure next message has later timestamp
-
-	// Send the message that reaches the bump limit (NumReplies = BumpLimit)
-	msgAtLimitID := createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: int64(bumpLimit + 1)}, Text: fmt.Sprintf("Reply %d (at limit)", bumpLimit), ThreadId: threadID})
-	time.Sleep(10 * time.Millisecond) // Allow time for potential DB updates
+	time.Sleep(10 * time.Millisecond)
+	msgAtLimitID := createTestMessage(t, domain.MessageCreationData{
+		Board:    boardShortName,
+		Author:   domain.User{Id: int64(bumpLimit + 1)},
+		Text:     fmt.Sprintf("Reply %d (at limit)", bumpLimit),
+		ThreadId: threadID,
+	})
+	time.Sleep(10 * time.Millisecond)
 
 	msgAtLimit, err := storage.GetMessage(boardShortName, msgAtLimitID)
-	require.NoError(t, err, "Failed to get message details for timestamp check")
+	require.NoError(t, err)
 
-	// Get the thread again, check bump occurred
 	threadAtLimit, err := storage.GetThread(boardShortName, threadID)
 	require.NoError(t, err)
 	assert.Equal(t, bumpLimit, threadAtLimit.NumReplies)
-	assert.Equal(t, msgAtLimit.CreatedAt, threadAtLimit.LastBumped, "Last bump timestamp should match the message at the bump limit")
-	assert.True(t, threadAtLimit.LastBumped.After(lastBumpTsBeforeLimit), "Timestamp should have updated")
-	lastBumpTsAtLimit := threadAtLimit.LastBumped
+	assert.Equal(t, msgAtLimit.CreatedAt, threadAtLimit.LastBumped, "LastBumped should match message at limit")
+	assert.True(t, threadAtLimit.LastBumped.After(lastBumpBefore), "LastBumped should update")
+	lastBumpAtLimit := threadAtLimit.LastBumped
 
-	time.Sleep(10 * time.Millisecond) // Ensure next message has later timestamp
+	time.Sleep(10 * time.Millisecond)
+	_ = createTestMessage(t, domain.MessageCreationData{
+		Board:    boardShortName,
+		Author:   domain.User{Id: int64(bumpLimit + 2)},
+		Text:     "Reply over limit",
+		ThreadId: threadID,
+	})
+	time.Sleep(10 * time.Millisecond)
 
-	// Send one more message (over the bump limit)
-	_ = createTestMessage(t, domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: int64(bumpLimit + 2)}, Text: "Reply over limit", ThreadId: threadID})
-	time.Sleep(10 * time.Millisecond) // Allow time for potential DB updates
-
-	// Get the thread again and check that the last bump timestamp hasn't changed
 	threadOverLimit, err := storage.GetThread(boardShortName, threadID)
 	require.NoError(t, err)
-	assert.Equal(t, bumpLimit+1, threadOverLimit.NumReplies) // Reply count still increases
-	assert.Equal(t, lastBumpTsAtLimit.UTC(), threadOverLimit.LastBumped.UTC(), "Last bump timestamp should NOT change after going over the bump limit")
+	// The reply count still increases but LastBumped remains unchanged
+	assert.Equal(t, bumpLimit+1, threadOverLimit.NumReplies)
+	assert.Equal(t, lastBumpAtLimit.UTC(), threadOverLimit.LastBumped.UTC(), "LastBumped should not change after exceeding bump limit")
 }
