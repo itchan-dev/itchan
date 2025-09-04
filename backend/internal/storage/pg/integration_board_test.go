@@ -868,3 +868,392 @@ func TestLastThreadId(t *testing.T) {
 		assert.Equal(t, tB, lastIDB, "Board B should return its own thread")
 	})
 }
+
+// TestBoardReplies verifies reply functionality within board context.
+func TestBoardReplies(t *testing.T) {
+	t.Run("replies are properly attached to messages", func(t *testing.T) {
+		boardShortName := setupBoard(t)
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title: "Reply Test Thread",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: 1},
+				Text:   "OP message",
+			},
+		})
+
+		// Create a message that will receive replies
+		targetMsgID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 2},
+			Text:     "Target message for replies",
+			ThreadId: threadID,
+		})
+
+		// Create replies to the target message
+		reply1ID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 3},
+			Text:     "First reply",
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					Board:        boardShortName,
+					FromThreadId: threadID,
+					ToThreadId:   threadID,
+					From:         -1, // Will be set by storage layer
+					To:           targetMsgID,
+					CreatedAt:    time.Now().UTC(),
+				},
+			},
+		})
+
+		reply2ID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 4},
+			Text:     "Second reply",
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					Board:        boardShortName,
+					FromThreadId: threadID,
+					ToThreadId:   threadID,
+					From:         -1, // Will be set by storage layer
+					To:           targetMsgID,
+					CreatedAt:    time.Now().UTC(),
+				},
+			},
+		})
+
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
+
+		// Fetch board and verify replies are properly attached
+		board, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		require.Len(t, board.Threads, 1)
+		require.Len(t, board.Threads[0].Messages, 4) // OP + target + 2 replies
+
+		// Find the target message and verify its replies
+		var targetMessage *domain.Message
+		for i := range board.Threads[0].Messages {
+			if board.Threads[0].Messages[i].Id == targetMsgID {
+				targetMessage = board.Threads[0].Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, targetMessage, "Target message should be found")
+		require.Len(t, targetMessage.Replies, 2, "Target message should have 2 replies")
+
+		// Verify reply details
+		replyIDs := []domain.MsgId{reply1ID, reply2ID}
+		for i, reply := range targetMessage.Replies {
+			assert.Equal(t, replyIDs[i], reply.From, "Reply From should match reply message ID")
+			assert.Equal(t, targetMsgID, reply.To, "Reply To should match target message ID")
+			assert.Equal(t, threadID, reply.FromThreadId, "Reply FromThreadId should match thread ID")
+			assert.Equal(t, threadID, reply.ToThreadId, "Reply ToThreadId should match thread ID")
+			assert.Equal(t, boardShortName, reply.Board, "Reply Board should match board short name")
+		}
+	})
+
+	t.Run("replies maintain chronological order", func(t *testing.T) {
+		boardShortName := setupBoard(t)
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title: "Chronological Reply Test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: 1},
+				Text:   "OP message",
+			},
+		})
+
+		targetMsgID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 2},
+			Text:     "Target message",
+			ThreadId: threadID,
+		})
+
+		// Create replies with delays to ensure different timestamps
+		createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 3},
+			Text:     "First reply",
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					Board:        boardShortName,
+					FromThreadId: threadID,
+					ToThreadId:   threadID,
+					From:         -1,
+					To:           targetMsgID,
+					CreatedAt:    time.Now().UTC(),
+				},
+			},
+		})
+
+		time.Sleep(10 * time.Millisecond)
+
+		createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 4},
+			Text:     "Second reply",
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					Board:        boardShortName,
+					FromThreadId: threadID,
+					ToThreadId:   threadID,
+					From:         -1,
+					To:           targetMsgID,
+					CreatedAt:    time.Now().UTC(),
+				},
+			},
+		})
+
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
+
+		board, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		require.Len(t, board.Threads, 1)
+
+		var targetMessage *domain.Message
+		for i := range board.Threads[0].Messages {
+			if board.Threads[0].Messages[i].Id == targetMsgID {
+				targetMessage = board.Threads[0].Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, targetMessage)
+		require.Len(t, targetMessage.Replies, 2)
+
+		// Verify chronological order (by CreatedAt)
+		assert.False(t, targetMessage.Replies[0].CreatedAt.After(targetMessage.Replies[1].CreatedAt),
+			"First reply should not be created after second reply")
+	})
+
+	t.Run("replies are isolated between boards", func(t *testing.T) {
+		boardA := setupBoard(t)
+		boardB := setupBoard(t)
+
+		// Create threads on both boards
+		threadA := createTestThread(t, domain.ThreadCreationData{
+			Title: "Thread A",
+			Board: boardA,
+			OpMessage: domain.MessageCreationData{
+				Board:  boardA,
+				Author: domain.User{Id: 1},
+				Text:   "OP A",
+			},
+		})
+
+		threadB := createTestThread(t, domain.ThreadCreationData{
+			Title: "Thread B",
+			Board: boardB,
+			OpMessage: domain.MessageCreationData{
+				Board:  boardB,
+				Author: domain.User{Id: 2},
+				Text:   "OP B",
+			},
+		})
+
+		// Create messages on both boards
+		msgA := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardA,
+			Author:   domain.User{Id: 3},
+			Text:     "Message A",
+			ThreadId: threadA,
+		})
+
+		msgB := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardB,
+			Author:   domain.User{Id: 4},
+			Text:     "Message B",
+			ThreadId: threadB,
+		})
+
+		// Create replies on both boards
+		createTestMessage(t, domain.MessageCreationData{
+			Board:    boardA,
+			Author:   domain.User{Id: 5},
+			Text:     "Reply to A",
+			ThreadId: threadA,
+			ReplyTo: &domain.Replies{
+				{
+					ToThreadId: threadA,
+					To:         msgA,
+				},
+			},
+		})
+
+		createTestMessage(t, domain.MessageCreationData{
+			Board:    boardB,
+			Author:   domain.User{Id: 6},
+			Text:     "Reply to B",
+			ThreadId: threadB,
+			ReplyTo: &domain.Replies{
+				{
+					ToThreadId: threadB,
+					To:         msgB,
+				},
+			},
+		})
+
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardA, time.Second*1))
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardB, time.Second*1))
+
+		// Verify board A has only its own replies
+		boardA_data, err := storage.GetBoard(boardA, 1)
+		require.NoError(t, err)
+		require.Len(t, boardA_data.Threads, 1)
+		require.Len(t, boardA_data.Threads[0].Messages, 3) // OP + message + reply
+
+		var msgA_data *domain.Message
+		for i := range boardA_data.Threads[0].Messages {
+			if boardA_data.Threads[0].Messages[i].Id == msgA {
+				msgA_data = boardA_data.Threads[0].Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, msgA_data)
+		require.Len(t, msgA_data.Replies, 1, "Board A should have 1 reply")
+		assert.Equal(t, "Reply to A", boardA_data.Threads[0].Messages[2].Text, "Board A should have correct reply text")
+
+		// Verify board B has only its own replies
+		boardB_data, err := storage.GetBoard(boardB, 1)
+		require.NoError(t, err)
+		require.Len(t, boardB_data.Threads, 1)
+		require.Len(t, boardB_data.Threads[0].Messages, 3) // OP + message + reply
+
+		var msgB_data *domain.Message
+		for i := range boardB_data.Threads[0].Messages {
+			if boardB_data.Threads[0].Messages[i].Id == msgB {
+				msgB_data = boardB_data.Threads[0].Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, msgB_data)
+		require.Len(t, msgB_data.Replies, 1, "Board B should have 1 reply")
+		assert.Equal(t, "Reply to B", boardB_data.Threads[0].Messages[2].Text, "Board B should have correct reply text")
+	})
+
+	t.Run("replies respect message pagination limits", func(t *testing.T) {
+		boardShortName := setupBoard(t)
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title: "Pagination Reply Test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: 1},
+				Text:   "OP message",
+			},
+		})
+
+		thread, err := storage.GetThread(boardShortName, threadID)
+		require.NoError(t, err)
+		targetMsgID := thread.Messages[0].Id // op message is target
+
+		// Create more replies than NLastMsg limit
+		replyCount := storage.cfg.Public.NLastMsg + 2
+		for i := 0; i < replyCount; i++ {
+			createTestMessage(t, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: int64(10 + i)},
+				Text:     fmt.Sprintf("Reply %d", i+1),
+				ThreadId: threadID,
+				ReplyTo: &domain.Replies{
+					{
+						ToThreadId: threadID,
+						To:         targetMsgID,
+					},
+				},
+			})
+		}
+
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
+
+		board, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		require.Len(t, board.Threads, 1)
+
+		// Should only show OP + NLastMsg messages (not all replies)
+		expectedMessageCount := 1 + storage.cfg.Public.NLastMsg // OP + NLastMsg
+		assert.LessOrEqual(t, len(board.Threads[0].Messages), expectedMessageCount,
+			"Thread should not exceed NLastMsg limit")
+
+		// The target message should still have all its replies attached
+		var targetMessage *domain.Message
+		for i := range board.Threads[0].Messages {
+			if board.Threads[0].Messages[i].Id == targetMsgID {
+				targetMessage = board.Threads[0].Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, targetMessage)
+		assert.Equal(t, replyCount, len(targetMessage.Replies),
+			"Target message should have all replies attached regardless of pagination")
+	})
+
+	t.Run("replies maintain proper metadata", func(t *testing.T) {
+		boardShortName := setupBoard(t)
+		threadID := createTestThread(t, domain.ThreadCreationData{
+			Title: "Metadata Reply Test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: 1},
+				Text:   "OP message",
+			},
+		})
+
+		targetMsgID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: 2},
+			Text:     "Target message",
+			ThreadId: threadID,
+		})
+
+		// Create reply with specific metadata
+		replyAuthor := domain.User{Id: 999}
+		replyText := "Reply with metadata"
+		replyID := createTestMessage(t, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   replyAuthor,
+			Text:     replyText,
+			ThreadId: threadID,
+			ReplyTo: &domain.Replies{
+				{
+					Board:        boardShortName,
+					FromThreadId: threadID,
+					ToThreadId:   threadID,
+					From:         -1,
+					To:           targetMsgID,
+					CreatedAt:    time.Now().UTC(),
+				},
+			},
+		})
+
+		require.NoError(t, storage.refreshMaterializedViewConcurrent(boardShortName, time.Second*1))
+
+		board, err := storage.GetBoard(boardShortName, 1)
+		require.NoError(t, err)
+		require.Len(t, board.Threads, 1)
+
+		// Find the reply message and verify its metadata
+		var replyMessage *domain.Message
+		for i := range board.Threads[0].Messages {
+			if board.Threads[0].Messages[i].Id == replyID {
+				replyMessage = board.Threads[0].Messages[i]
+				break
+			}
+		}
+		require.NotNil(t, replyMessage, "Reply message should be found")
+		assert.Equal(t, replyText, replyMessage.Text, "Reply text should match")
+		assert.Equal(t, replyAuthor.Id, replyMessage.Author.Id, "Reply author should match")
+		assert.Equal(t, threadID, replyMessage.ThreadId, "Reply ThreadId should match")
+		assert.Equal(t, boardShortName, replyMessage.Board, "Reply Board should match")
+		assert.False(t, replyMessage.Op, "Reply should not be marked as OP")
+		assert.Greater(t, replyMessage.Ordinal, 0, "Reply should have positive ordinal")
+	})
+}

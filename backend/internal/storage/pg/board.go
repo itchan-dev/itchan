@@ -156,8 +156,8 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 	idToMessge := make(map[domain.MsgId]*domain.Message) // further used to add parsed replies
 	var messageIds []domain.MsgId                        // further used to select replies for specific messages
 
-	var threads []domain.Thread
-	var thread domain.Thread
+	var threads []*domain.Thread
+	var thread *domain.Thread
 	firstRow := true // custom logic for first parsed row
 	for rows.Next() {
 		var rd rowData
@@ -176,7 +176,7 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 				threads = append(threads, thread)
 			}
 			firstRow = false
-			thread = domain.Thread{
+			thread = &domain.Thread{
 				ThreadMetadata: domain.ThreadMetadata{
 					Id:         rd.ThreadID,
 					Title:      rd.ThreadTitle,
@@ -184,10 +184,10 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 					NumReplies: rd.NReplies,
 					LastBumped: rd.LastBumpTs,
 				},
-				Messages: []domain.Message{},
+				Messages: []*domain.Message{},
 			}
 		}
-		msg := domain.Message{
+		msg := &domain.Message{
 			MessageMetadata: domain.MessageMetadata{
 				Id:        rd.MsgID,
 				Author:    domain.User{Id: rd.AuthorID},
@@ -202,7 +202,7 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 			Attachments: rd.Attachments,
 		}
 		thread.Messages = append(thread.Messages, msg)
-		idToMessge[msg.Id] = &msg
+		idToMessge[msg.Id] = msg
 		messageIds = append(messageIds, msg.Id) // uniquness ensured by unique index for board materialized view
 	}
 	if err = rows.Err(); err != nil {
@@ -236,9 +236,13 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 			if err := rows.Scan(&reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
 				return domain.Board{}, fmt.Errorf("failed to scan reply row for board page: %w", err)
 			}
+
 			reply.Board = shortName // Set the board field
+
 			if msg, ok := idToMessge[reply.To]; ok {
-				msg.Replies = append(msg.Replies, reply)
+				// Create a pointer to the reply and append it
+				replyPtr := &reply
+				msg.Replies = append(msg.Replies, replyPtr)
 			}
 		}
 		if err = rows.Err(); err != nil {

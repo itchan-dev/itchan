@@ -184,7 +184,7 @@ func RenderMessage(message domain.Message) (frontend_domain.Message, frontend_do
 func RenderThread(thread domain.Thread) frontend_domain.Thread {
 	renderedThread := frontend_domain.Thread{ThreadMetadata: thread.ThreadMetadata, Messages: make([]frontend_domain.Message, len(thread.Messages))}
 	for i, msg := range thread.Messages {
-		renderedMessage, _ := RenderMessage(msg)
+		renderedMessage, _ := RenderMessage(*msg)
 		renderedThread.Messages[i] = renderedMessage
 	}
 	return renderedThread
@@ -196,7 +196,7 @@ func RenderThreadWithReplies(thread domain.Thread) frontend_domain.Thread {
 	replyMap := make(map[domain.MsgId]frontend_domain.Replies)
 	for i := len(thread.Messages) - 1; i >= 0; i-- { // reverse iterate to collect replies
 		msg := thread.Messages[i]
-		renderedMessage, parsedReplies := RenderMessage(msg)
+		renderedMessage, parsedReplies := RenderMessage(*msg)
 		// check if we have replies for current message
 		if replies, ok := replyMap[msg.Id]; ok {
 			renderedMessage.Replies = replies
@@ -214,7 +214,7 @@ func RenderThreadWithReplies(thread domain.Thread) frontend_domain.Thread {
 func RenderBoard(board domain.Board) frontend_domain.Board {
 	renderedBoard := frontend_domain.Board{BoardMetadata: board.BoardMetadata, Threads: make([]frontend_domain.Thread, len(board.Threads))}
 	for i, thread := range board.Threads {
-		renderedBoard.Threads[i] = RenderThread(thread)
+		renderedBoard.Threads[i] = RenderThread(*thread)
 	}
 	return renderedBoard
 }

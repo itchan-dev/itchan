@@ -99,9 +99,11 @@ func (s *Storage) CreateMessage(creationData domain.MessageCreationData, isOp bo
 		return -1, fmt.Errorf("failed to insert message: %w", err)
 	}
 
+	// fmt.Printf("Msg text: %s,Reply to %+v\n", creationData.Text, creationData.ReplyTo)
 	// Insert replies into message_replies table
 	if creationData.ReplyTo != nil {
 		for _, reply := range *creationData.ReplyTo {
+			// fmt.Printf("reply %+v\n", reply)
 			_, err := tx.Exec(`
                 INSERT INTO message_replies (
                     board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created
@@ -163,7 +165,7 @@ func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (doma
 		if err := rows.Scan(&reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
 			return domain.Message{}, fmt.Errorf("failed to scan reply row: %w", err)
 		}
-		replies = append(replies, reply)
+		replies = append(replies, &reply)
 	}
 	msg.Replies = replies
 
