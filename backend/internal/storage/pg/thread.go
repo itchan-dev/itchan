@@ -101,7 +101,7 @@ func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId) (do
 	}
 	defer rows.Close()
 
-	var messages []domain.Message
+	var messages []*domain.Message
 	msgIdxMap := make(map[int64]int)
 	for rows.Next() {
 		var msg domain.Message
@@ -112,7 +112,7 @@ func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId) (do
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan message: %w", err)
 		}
-		messages = append(messages, msg)
+		messages = append(messages, &msg)
 		msgIdxMap[msg.Id] = len(messages) - 1
 	}
 	if err = rows.Err(); err != nil {
@@ -136,8 +136,8 @@ func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId) (do
 			return domain.Thread{}, fmt.Errorf("failed to scan reply row: %w", err)
 		}
 		if msgIdx, ok := msgIdxMap[reply.To]; ok {
-			msg := &messages[msgIdx]
-			msg.Replies = append(msg.Replies, reply)
+			msg := messages[msgIdx]
+			msg.Replies = append(msg.Replies, &reply)
 		}
 	}
 

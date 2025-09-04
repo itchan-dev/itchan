@@ -53,7 +53,7 @@ func (m *MockThreadStorage) GetThread(board domain.BoardShortName, id domain.Msg
 		return m.getThreadFunc(board, id)
 	}
 	// Default success returns a basic thread matching the ID in the first message
-	return domain.Thread{Messages: []domain.Message{{MessageMetadata: domain.MessageMetadata{Id: id}}}}, nil
+	return domain.Thread{Messages: []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: id}}}}, nil
 }
 
 func (m *MockThreadStorage) DeleteThread(board domain.BoardShortName, id domain.MsgId) error {
@@ -432,7 +432,7 @@ func TestThreadGet(t *testing.T) {
 		// Use domain types consistently
 		expectedThread := domain.Thread{
 			ThreadMetadata: domain.ThreadMetadata{Title: "test title"},
-			Messages:       []domain.Message{{MessageMetadata: domain.MessageMetadata{Id: testId}}},
+			Messages:       []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: testId}}},
 		}
 		getCalled := false
 

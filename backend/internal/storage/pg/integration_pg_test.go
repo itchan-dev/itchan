@@ -187,7 +187,7 @@ func createTestMessage(t *testing.T, message domain.MessageCreationData) domain.
 	return msgID
 }
 
-func requireThreadOrder(t *testing.T, threads []domain.Thread, expectedTitles []string) {
+func requireThreadOrder(t *testing.T, threads []*domain.Thread, expectedTitles []string) {
 	t.Helper()
 	require.Len(t, threads, len(expectedTitles))
 	for i, title := range expectedTitles {
@@ -195,7 +195,7 @@ func requireThreadOrder(t *testing.T, threads []domain.Thread, expectedTitles []
 	}
 }
 
-func requireMessageOrder(t *testing.T, messages []domain.Message, expectedTexts []string) {
+func requireMessageOrder(t *testing.T, messages []*domain.Message, expectedTexts []string) {
 	t.Helper()
 	require.Len(t, messages, len(expectedTexts))
 	for i, text := range expectedTexts {

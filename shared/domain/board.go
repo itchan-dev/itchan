@@ -21,5 +21,5 @@ type BoardMetadata struct {
 
 type Board struct {
 	BoardMetadata
-	Threads []Thread
+	Threads []*Thread
 }

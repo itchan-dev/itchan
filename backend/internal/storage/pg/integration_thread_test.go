@@ -232,7 +232,7 @@ func TestGetThread(t *testing.T) {
 		var firstReply *domain.Message
 		for i := range thread.Messages {
 			if thread.Messages[i].Id == msgID1 {
-				firstReply = &thread.Messages[i]
+				firstReply = thread.Messages[i]
 				break
 			}
 		}
