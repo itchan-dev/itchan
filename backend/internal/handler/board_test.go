@@ -172,7 +172,7 @@ func TestGetBoardHandler(t *testing.T) {
 	routePrefix := "/v1/" + boardShortName
 	expectedBoard := domain.Board{
 		BoardMetadata: domain.BoardMetadata{Name: "Test Board", ShortName: boardShortName},
-		Threads:       []domain.Thread{}, // Assuming empty threads for simplicity
+		Threads:       []*domain.Thread{}, // Assuming empty threads for simplicity
 	}
 
 	t.Run("successful get with specific page", func(t *testing.T) {

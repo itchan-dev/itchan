@@ -18,6 +18,7 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		Title       string              `validate:"required" json:"title"`
 		Text        string              `validate:"required" json:"text"`
 		Attachments *domain.Attachments `json:"attachments"`
+		ReplyTo     *domain.Replies     `json:"reply_to"`
 	}
 	var body bodyJson
 	if err := utils.DecodeValidate(r.Body, &body); err != nil {
@@ -29,7 +30,7 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	opMsg := domain.MessageCreationData{Author: *user, Text: body.Text, Attachments: body.Attachments}
+	opMsg := domain.MessageCreationData{Author: *user, Text: body.Text, Attachments: body.Attachments, ReplyTo: body.ReplyTo}
 
 	id, err := h.thread.Create(domain.ThreadCreationData{Title: body.Title, Board: mux.Vars(r)["board"], OpMessage: opMsg})
 	if err != nil {
