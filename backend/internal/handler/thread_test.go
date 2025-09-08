@@ -37,7 +37,7 @@ func (m *MockThreadService) Get(board domain.BoardShortName, id domain.MsgId) (d
 		return m.MockGet(board, id)
 	}
 	// Return a default thread with at least one message so Id() doesn't panic
-	return domain.Thread{Messages: []domain.Message{{MessageMetadata: domain.MessageMetadata{Id: id}}}}, nil // Default behavior
+	return domain.Thread{Messages: []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: id}}}}, nil // Default behavior
 }
 
 func (m *MockThreadService) Delete(board domain.BoardShortName, id domain.MsgId) error {
@@ -67,6 +67,7 @@ func TestCreateThreadHandler(t *testing.T) {
 	route := "/" + boardName
 	requestBody := []byte(`{"title": "thread title", "text": "test text", "attachments": ["one", "two"]}`)
 	requestBodyNoAttach := []byte(`{"title": "thread title", "text": "test text"}`)
+	requestBodyWithReplies := []byte(`{"title": "thread title", "text": "test text", "attachments": ["one", "two"], "reply_to": [{"To": 123, "ToThreadId": 1, "From": 0, "FromThreadId": 0, "CreatedAt": "2023-01-01T00:00:00Z"}]}`)
 	testUser := domain.User{Id: 1, Email: "test@test.com"}
 	expectedThreadID := domain.ThreadId(42)
 	expectedTitle := "thread title"
@@ -82,6 +83,7 @@ func TestCreateThreadHandler(t *testing.T) {
 				assert.Equal(t, expectedText, data.OpMessage.Text)
 				require.NotNil(t, data.OpMessage.Attachments)
 				assert.Equal(t, *expectedAttachments, *data.OpMessage.Attachments)
+				assert.Nil(t, data.OpMessage.ReplyTo, "OP messages should not have replies")
 				return expectedThreadID, nil
 			},
 		}
@@ -107,6 +109,7 @@ func TestCreateThreadHandler(t *testing.T) {
 				assert.Equal(t, testUser, data.OpMessage.Author)
 				assert.Equal(t, expectedText, data.OpMessage.Text)
 				assert.Nil(t, data.OpMessage.Attachments, "Attachments should be nil when not provided")
+				assert.Nil(t, data.OpMessage.ReplyTo, "OP messages should not have replies")
 				return expectedThreadID, nil
 			},
 		}
@@ -181,6 +184,37 @@ func TestCreateThreadHandler(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, rr.Code) // Assuming default mapping in WriteErrorAndStatusCode
 		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
+
+	t.Run("successful request with replies", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockCreate: func(data domain.ThreadCreationData) (domain.MsgId, error) {
+				assert.Equal(t, expectedTitle, data.Title)
+				assert.Equal(t, boardName, data.Board)
+				assert.Equal(t, testUser, data.OpMessage.Author)
+				assert.Equal(t, expectedText, data.OpMessage.Text)
+				require.NotNil(t, data.OpMessage.Attachments)
+				assert.Equal(t, *expectedAttachments, *data.OpMessage.Attachments)
+				// Check that ReplyTo is not nil and has the expected structure
+				require.NotNil(t, data.OpMessage.ReplyTo, "ReplyTo should not be nil")
+				require.Len(t, *data.OpMessage.ReplyTo, 1, "Should have one reply")
+				reply := (*data.OpMessage.ReplyTo)[0]
+				assert.Equal(t, domain.MsgId(123), reply.To)
+				assert.Equal(t, domain.ThreadId(1), reply.ToThreadId)
+				return expectedThreadID, nil
+			},
+		}
+		_, router := setupThreadTestHandler(mockService)
+
+		req := createRequest(t, http.MethodPost, route, requestBodyWithReplies)
+		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &testUser)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
+		assert.Equal(t, fmt.Sprintf("%d", expectedThreadID), rr.Body.String())
+	})
 }
 
 func TestGetThreadHandler(t *testing.T) {
@@ -189,7 +223,7 @@ func TestGetThreadHandler(t *testing.T) {
 	route := fmt.Sprintf("/%s/%d", boardName, threadID)
 	expectedThread := domain.Thread{
 		ThreadMetadata: domain.ThreadMetadata{Title: "Test Thread", Board: boardName},
-		Messages: []domain.Message{
+		Messages: []*domain.Message{
 			{MessageMetadata: domain.MessageMetadata{Id: threadID, Author: domain.User{Id: 1, Email: "op@test.com"}}, Text: "OP message"},
 			{MessageMetadata: domain.MessageMetadata{Id: 124, Author: domain.User{Id: 2, Email: "reply@test.com"}}, Text: "Reply message"},
 		},

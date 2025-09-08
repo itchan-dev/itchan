@@ -22,6 +22,7 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	type bodyJson struct {
 		Text        string              `validate:"required" json:"text"`
 		Attachments *domain.Attachments `json:"attachments"`
+		ReplyTo     *domain.Replies     `json:"reply_to"`
 	}
 	var body bodyJson
 	if err := utils.DecodeValidate(r.Body, &body); err != nil {
@@ -34,7 +35,7 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.message.Create(domain.MessageCreationData{Board: board, Author: *user, Text: body.Text, Attachments: body.Attachments, ThreadId: domain.ThreadId(threadId)})
+	_, err = h.message.Create(domain.MessageCreationData{Board: board, Author: *user, Text: body.Text, Attachments: body.Attachments, ThreadId: domain.ThreadId(threadId), ReplyTo: body.ReplyTo})
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
