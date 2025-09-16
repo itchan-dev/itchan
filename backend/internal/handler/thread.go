@@ -8,19 +8,14 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
-	type bodyJson struct {
-		Title       string              `validate:"required" json:"title"`
-		Text        string              `validate:"required" json:"text"`
-		Attachments *domain.Attachments `json:"attachments"`
-		ReplyTo     *domain.Replies     `json:"reply_to"`
-	}
-	var body bodyJson
+	var body api.CreateThreadRequest
 	if err := utils.DecodeValidate(r.Body, &body); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -30,16 +25,26 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	opMsg := domain.MessageCreationData{Author: *user, Text: body.Text, Attachments: body.Attachments, ReplyTo: body.ReplyTo}
+	creation := domain.ThreadCreationData{
+		Title:    domain.ThreadTitle(body.Title),
+		Board:    domain.BoardShortName(mux.Vars(r)["board"]),
+		IsSticky: body.IsSticky,
+		OpMessage: domain.MessageCreationData{
+			Author:      *user,
+			Text:        domain.MsgText(body.OpMessage.Text),
+			Attachments: body.OpMessage.Attachments,
+			ReplyTo:     body.OpMessage.ReplyTo,
+		},
+	}
 
-	id, err := h.thread.Create(domain.ThreadCreationData{Title: body.Title, Board: mux.Vars(r)["board"], OpMessage: opMsg})
+	id, err := h.thread.Create(creation)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(fmt.Sprintf("%d", id)))
+	fmt.Fprintf(w, "%d", id)
 }
 
 func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {

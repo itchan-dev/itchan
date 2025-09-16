@@ -23,5 +23,5 @@ type ThreadMetadata struct {
 
 type Thread struct {
 	ThreadMetadata
-	Messages []*Message  // Change from []Message to []*Message
+	Messages []*Message // Change from []Message to []*Message
 }

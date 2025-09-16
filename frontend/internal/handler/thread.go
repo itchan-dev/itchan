@@ -8,9 +8,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
@@ -18,7 +20,7 @@ import (
 
 func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Thread frontend_domain.Thread
+		Thread *frontend_domain.Thread
 		Error  template.HTML
 		User   *domain.User
 	}
@@ -62,7 +64,7 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal error: cannot decode response", http.StatusInternalServerError)
 		return
 	}
-	threadRendered := RenderThreadWithReplies(thread)
+	threadRendered := RenderThread(thread)
 	templateData.Thread = threadRendered
 
 	h.renderTemplate(w, "thread.html", templateData)
@@ -72,20 +74,35 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	shortName := vars["board"]
-	threadId := vars["thread"]
+	threadIdStr := vars["thread"]
 
 	// Redirect target (back to the same thread page on success or error)
-	targetURL := fmt.Sprintf("/%s/%s", shortName, threadId)
+	targetURL := fmt.Sprintf("/%s/%s", shortName, threadIdStr)
+
+	threadId, err := strconv.Atoi(threadIdStr)
+	if err != nil {
+		log.Printf("Error converting threadId to int: %v", err)
+		redirectWithError(w, r, targetURL, "Internal error: could not convert threadId to int.")
+		return
+	}
 
 	// Parse form data (assuming text, maybe attachments)
 	text := r.FormValue("text")
+	// Escape HTML first to prevent XSS, then process links
+	processedText, replyTo := processMessageLinks(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName, ThreadId: domain.ThreadId(threadId)}})
 	// TODO: Handle attachments if necessary
 
-	// Prepare backend request data
-	backendData := struct {
-		Text string `json:"text"`
-		// Attachments *domain.Attachments `json:"attachments"` // Add if handling attachments
-	}{Text: text}
+	// Prepare backend request data using shared API DTOs
+	var domainReplies domain.Replies
+	for _, r := range replyTo {
+		if r != nil {
+			domainReplies = append(domainReplies, &r.Reply)
+		}
+	}
+	backendData := api.CreateMessageRequest{
+		Text:    processedText,
+		ReplyTo: &domainReplies,
+	}
 
 	backendDataJson, err := json.Marshal(backendData)
 	if err != nil {
@@ -95,7 +112,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create request with authentication
-	apiEndpoint := fmt.Sprintf("http://api:8080/v1/%s/%s", shortName, threadId)
+	apiEndpoint := fmt.Sprintf("http://api:8080/v1/%s/%s", shortName, threadIdStr)
 	req, err := requestWithCookie(r, "POST", apiEndpoint, bytes.NewBuffer(backendDataJson), "accessToken")
 	if err != nil {
 		log.Printf("Error creating request for reply creation: %v", err)

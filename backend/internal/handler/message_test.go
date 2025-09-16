@@ -224,18 +224,14 @@ func TestGetMessageHandler(t *testing.T) {
 	msgIdStr := strconv.FormatInt(msgId, 10)
 	route := "/" + board + "/" + threadIdStr + "/" + msgIdStr
 	expectedMessage := domain.Message{
-		MessageMetadata: domain.MessageMetadata{Id: msgId, ThreadId: threadId},
+		MessageMetadata: domain.MessageMetadata{Id: msgId, ThreadId: threadId, Replies: domain.Replies{}},
 		Text:            "Existing message",
 		Attachments:     nil,
-		Replies:         domain.Replies{},
 	}
 
 	// Test message with replies
 	expectedMessageWithReplies := domain.Message{
-		MessageMetadata: domain.MessageMetadata{Id: msgId, ThreadId: threadId},
-		Text:            "Message with replies",
-		Attachments:     nil,
-		Replies: domain.Replies{
+		MessageMetadata: domain.MessageMetadata{Id: msgId, ThreadId: threadId, Replies: domain.Replies{
 			&domain.Reply{
 				To:           456,
 				ToThreadId:   1,
@@ -243,7 +239,9 @@ func TestGetMessageHandler(t *testing.T) {
 				FromThreadId: 1,
 				CreatedAt:    time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			},
-		},
+		}},
+		Text:        "Message with replies",
+		Attachments: nil,
 	}
 
 	t.Run("successful get", func(t *testing.T) {

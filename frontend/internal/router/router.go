@@ -44,5 +44,8 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	authRouter.HandleFunc("/{board}/{thread}", deps.Handler.ThreadPostHandler).Methods("POST")
 	authRouter.HandleFunc("/{board}/{thread}/{message}/delete", handler.MessageDeleteHandler).Methods("POST")
 
+	// API proxy for message preview
+	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}", handler.MessagePreviewHandler).Methods("GET")
+
 	return r
 }

@@ -150,7 +150,7 @@ func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (doma
 
 	// Fetch replies for this message
 	rows, err := s.db.Query(`
-        SELECT sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created
+        SELECT board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created
         FROM message_replies
         WHERE board = $1 AND receiver_message_id = $2
         ORDER BY created
@@ -162,7 +162,7 @@ func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (doma
 	var replies domain.Replies
 	for rows.Next() {
 		var reply domain.Reply
-		if err := rows.Scan(&reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
+		if err := rows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
 			return domain.Message{}, fmt.Errorf("failed to scan reply row: %w", err)
 		}
 		replies = append(replies, &reply)

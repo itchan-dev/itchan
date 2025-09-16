@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
@@ -19,12 +20,7 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type bodyJson struct {
-		Text        string              `validate:"required" json:"text"`
-		Attachments *domain.Attachments `json:"attachments"`
-		ReplyTo     *domain.Replies     `json:"reply_to"`
-	}
-	var body bodyJson
+	var body api.CreateMessageRequest
 	if err := utils.DecodeValidate(r.Body, &body); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -35,7 +31,16 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.message.Create(domain.MessageCreationData{Board: board, Author: *user, Text: body.Text, Attachments: body.Attachments, ThreadId: domain.ThreadId(threadId), ReplyTo: body.ReplyTo})
+	creation := domain.MessageCreationData{
+		Board:       domain.BoardShortName(board),
+		ThreadId:    domain.ThreadId(threadId),
+		Author:      *user,
+		Text:        domain.MsgText(body.Text),
+		Attachments: body.Attachments,
+		ReplyTo:     body.ReplyTo,
+	}
+
+	_, err = h.message.Create(creation)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

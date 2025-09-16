@@ -17,11 +17,10 @@
 
     <div class="posts-container">
         {{ range $index, $message := .Thread.Messages }}
-            {{ $isOP := eq $index 0 }}
-            <div class="post {{if $isOP}}op-post{{else}}reply-post{{end}}" id="p{{ $message.Id }}">
+            <div class="post {{if $message.Op}}op-post{{else}}reply-post{{end}}" data-board="{{ $.Thread.Board }}" data-message-id="{{ $message.Id }}" data-thread-id="{{ $.Thread.Id }}" id="p{{ $message.Id }}">
                 <div class="post-header">
                     <input type="checkbox" name="delete" value="{{ $message.Id }}"> <!-- Delete checkbox -->
-                    {{if and $isOP $.Thread.Title}}<span class="post-subject">{{ $.Thread.Title }}</span>{{end}}
+                    {{if and $message.Op $.Thread.Title}}<span class="post-subject">{{ $.Thread.Title }}</span>{{end}}
                     <span class="post-author">Anonymous</span>
                     <span class="post-date">{{ $message.CreatedAt.Format "01/02/06(Mon)15:04:05" }}</span>
                     <span class="post-id">
@@ -29,35 +28,31 @@
                     </span>
                     {{ if $message.Replies }}
                         {{ range $reply := $message.Replies }}
-                            <span class="reply-link">{{ $reply.LinkFromHTML }}</span>
+                            <span class="reply-link">{{ $reply.HTMLLinkFrom }}</span>
                         {{ end }}
                     {{ end }}
-                    {{/* --- START: Message Delete Button --- */}}
                     {{if $.User.Admin}}
                     <form method="POST" action="/{{ $.Thread.Board }}/{{ $.Thread.Id }}/{{ $message.Id }}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete post No.{{ $message.Id }}? This cannot be undone.');">
                          {{/* Add specific text for OP deletion */}}
-                         {{if $isOP}}
+                         {{if $message.Op}}
                          [<button type="submit" class="delete-button">Delete OP & Thread</button>]
                          {{else}}
                          [<button type="submit" class="delete-button">Delete Post</button>]
                          {{end}}
                     </form>
                     {{end}}
-                    {{/* --- END: Message Delete Button --- */}}
-                    {{if $isOP}}<span class="reply-link">[<a href="#reply-form-top">Reply</a>]</span>{{end}}
+                    {{if $message.Op}}<span class="reply-link">[<a href="#reply-form-top">Reply</a>]</span>{{end}}
                      <!-- Add backlinks display here if implemented -->
                 </div>
-                {{ if $message.Attachments }}
+                <!-- {{ if $message.Attachments }}
                     <div class="post-attachments">
                         File:
                         {{ range $message.Attachments }}
                             <a href="{{ . }}" target="_blank">{{ . }}</a>
                         {{ end }}
                     </div>
-                {{ end }}
-                <blockquote class="post-body">
-                    {{ $message.Text }}
-                </blockquote>
+                {{ end }} -->
+                <blockquote class="post-body">{{ $message.Text }}</blockquote>
             </div><!-- End Post -->
             {{/* No <hr> between posts on thread page usually, spacing is handled by margin */}}
         {{ end }}
@@ -93,17 +88,4 @@
     <hr>
     <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
 
-    <script>
-        // --- Click-to-Reply Functionality ---
-        function addReplyLink(threadId, messageId) {
-            const textarea = document.getElementById('text-reply-bottom');
-            if (textarea) {
-                const replyText = '>>' + threadId + '/' + messageId + '\n';
-                // Append text and move cursor to the end
-                textarea.value += replyText;
-                textarea.focus(); // Focus the textarea
-                textarea.scrollTop = textarea.scrollHeight; // Scroll to bottom if needed
-            }
-        }
-    </script>
 {{ end }}

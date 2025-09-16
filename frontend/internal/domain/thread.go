@@ -5,6 +5,6 @@ import (
 )
 
 type Thread struct {
-	domain.ThreadMetadata
-	Messages []Message
+	domain.Thread
+	Messages []*Message
 }
