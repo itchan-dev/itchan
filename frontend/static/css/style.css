@@ -58,17 +58,6 @@ blockquote {
     padding: 0;
 }
 
-/* Green quote line (optional) */
-blockquote {
-   /* color: #789922; */ /* Classic quote color */
-}
-blockquote a {
-    /* color: #0000ee; */ /* Ensure links inside quotes are standard blue */
-}
-blockquote a:hover {
-    /* color: #dd0000; */
-}
-
 
 /* ==========================================
    Header Styles
@@ -123,9 +112,6 @@ blockquote a:hover {
 /* ==========================================
    Main Content Area
    ========================================== */
-.content {
-    /* No specific styling needed, inherits body */
-}
 
 /* ==========================================
    Board List Styles (Index Page)
@@ -273,15 +259,10 @@ blockquote a:hover {
     padding: 2px 5px 5px 5px;
     border: 1px solid #b7c5d9; /* Default border for replies */
     border-radius: 0;
-    /* display: inline-block; */ /* REMOVE this */
-    /* vertical-align: top; */   /* REMOVE this (not needed for block) */
-    /* width: auto; */           /* REMOVE this (block elements take width) */
-    /* max-width: 98%; */       /* REMOVE this or adjust (e.g., max-width: 100%;) */
     overflow: hidden;
     line-height: 1.3;
-    display: block; /* ADD this (or rely on div default, but explicit is clear) */
-    box-sizing: border-box; /* Good practice for block elements */
-    /* width: 100%; */ /* Optional: force full width if needed, usually not */
+    display: block;
+    box-sizing: border-box;
 }
 
 .post.op-post {
@@ -316,17 +297,14 @@ blockquote a:hover {
 
 .post-author {
     font-weight: bold;
-    /* color: #117743; */ /* Inherits from header */
     margin-right: 8px;
 }
 
 .post-date {
-    /* color: #117743; */ /* Inherits from header */
     margin-right: 8px;
 }
 
 .post-id {
-    /* color: #117743; */ /* Inherits from header */
     margin-right: 8px;
 }
 .post-id a {
@@ -339,7 +317,6 @@ blockquote a:hover {
 }
 
 .reply-link {
-    /* color: #117743; */ /* Inherits from header */
     margin-left: 5px;
     font-size: 0.9em;
 }
@@ -348,6 +325,20 @@ blockquote a:hover {
     text-decoration: underline;
 }
 .reply-link a:hover {
+    color: #dd0000;
+}
+
+.reply-to-info {
+    color: #117743; /* Green color for reply-to info */
+    margin-left: 5px;
+    font-size: 0.9em;
+    font-style: italic;
+}
+.reply-to-info a {
+    color: #0000ee; /* Standard link blue */
+    text-decoration: underline;
+}
+.reply-to-info a:hover {
     color: #dd0000;
 }
 
@@ -369,6 +360,7 @@ blockquote a:hover {
     word-wrap: break-word;
     overflow-wrap: break-word;
     max-width: 100%;
+    white-space: pre-wrap;
     /* blockquote used inside */
 }
 .post-body p { /* Reset potential paragraph margins if blockquote isn't used */
@@ -511,35 +503,101 @@ blockquote a:hover {
    ========================================== */
 
    .message-preview {
-    position: absolute;
-    border: 1px solid #ccc;
-    background-color: #f9f9f9;
-    padding: 5px 10px;
-    font-size: 0.9em;
-    max-width: 400px; /* Limit width */
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
-    z-index: 100; /* Ensure it's above other content */
-    pointer-events: none; /* Allow clicks to go through to elements below */
+    /* Preview-specific styles only */
+    position: fixed;
+    max-width: 400px;
+    min-width: 300px;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    z-index: 1000;
+    pointer-events: auto;
+    transition: opacity 0.2s ease-in-out;
+    opacity: 1;
+    animation: fadeIn 0.2s ease-in-out;
 }
+
+/* Inherit post-header styles when both classes are present */
 .message-preview .post-header {
-    font-size: 0.8em;
-    color: #555;
-    border-bottom: 1px dashed #ddd;
-    margin-bottom: 5px;
-    padding-bottom: 3px;
+    /* This inherits all .post-header styles automatically */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
 }
- .message-preview .post-body {
+
+.message-preview .post-header .post-author {
+    font-weight: bold;
+    color: #117743;
+}
+
+.message-preview .post-header .post-date {
+    color: #666;
+    font-size: 0.75em;
+}
+
+.message-preview .post-header .post-id {
+    color: #0000ee;
+    font-weight: bold;
+}
+
+.message-preview .post-header .reply-links {
+    color: #0000ee;
+    font-size: 0.75em;
+}
+
+.message-preview .post-body {
     margin: 0;
     padding: 0;
     max-height: 150px; /* Limit height */
-    overflow: hidden; /* Hide overflow */
-    text-overflow: ellipsis; /* Add ellipsis for overflow */
+    overflow-y: auto; /* Enable scrolling for overflow */
+    overflow-x: hidden;
+    line-height: 1.4;
+    word-wrap: break-word;
+    white-space: pre-wrap; /* Preserve line breaks and wrap text */
 }
+
+/* Error preview styling */
+.message-preview.error-preview {
+    background-color: #ffe6e6;
+    border-color: #ff6b6b;
+}
+
+.message-preview.error-preview .post-header {
+    color: #d63031;
+    border-bottom-color: #ff6b6b;
+}
+
+.message-preview.error-preview .post-body {
+    color: #d63031;
+    font-style: italic;
+}
+
+/* Loading state */
+.message-preview.loading .post-body {
+    color: #666;
+    font-style: italic;
+}
+
 /* Style for the message links */
 .message-link {
-    /* text-decoration: underline; */
-    /* color: #007bff; */
     cursor: pointer;
+    text-decoration: none;
+    color: #0000ee;
+}
+
+.message-link:hover {
+    text-decoration: underline;
+}
+
+/* Smooth transitions for preview */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 

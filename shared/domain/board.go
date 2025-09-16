@@ -6,9 +6,9 @@ import (
 
 // to iterate thru layers: handler -> service -> storage
 type BoardCreationData struct {
-	Name          BoardName
-	ShortName     BoardShortName
-	AllowedEmails *Emails
+	Name          BoardName      `json:"name" validate:"required"`
+	ShortName     BoardShortName `json:"short_name" validate:"required"`
+	AllowedEmails *Emails        `json:"allowed_emails,omitempty"`
 }
 
 type BoardMetadata struct {

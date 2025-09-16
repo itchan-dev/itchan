@@ -31,7 +31,6 @@ type Message struct {
 	MessageMetadata
 	Text        string
 	Attachments *Attachments
-	Replies     Replies
 }
 
 type Reply struct {

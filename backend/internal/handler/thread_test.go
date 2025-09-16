@@ -65,9 +65,9 @@ func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *mux
 func TestCreateThreadHandler(t *testing.T) {
 	boardName := "b"
 	route := "/" + boardName
-	requestBody := []byte(`{"title": "thread title", "text": "test text", "attachments": ["one", "two"]}`)
-	requestBodyNoAttach := []byte(`{"title": "thread title", "text": "test text"}`)
-	requestBodyWithReplies := []byte(`{"title": "thread title", "text": "test text", "attachments": ["one", "two"], "reply_to": [{"To": 123, "ToThreadId": 1, "From": 0, "FromThreadId": 0, "CreatedAt": "2023-01-01T00:00:00Z"}]}`)
+	requestBody := []byte(`{"title": "thread title", "op_message": {"text": "test text", "attachments": ["one", "two"]}}`)
+	requestBodyNoAttach := []byte(`{"title": "thread title", "op_message": {"text": "test text"}}`)
+	requestBodyWithReplies := []byte(`{"title": "thread title", "op_message": {"text": "test text", "attachments": ["one", "two"], "reply_to": [{"To": 123, "ToThreadId": 1, "From": 0, "FromThreadId": 0, "CreatedAt": "2023-01-01T00:00:00Z"}]}}`)
 	testUser := domain.User{Id: 1, Email: "test@test.com"}
 	expectedThreadID := domain.ThreadId(42)
 	expectedTitle := "thread title"

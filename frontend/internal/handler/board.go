@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
@@ -96,7 +97,7 @@ func getBoardPreview(r *http.Request, shortName string, page int) (domain.Board,
 
 func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Board       frontend_domain.Board
+		Board       *frontend_domain.Board
 		Error       template.HTML
 		User        *domain.User
 		CurrentPage int
@@ -138,12 +139,25 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	text := r.FormValue("text")
 	// TODO: Handle attachments if necessary (multipart form?)
+	processedText, replyTo := processMessageLinks(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName}})
+	// TODO: Handle attachments if necessary
 
-	// Prepare backend request data
-	backendData := struct {
-		Title string `json:"title"`
-		Text  string `json:"text"`
-	}{Title: title, Text: text}
+	// Prepare backend request data using shared API DTOs
+	var domainReplies domain.Replies
+	for _, r := range replyTo {
+		if r != nil {
+			domainReplies = append(domainReplies, &r.Reply)
+		}
+	}
+	msgData := api.CreateMessageRequest{
+		Text:    processedText,
+		ReplyTo: &domainReplies,
+	}
+	// Prepare backend request data using shared API DTOs
+	backendData := api.CreateThreadRequest{
+		Title:     title,
+		OpMessage: msgData,
+	}
 
 	backendDataJson, err := json.Marshal(backendData)
 	if err != nil {

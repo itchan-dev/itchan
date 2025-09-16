@@ -70,7 +70,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 				return err
 			}
 		} else {
-			diff := cData.Expires.Sub(time.Now())
+			diff := time.Until(cData.Expires)
 			return &errors.ErrorWithStatusCode{Message: fmt.Sprintf("Previous confirmation code is still valid. Retry after %.0fs", diff.Seconds()), StatusCode: http.StatusTooEarly}
 		}
 	}

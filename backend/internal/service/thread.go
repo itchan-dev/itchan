@@ -49,6 +49,7 @@ func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.MsgId, e
 		if err != nil {
 			return threadId, err
 		}
+		// maybe delete all above threshold?
 		if threadCount > *b.config.MaxThreadCount {
 			lastThreadId, err := b.storage.LastThreadId(creationData.Board)
 			if err != nil {

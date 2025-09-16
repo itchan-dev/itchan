@@ -121,7 +121,7 @@ func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId) (do
 
 	// Fetch all replies for this thread
 	replyRows, err := s.db.Query(`
-        SELECT sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created
+        SELECT board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created
         FROM message_replies
         WHERE board = $1 AND receiver_thread_id = $2
         ORDER BY created
@@ -132,7 +132,7 @@ func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId) (do
 	defer replyRows.Close()
 	for replyRows.Next() {
 		var reply domain.Reply
-		if err := replyRows.Scan(&reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
+		if err := replyRows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan reply row: %w", err)
 		}
 		if msgIdx, ok := msgIdxMap[reply.To]; ok {

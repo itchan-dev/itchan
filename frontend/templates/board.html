@@ -45,7 +45,7 @@
             <div class="thread-preview">
                 {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
                     {{ $opMessage := index $thread.Messages 0 }}
-                    <div class="post op-post" id="p{{ $opMessage.Id }}">
+                    <div class="post op-post" data-board="{{ $thread.Board }}" data-message-id="{{ $opMessage.Id }}" data-thread-id="{{ $thread.Id }}" id="p{{ $opMessage.Id }}">
                          <div class="post-header">
                             <input type="checkbox" name="delete" value="{{ $opMessage.Id }}">
                             {{if $thread.Title}}<span class="post-subject">{{ $thread.Title }}</span>{{end}}
@@ -54,6 +54,11 @@
                             <span class="post-id">
                                 No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $opMessage.Id }}">{{ $opMessage.Id }}</a>
                             </span>
+                            {{ if $opMessage.Replies }}
+                                {{ range $reply := $opMessage.Replies }}
+                                    <span class="reply-link">{{ $reply.HTMLLinkFrom }}</span>
+                                {{ end }}
+                            {{ end }}
                             {{/* --- START: Thread Delete Button --- */}}
                             {{if $.User.Admin}}
                             <form method="POST" action="/{{ $thread.Board }}/{{ $thread.Id }}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete thread No.{{ $thread.Id }}? This cannot be undone.');">
@@ -71,15 +76,13 @@
                                 {{ end }}
                             </div>
                         {{ end }}
-                        <blockquote class="post-body">
-                             {{ $opMessage.Text }}
-                        </blockquote>
+                        <blockquote class="post-body">{{ $opMessage.Text }}</blockquote>
                     </div><!-- End OP Post -->
 
                     {{/* Display Reply Previews (rest of the messages) */}}
                     {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
                     {{ range $replyIndex, $reply := $previewReplies }}
-                         <div class="post reply-post" id="p{{ $reply.Id }}">
+                         <div class="post reply-post" data-board="{{ $thread.Board }}" data-message-id="{{ $reply.Id }}" data-thread-id="{{ $thread.Id }}" id="p{{ $reply.Id }}">
                             <div class="post-header">
                                 <input type="checkbox" name="delete" value="{{ $reply.Id }}">
                                 <span class="post-author">Anonymous</span>
@@ -87,6 +90,11 @@
                                 <span class="post-id">
                                     No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $reply.Id }}">{{ $reply.Id }}</a>
                                 </span>
+                                {{ if $reply.Replies }}
+                                    {{ range $replyLink := $reply.Replies }}
+                                        <span class="reply-link">{{ $replyLink.HTMLLinkFrom }}</span>
+                                    {{ end }}
+                                {{ end }}
                                 {{/* No delete button for replies in preview */}}
                             </div>
                             {{ if $reply.Attachments }}
@@ -97,9 +105,7 @@
                                     {{ end }}
                                 </div>
                             {{ end }}
-                            <blockquote class="post-body">
-                                {{ $reply.Text }}
-                            </blockquote>
+                            <blockquote class="post-body">{{ $reply.Text }}</blockquote>
                         </div><!-- End Reply Post Preview -->
                     {{ end }}
 

@@ -145,16 +145,17 @@ func parseMessagesFromQuery(r *http.Request) (errMsg template.HTML, successMsg t
 	return errMsg, successMsg
 }
 
-var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
+// var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
+var escapedMessageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
 
 // processMessageLinks finds >>N/M patterns and converts them to internal links.
 // It also returns a list of all matched strings found in the input.
-func processMessageLinks(message domain.Message) (template.HTML, frontend_domain.Replies) {
+func processMessageLinks(message domain.Message) (string, frontend_domain.Replies) {
 	var matches frontend_domain.Replies
 
-	processedText := messageLinkRegex.ReplaceAllStringFunc(message.Text, func(match string) string {
+	processedText := escapedMessageLinkRegex.ReplaceAllStringFunc(template.HTMLEscapeString(message.Text), func(match string) string {
 		// Extract the capture groups from the current match
-		submatch := messageLinkRegex.FindStringSubmatch(match)
+		submatch := escapedMessageLinkRegex.FindStringSubmatch(match)
 		if len(submatch) < 3 {
 			return match // shouldn't happen due to prior match
 		}
@@ -166,55 +167,40 @@ func processMessageLinks(message domain.Message) (template.HTML, frontend_domain
 		if err != nil {
 			return match
 		}
-		reply := frontend_domain.Reply{Board: message.Board, Thread: threadId, From: message.Id, To: messageId}
-		matches = append(matches, reply)
+		reply := frontend_domain.Reply{Reply: domain.Reply{Board: message.Board, FromThreadId: message.ThreadId, ToThreadId: threadId, From: message.Id, To: messageId}}
+		matches = append(matches, &reply)
 		return reply.LinkTo()
 	})
 
-	return template.HTML(processedText), matches
+	return processedText, matches
 }
 
-func RenderMessage(message domain.Message) (frontend_domain.Message, frontend_domain.Replies) {
-	renderedMessage := frontend_domain.Message{Message: message}
-	renderedText, replyTo := processMessageLinks(message)
-	renderedMessage.Text = renderedText
-	return renderedMessage, replyTo
+func RenderReply(reply domain.Reply) *frontend_domain.Reply {
+	return &frontend_domain.Reply{Reply: reply}
 }
 
-func RenderThread(thread domain.Thread) frontend_domain.Thread {
-	renderedThread := frontend_domain.Thread{ThreadMetadata: thread.ThreadMetadata, Messages: make([]frontend_domain.Message, len(thread.Messages))}
+func RenderMessage(message domain.Message) *frontend_domain.Message {
+	renderedMessage := frontend_domain.Message{Message: message, Replies: make(frontend_domain.Replies, len(message.Replies))}
+	// Text is already escaped and processed (links converted) when saved to backend
+	renderedMessage.Text = template.HTML(message.Text)
+	for i, reply := range message.Replies {
+		renderedMessage.Replies[i] = RenderReply(*reply)
+	}
+	return &renderedMessage
+}
+
+func RenderThread(thread domain.Thread) *frontend_domain.Thread {
+	renderedThread := frontend_domain.Thread{Thread: thread, Messages: make([]*frontend_domain.Message, len(thread.Messages))}
 	for i, msg := range thread.Messages {
-		renderedMessage, _ := RenderMessage(*msg)
-		renderedThread.Messages[i] = renderedMessage
+		renderedThread.Messages[i] = RenderMessage(*msg)
 	}
-	return renderedThread
+	return &renderedThread
 }
 
-// render thread and process replies
-func RenderThreadWithReplies(thread domain.Thread) frontend_domain.Thread {
-	renderedThread := frontend_domain.Thread{ThreadMetadata: thread.ThreadMetadata, Messages: make([]frontend_domain.Message, len(thread.Messages))}
-	replyMap := make(map[domain.MsgId]frontend_domain.Replies)
-	for i := len(thread.Messages) - 1; i >= 0; i-- { // reverse iterate to collect replies
-		msg := thread.Messages[i]
-		renderedMessage, parsedReplies := RenderMessage(*msg)
-		// check if we have replies for current message
-		if replies, ok := replyMap[msg.Id]; ok {
-			renderedMessage.Replies = replies
-		}
-		// add parsed replies to map for future messages
-		for _, reply := range parsedReplies {
-			replyMap[reply.To] = append(replyMap[reply.To], reply)
-		}
-
-		renderedThread.Messages[i] = renderedMessage
-	}
-	return renderedThread
-}
-
-func RenderBoard(board domain.Board) frontend_domain.Board {
-	renderedBoard := frontend_domain.Board{BoardMetadata: board.BoardMetadata, Threads: make([]frontend_domain.Thread, len(board.Threads))}
+func RenderBoard(board domain.Board) *frontend_domain.Board {
+	renderedBoard := frontend_domain.Board{Board: board, Threads: make([]*frontend_domain.Thread, len(board.Threads))}
 	for i, thread := range board.Threads {
 		renderedBoard.Threads[i] = RenderThread(*thread)
 	}
-	return renderedBoard
+	return &renderedBoard
 }

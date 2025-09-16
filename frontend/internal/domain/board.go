@@ -5,6 +5,6 @@ import (
 )
 
 type Board struct {
-	domain.BoardMetadata
-	Threads []Thread
+	domain.Board
+	Threads []*Thread
 }
