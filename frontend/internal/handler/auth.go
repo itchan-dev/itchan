@@ -16,11 +16,16 @@ import (
 
 func (h *Handler) RegisterGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Error template.HTML
-		User  *domain.User // Might be nil if not logged in
+		Error      template.HTML
+		User       *domain.User // Might be nil if not logged in
+		Validation struct {
+			ConfirmationCodeLen int
+			PasswordMinLen      int
+		}
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.Error, _ = parseMessagesFromQuery(r) // Get error from query param
+	templateData.Validation.ConfirmationCodeLen = h.Public.ConfirmationCodeLen
 	h.renderTemplate(w, "register.html", templateData)
 }
 
@@ -89,10 +94,12 @@ func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request)
 		Success          template.HTML
 		EmailPlaceholder string
 		User             *domain.User
+		Validation       struct{ ConfirmationCodeLen int }
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.EmailPlaceholder = parseEmail(r)                        // Get email from query param
 	templateData.Error, templateData.Success = parseMessagesFromQuery(r) // Get messages
+	templateData.Validation.ConfirmationCodeLen = h.Public.ConfirmationCodeLen
 
 	// Customize success message if needed based on query param
 	if r.URL.Query().Get("success") == "confirmed" {

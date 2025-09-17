@@ -36,3 +36,8 @@ func writeJSON(w http.ResponseWriter, v any) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 }
+
+// GetPublicConfig exposes the public part of the configuration for clients (frontend)
+func (h *Handler) GetPublicConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, h.cfg.Public)
+}

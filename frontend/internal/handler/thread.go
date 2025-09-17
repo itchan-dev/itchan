@@ -20,9 +20,12 @@ import (
 
 func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Thread *frontend_domain.Thread
-		Error  template.HTML
-		User   *domain.User
+		Thread     *frontend_domain.Thread
+		Error      template.HTML
+		User       *domain.User
+		Validation struct {
+			MessageTextMaxLen int
+		}
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	vars := mux.Vars(r)
@@ -66,6 +69,7 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	threadRendered := RenderThread(thread)
 	templateData.Thread = threadRendered
+	templateData.Validation.MessageTextMaxLen = h.Public.MessageTextMaxLen
 
 	h.renderTemplate(w, "thread.html", templateData)
 }
