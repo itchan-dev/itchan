@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 	"github.com/stretchr/testify/assert"
@@ -121,7 +122,7 @@ func TestRegister(t *testing.T) {
 	storage := &MockAuthStorage{}
 	email := &MockEmail{}
 	jwt := &MockJwt{} // Not used in Register, but needed for constructor
-	service := NewAuth(storage, email, jwt)
+	service := NewAuth(storage, email, jwt, &config.Public{ConfirmationCodeLen: 8})
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 	lowerCaseEmail := strings.ToLower(creds.Email)
@@ -348,7 +349,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{} // Renamed to avoid conflict with package name
 	jwt := &MockJwt{}         // Not used in CheckConfirmationCode, but needed for constructor
-	service := NewAuth(storage, emailMock, jwt)
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8})
 
 	testEmail := "test@example.com"
 	lowerCaseEmail := strings.ToLower(testEmail)
@@ -644,7 +645,7 @@ func TestLogin(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{} // Renamed to avoid conflict
 	jwt := &MockJwt{}
-	service := NewAuth(storage, emailMock, jwt)
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8})
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 	lowerCaseEmail := strings.ToLower(creds.Email)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/utils"
+	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/errors"
 	"golang.org/x/crypto/bcrypt"
@@ -23,6 +24,7 @@ type Auth struct {
 	storage AuthStorage
 	email   Email
 	jwt     Jwt
+	cfg     *config.Public
 }
 
 type AuthStorage interface {
@@ -44,8 +46,8 @@ type Jwt interface {
 	NewToken(user domain.User) (string, error)
 }
 
-func NewAuth(storage AuthStorage, email Email, jwt Jwt) *Auth {
-	return &Auth{storage, email, jwt}
+func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public) *Auth {
+	return &Auth{storage, email, jwt, cfg}
 }
 
 // Generate and send confirmation code to destinated email
@@ -75,7 +77,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		}
 	}
 
-	confirmationCode := utils.GenerateConfirmationCode(6)
+	confirmationCode := utils.GenerateConfirmationCode(a.cfg.ConfirmationCodeLen)
 	passHash, err := bcrypt.GenerateFromPassword([]byte(creds.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Print(err.Error())

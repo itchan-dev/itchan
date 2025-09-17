@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/errors"
 )
 
@@ -17,10 +18,10 @@ func IsLetter(s string) bool {
 	return true
 }
 
-type BoardNameValidator struct{}
+type BoardNameValidator struct{ Сfg *config.Public }
 
 func (e *BoardNameValidator) Name(name string) error {
-	if utf8.RuneCountInString(name) > 10 {
+	if utf8.RuneCountInString(name) > e.Сfg.BoardNameMaxLen {
 		return &errors.ErrorWithStatusCode{Message: "Name is too long", StatusCode: 400}
 	}
 	if !IsLetter(name) {
@@ -30,7 +31,7 @@ func (e *BoardNameValidator) Name(name string) error {
 }
 
 func (e *BoardNameValidator) ShortName(name string) error {
-	if utf8.RuneCountInString(name) > 3 {
+	if utf8.RuneCountInString(name) > e.Сfg.BoardShortNameMaxLen {
 		return &errors.ErrorWithStatusCode{Message: "Name is too long", StatusCode: 400}
 	}
 	if !IsLetter(name) {
@@ -39,26 +40,26 @@ func (e *BoardNameValidator) ShortName(name string) error {
 	return nil
 }
 
-func New() *BoardNameValidator {
-	return &BoardNameValidator{}
+func New(cfg *config.Public) *BoardNameValidator {
+	return &BoardNameValidator{Сfg: cfg}
 }
 
-type ThreadTitleValidator struct{}
+type ThreadTitleValidator struct{ Сfg *config.Public }
 
 func (e *ThreadTitleValidator) Title(name string) error {
-	if utf8.RuneCountInString(name) > 50 {
+	if utf8.RuneCountInString(name) > e.Сfg.ThreadTitleMaxLen {
 		return &errors.ErrorWithStatusCode{Message: "Name is too long", StatusCode: 400}
 	}
 	return nil
 }
 
-type MessageValidator struct{}
+type MessageValidator struct{ Сfg *config.Public }
 
 func (e *MessageValidator) Text(name string) error {
-	if utf8.RuneCountInString(name) > 10_000 {
+	if utf8.RuneCountInString(name) > e.Сfg.MessageTextMaxLen {
 		return &errors.ErrorWithStatusCode{Message: "Text is too long", StatusCode: 400}
 	}
-	if len(name) == 0 {
+	if len(name) <= e.Сfg.MessageTextMinLen {
 		return &errors.ErrorWithStatusCode{Message: "Text is too short", StatusCode: 400}
 	}
 	return nil

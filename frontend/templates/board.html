@@ -19,13 +19,13 @@
                     <tr>
                         <td class="form-label"><label for="title">Subject:</label></td>
                         <td>
-                            <input type="text" id="title" name="title" size="40">
+                            <input type="text" id="title" name="title" size="40" maxlength="{{.Validation.ThreadTitleMaxLen}}">
                             <button type="submit">Post</button>
                         </td>
                     </tr>
                     <tr>
                         <td class="form-label"><label for="text">Comment:</label></td>
-                        <td><textarea id="text" name="text" cols="48" rows="4" required></textarea></td>
+                        <td><textarea id="text" name="text" cols="48" rows="4" required maxlength="{{.Validation.MessageTextMaxLen}}"></textarea></td>
                     </tr>
                     <!-- File input -->
                  </tbody>

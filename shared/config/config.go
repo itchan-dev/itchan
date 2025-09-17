@@ -1,15 +1,11 @@
 package config
 
 import (
-	"encoding/json"
-	"io"
-	"log"
 	"os"
 	"path"
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/itchan-dev/itchan/shared/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,37 +15,45 @@ type Config struct {
 }
 
 type Public struct {
-	JwtTTL                      time.Duration `yaml:"jwt_ttl"`
-	ThreadsPerPage              int           `yaml:"threads_per_page"`
+	JwtTTL                      time.Duration `yaml:"jwt_ttl" validate:"required"`
+	ThreadsPerPage              int           `yaml:"threads_per_page" validate:"required"`
 	MaxThreadCount              *int          `yaml:"max_thread_count"`
-	NLastMsg                    int           `yaml:"n_last_msg"` // number of last messages shown in board preview (materialized view)
-	BumpLimit                   int           `yaml:"bump_limit"` // if thread have more messages it will not get "bumped"
-	BoardPreviewRefreshInterval time.Duration `yaml:"board_preview_refresh_internval"`
+	NLastMsg                    int           `yaml:"n_last_msg" validate:"required"` // number of last messages shown in board preview (materialized view)
+	BumpLimit                   int           `yaml:"bump_limit" validate:"required"` // if thread have more messages it will not get "bumped"
+	BoardPreviewRefreshInterval time.Duration `yaml:"board_preview_refresh_internval" validate:"required"`
+
+	// Validation constants (optional; sensible defaults are used when zero)
+	BoardNameMaxLen      int `yaml:"board_name_max_len"`
+	BoardShortNameMaxLen int `yaml:"board_short_name_max_len"`
+	ThreadTitleMaxLen    int `yaml:"thread_title_max_len"`
+	MessageTextMaxLen    int `yaml:"message_text_max_len"`
+	MessageTextMinLen    int `yaml:"message_text_min_len"`
+	ConfirmationCodeLen  int `yaml:"confirmation_code_len"`
 }
 
 type Pg struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Dbname   string `yaml:"dbname"`
+	Host     string `yaml:"host" validate:"required"`
+	Port     int    `yaml:"port" validate:"required"`
+	User     string `yaml:"user" validate:"required"`
+	Password string `yaml:"password" validate:"required"`
+	Dbname   string `yaml:"dbname" validate:"required"`
 }
 
 type Email struct {
-	SMTPServer         string `yaml:"smtp_server"`
-	SMTPPort           int    `yaml:"smtp_port"`
-	Username           string `yaml:"username"`
-	Password           string `yaml:"password"`
-	SenderName         string `yaml:"sender_name"`
+	SMTPServer         string `yaml:"smtp_server" validate:"required"`
+	SMTPPort           int    `yaml:"smtp_port" validate:"required"`
+	Username           string `yaml:"username" validate:"required"`
+	Password           string `yaml:"password" validate:"required"`
+	SenderName         string `yaml:"sender_name" validate:"required"`
 	Timeout            int    `yaml:"timeout"`
 	UseTLS             bool   `yaml:"use_tls"`
 	InsecureSkipVerify bool   `yaml:"skip_verify"`
 }
 
 type Private struct {
-	Pg     Pg
-	Email  Email
-	JwtKey string `yaml:"jwt_key"`
+	Pg     Pg     `yaml:"pg"`
+	Email  Email  `yaml:"email"`
+	JwtKey string `yaml:"jwt_key" validate:"required"`
 }
 
 // implementing logic.Config interface
@@ -62,7 +66,7 @@ func (s *Config) JwtTTL() time.Duration {
 	return s.Public.JwtTTL
 }
 
-func mustLoadPath(configPath string, output interface{}) {
+func mustLoadPath(configPath string, output any) {
 	// check if file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		panic("config file does not exist: " + configPath)
@@ -86,18 +90,38 @@ func MustLoad(configFolder string) *Config {
 	var private Private
 	mustLoadPath(path.Join(configFolder, "private.yaml"), &private)
 
+	// Apply default values for validation constants if not set
+	applyValidationDefaults(&public)
+
+	validate := validator.New(validator.WithRequiredStructEnabled())
+	if err := validate.Struct(public); err != nil {
+		panic("public config validation failed: " + err.Error())
+	}
+	if err := validate.Struct(private); err != nil {
+		panic("private config validation failed: " + err.Error())
+	}
+
 	return &Config{public, private}
 }
 
-func loadValidate(r io.ReadCloser, body any) error {
-	if err := json.NewDecoder(r).Decode(body); err != nil {
-		log.Printf(err.Error())
-		return &errors.ErrorWithStatusCode{Message: "Body is invalid json", StatusCode: 400}
+// applyValidationDefaults sets default values for validation constants if they are zero
+func applyValidationDefaults(public *Public) {
+	if public.BoardNameMaxLen == 0 {
+		public.BoardNameMaxLen = 10
 	}
-	validate := validator.New(validator.WithRequiredStructEnabled())
-	if err := validate.Struct(body); err != nil {
-		log.Printf(err.Error())
-		return &errors.ErrorWithStatusCode{Message: "Required fields missing", StatusCode: 400}
+	if public.BoardShortNameMaxLen == 0 {
+		public.BoardShortNameMaxLen = 3
 	}
-	return nil
+	if public.ThreadTitleMaxLen == 0 {
+		public.ThreadTitleMaxLen = 50
+	}
+	if public.MessageTextMaxLen == 0 {
+		public.MessageTextMaxLen = 10000
+	}
+	if public.MessageTextMinLen == 0 {
+		public.MessageTextMinLen = 1
+	}
+	if public.ConfirmationCodeLen == 0 {
+		public.ConfirmationCodeLen = 6
+	}
 }

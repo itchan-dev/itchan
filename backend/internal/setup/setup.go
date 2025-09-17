@@ -38,10 +38,10 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	email := email.New(&cfg.Private.Email)
 	jwt := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
 
-	auth := service.NewAuth(storage, email, jwt)
-	board := service.NewBoard(storage, &utils.BoardNameValidator{})
-	thread := service.NewThread(storage, &utils.ThreadTitleValidator{}, cfg.Public)
-	message := service.NewMessage(storage, &utils.MessageValidator{})
+	auth := service.NewAuth(storage, email, jwt, &cfg.Public)
+	board := service.NewBoard(storage, utils.New(&cfg.Public))
+	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, cfg.Public)
+	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public})
 
 	h := handler.New(auth, board, thread, message, cfg)
 

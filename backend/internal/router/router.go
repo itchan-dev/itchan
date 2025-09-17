@@ -33,6 +33,8 @@ func New(deps *setup.Dependencies) *mux.Router {
 	jwt := deps.Jwt
 
 	v1 := r.PathPrefix("/v1").Subrouter()
+	// Public config endpoint
+	v1.HandleFunc("/public_config", h.GetPublicConfig).Methods("GET")
 
 	// test := v1.PathPrefix("/test").Subrouter()                                                     //
 	// test.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test")) }) //

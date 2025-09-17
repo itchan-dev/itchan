@@ -101,6 +101,10 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		Error       template.HTML
 		User        *domain.User
 		CurrentPage int
+		Validation  struct {
+			ThreadTitleMaxLen int
+			MessageTextMaxLen int
+		}
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	shortName := mux.Vars(r)["board"]
@@ -123,6 +127,8 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	boardRendered := RenderBoard(board)
 	templateData.Board = boardRendered
+	templateData.Validation.ThreadTitleMaxLen = h.Public.ThreadTitleMaxLen
+	templateData.Validation.MessageTextMaxLen = h.Public.MessageTextMaxLen
 
 	h.renderTemplate(w, "board.html", templateData)
 }
