@@ -42,8 +42,8 @@
                         "ConfirmMessage" (printf "Are you sure you want to delete post No.%d? This cannot be undone." $message.Id)
                         "ButtonText" $buttonText
                     )
-                    "ShowReplyLink" $message.Op
-                    "ReplyLink" "#reply-form-top"
+                    "ThreadLink" (printf "/%s/%d" $.Thread.Board $.Thread.Id)
+                    "ShowReplyButton" true
                 )
                 "AttachmentData" (dict "Attachments" $message.Attachments)
                 "BodyData" (dict "Text" $message.Text)

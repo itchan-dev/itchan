@@ -57,8 +57,7 @@
                                 "ConfirmMessage" (printf "Are you sure you want to delete thread No.%d? This cannot be undone." $thread.Id)
                                 "ButtonText" "Delete Thread"
                             )
-                            "ShowReplyLink" true
-                            "ReplyLink" (printf "/%s/%d" $thread.Board $thread.Id)
+                            "ThreadLink" (printf "/%s/%d" $thread.Board $thread.Id)
                         )
                         "AttachmentData" (dict "Attachments" $opMessage.Attachments)
                         "BodyData" (dict "Text" $opMessage.Text)
@@ -77,7 +76,7 @@
                                 "CreatedAt" $reply.CreatedAt
                                 "Link" (printf "/%s/%d#p%d" $thread.Board $thread.Id $reply.Id)
                                 "Replies" $reply.Replies
-                                "ShowDeleteButton" false
+                                "ThreadLink" (printf "/%s/%d" $thread.Board $thread.Id)
                             )
                             "AttachmentData" (dict "Attachments" $reply.Attachments)
                             "BodyData" (dict "Text" $reply.Text)
@@ -99,7 +98,7 @@
                             {{if eq $omittedReplies 1}}
                                 {{$plural = "post"}}
                             {{end}}
-                            {{ $omittedReplies }} {{ $plural }} omitted. Click Reply to view.
+                            {{ $omittedReplies }} {{ $plural }} omitted.
                          </div>
                     {{ end }}
 
