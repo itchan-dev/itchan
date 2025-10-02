@@ -3,6 +3,8 @@ package handler
 import (
 	"html/template"
 	"net/http"
+
+	"github.com/itchan-dev/itchan/shared/config"
 	// Added for splitAndTrim if not already imported elsewhere
 )
 
@@ -13,37 +15,13 @@ type credentials struct {
 
 type Handler struct {
 	Templates map[string]*template.Template
-	Public    struct {
-		ThreadTitleMaxLen    int
-		MessageTextMaxLen    int
-		ConfirmationCodeLen  int
-		BoardNameMaxLen      int
-		BoardShortNameMaxLen int
-	}
+	Public    config.Public
 }
 
-func New(templates map[string]*template.Template, publicCfg struct {
-	ThreadTitleMaxLen    int
-	MessageTextMaxLen    int
-	ConfirmationCodeLen  int
-	BoardNameMaxLen      int
-	BoardShortNameMaxLen int
-}) *Handler {
+func New(templates map[string]*template.Template, publicCfg config.Public) *Handler {
 	return &Handler{
 		Templates: templates,
-		Public: struct {
-			ThreadTitleMaxLen    int
-			MessageTextMaxLen    int
-			ConfirmationCodeLen  int
-			BoardNameMaxLen      int
-			BoardShortNameMaxLen int
-		}{
-			ThreadTitleMaxLen:    publicCfg.ThreadTitleMaxLen,
-			MessageTextMaxLen:    publicCfg.MessageTextMaxLen,
-			ConfirmationCodeLen:  publicCfg.ConfirmationCodeLen,
-			BoardNameMaxLen:      publicCfg.BoardNameMaxLen,
-			BoardShortNameMaxLen: publicCfg.BoardShortNameMaxLen,
-		},
+		Public:    publicCfg,
 	}
 }
 

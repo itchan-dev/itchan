@@ -9,7 +9,7 @@
                 <td class="form-label"><label for="email">Email:</label></td>
                 <td>
                     {{if .EmailPlaceholder}}
-                    <input type="email" id="email" name="email" value="{{.EmailPlaceholder}}" required readonly size="30"> <!-- Readonly is good here -->
+                    <input type="email" id="email" name="email" value="{{.EmailPlaceholder}}" required readonly size="30">
                     {{else}}
                     <input type="email" id="email" name="email" required size="30" placeholder="Enter email if not prefilled">
                     {{end}}
@@ -25,11 +25,7 @@
             </tr>
         </tbody>
     </table>
+    {{template "error-message" .}}
+    {{template "success-message" .}}
 </form>
-{{if .Error}}
-<div class="error-message">{{.Error}}</div>
-{{end}}
-{{if .Success}}
-<div class="success-message">{{.Success}}</div> <!-- Allow HTML in success for link -->
-{{end}}
 {{end}}

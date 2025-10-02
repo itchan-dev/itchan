@@ -358,8 +358,10 @@ blockquote {
     color: #000; /* Black post text */
     line-height: 1.4; /* Slightly more readable line height */
     word-wrap: break-word;
-    overflow-wrap: break-word;
+    overflow-x: hidden;
+    overflow-y: auto; /* Enable scrolling for overflow */
     max-width: 100%;
+    max-height: 800px; /* Limit height */
     white-space: pre-wrap;
     /* blockquote used inside */
 }
@@ -504,8 +506,8 @@ blockquote {
 
    .message-preview {
     /* Preview-specific styles only */
-    position: fixed;
-    max-width: 400px;
+    position: absolute;
+    max-width: 700px;
     min-width: 300px;
     box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
     z-index: 1000;
@@ -547,7 +549,7 @@ blockquote {
 .message-preview .post-body {
     margin: 0;
     padding: 0;
-    max-height: 150px; /* Limit height */
+    max-height: 300px; /* Limit height */
     overflow-y: auto; /* Enable scrolling for overflow */
     overflow-x: hidden;
     line-height: 1.4;
@@ -600,6 +602,30 @@ blockquote {
     }
 }
 
+/* ==========================================
+   Popup Reply Form Styles
+   ========================================== */
+
+/* This class now ONLY handles the positioning and layering.
+   Background, border, and padding are inherited from .post-form-container. */
+   .popup-reply-container {
+    position: absolute;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    /* The display: inline-block from .post-form-container is fine;
+       position: absolute removes it from the normal document flow. */
+}
+
+.popup-close-btn {
+    position: absolute;
+    top: 2px;
+    right: 5px;
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #800000;
+}
 
 /* ==========================================
    End of Stylesheet

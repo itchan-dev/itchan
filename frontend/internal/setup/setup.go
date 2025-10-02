@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/itchan-dev/itchan/frontend/internal/handler"
@@ -30,19 +31,7 @@ type Dependencies struct {
 func SetupDependencies() *Dependencies {
 	templates := mustLoadTemplates(tmplPath)
 	public := fetchPublicConfig()
-	h := handler.New(templates, struct {
-		ThreadTitleMaxLen    int
-		MessageTextMaxLen    int
-		ConfirmationCodeLen  int
-		BoardNameMaxLen      int
-		BoardShortNameMaxLen int
-	}{
-		ThreadTitleMaxLen:    public.ThreadTitleMaxLen,
-		MessageTextMaxLen:    public.MessageTextMaxLen,
-		ConfirmationCodeLen:  public.ConfirmationCodeLen,
-		BoardNameMaxLen:      public.BoardNameMaxLen,
-		BoardShortNameMaxLen: public.BoardShortNameMaxLen,
-	})
+	h := handler.New(templates, public)
 	startTemplateReloader(h, tmplPath)
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -56,6 +45,21 @@ func SetupDependencies() *Dependencies {
 func sub(a, b int) int { return a - b }
 func add(a, b int) int { return a + b }
 
+func dict(values ...interface{}) (map[string]interface{}, error) {
+	if len(values)%2 != 0 {
+		return nil, fmt.Errorf("invalid dict call: number of arguments must be even")
+	}
+	m := make(map[string]interface{}, len(values)/2)
+	for i := 0; i < len(values); i += 2 {
+		key, ok := values[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict keys must be strings")
+		}
+		m[key] = values[i+1]
+	}
+	return m, nil
+}
+
 func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	templates := make(map[string]*template.Template)
 	files, err := os.ReadDir(tmplPath)
@@ -64,15 +68,16 @@ func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	}
 
 	for _, f := range files {
-		if f.Name() != baseTemplate {
+		if filepath.Ext(f.Name()) == ".html" && f.Name() != baseTemplate && f.Name() != "partials.html" {
 			templates[f.Name()] = template.Must(template.New(baseTemplate).Funcs(
-				template.FuncMap{"sub": sub, "add": add},
+				template.FuncMap{"sub": sub, "add": add, "dict": dict},
 			).ParseFiles(
 				path.Join(tmplPath, baseTemplate),
 				path.Join(tmplPath, f.Name()),
+				path.Join(tmplPath, "partials.html"),
 			),
 			)
-			fmt.Printf("Template %s loaded successfully", f.Name())
+			// fmt.Printf("Template %s loaded successfully\n", f.Name())
 		}
 	}
 	return templates

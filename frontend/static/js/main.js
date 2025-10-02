@@ -1,30 +1,37 @@
 // Click-to-Reply Functionality
-function addReplyLink(threadId, messageId) {
-    const textarea = document.getElementById('text-reply-bottom');
+function addReplyLink(textarea, threadId, messageId) {
     if (textarea) {
         const replyText = '>>' + threadId + '/' + messageId + '\n';
-        textarea.value += replyText;
+        textarea.value = replyText + textarea.value;
         textarea.focus();
-        textarea.scrollTop = textarea.scrollHeight;
+        textarea.setSelectionRange(replyText.length, replyText.length);
     }
 }
 
 // Message Preview System
 class MessagePreview {
     constructor() {
+        this.template = document.getElementById('message-preview-template');
+        if (!this.template) {
+            console.error('Message preview template not found!');
+        }
+
         this.cache = new Map();
         this.maxCacheSize = 500;
-        this.hoverTimeout = null;          // Timer to SHOW a new preview.
-        this.hideSuccessorsTimeout = null; // Timer to HIDE successors (with a delay).
-        this.hideAllTimeout = null;        // Master timer to HIDE the entire chain.
+        this.hoverTimeout = null;
+        this.hideSuccessorsTimeout = null;
+        this.hideAllTimeout = null;
         this.previewIndexes = new Map();
         this.previewHistory = [];
-        this.parentPost = null;            // This is not a preview, so it so not added to previewHistory
+        this.navigationTimeout = 700;
+        this.rootKey = null;
         this.init();
     }
 
     init() {
-        this.setupEventListeners();
+        if (this.template) {
+            this.setupEventListeners();
+        }
     }
 
     setupEventListeners() {
@@ -33,17 +40,22 @@ class MessagePreview {
                 this.handleLinkMouseOver(e.target);
             } else if (e.target.closest('.message-preview')) {
                 this.handlePreviewMouseOver(e.target.closest('.message-preview'));
+            } else if (e.target.closest('.popup-reply-container')) {
+                this.handleReplyMouseOver();
             }
         });
 
         document.addEventListener('mouseout', (e) => {
-            if (e.target.classList.contains('message-link') || e.target.closest('.message-preview')) {
+            if (e.target.classList.contains('message-link') || e.target.closest('.message-preview') || e.target.closest('.popup-reply-container')) {
                 this.handleChainMouseOut();
             }
         });
 
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.message-link, .message-preview')) {
+            let preview = e.target.closest('.message-preview');
+            if (preview) {
+                this.hideAllSuccessors(preview.dataset.key);
+            } else if (!e.target.closest('.message-link, .popup-reply-container')) {
                 this.hideAllPreviews();
             }
         });
@@ -56,19 +68,20 @@ class MessagePreview {
         if (this.hideAllTimeout) clearTimeout(this.hideAllTimeout);
         if (this.hoverTimeout) clearTimeout(this.hoverTimeout);
 
-        // RULE #2: Links instantly destroy any successors from their parent.
+        // For creation-only we want lower timeout than for pruning and creation
+        const noChain = this.previewHistory.length == 0;
         const parentPreview = linkElement.closest('.message-preview');
-        if (parentPreview) {
-            this.hideAllSuccessors(parentPreview.dataset.previewKey);
+        const isLast = !noChain && parentPreview && (this.previewHistory.at(-1).dataset.key == this.getKey(parentPreview));
+        if (noChain || isLast) {
+            // If there are no chain, or we are navigating in a last chain element - there are no pruning
+            this.hoverTimeout = setTimeout(() => {
+                this.createPreview(linkElement);
+            }, 150);
         } else {
-            // If the link is not in a preview, it's a new chain. Clear everything.
-            this.hideAllPreviews();
-        }
-
-        // Schedule the next preview to appear.
-        this.hoverTimeout = setTimeout(() => {
-            this.showPreview(linkElement);
-        }, 300);
+            this.hoverTimeout = setTimeout(() => {
+                this.pruneAndCreatePreview(linkElement);
+            }, this.navigationTimeout);
+        } 
     }
 
     // Handles hovering a PREVIEW.
@@ -80,8 +93,14 @@ class MessagePreview {
 
         // RULE #1: Delay hiding successors to forgive accidental hovers.
         this.hideSuccessorsTimeout = setTimeout(() => {
-            this.hideAllSuccessors(previewElement.dataset.previewKey);
-        }, 700); // 700ms delay gives the user time to correct their mouse movement.
+            this.hideAllSuccessors(previewElement.dataset.key);
+        }, this.navigationTimeout); // 700ms delay gives the user time to correct their mouse movement.
+    }
+
+    handleReplyMouseOver() {
+        // Remove hide timers, so user can type his reply looking at reply chain
+        if (this.hideAllTimeout) clearTimeout(this.hideAllTimeout);
+        if (this.hideSuccessorsTimeout) clearTimeout(this.hideSuccessorsTimeout);
     }
 
     // Handles leaving ANY element in the chain.
@@ -95,45 +114,180 @@ class MessagePreview {
         // Set the master timer to hide the entire chain if the user doesn't re-enter.
         this.hideAllTimeout = setTimeout(() => {
             this.hideAllPreviews();
-        }, 500); // A moderate delay before wiping the whole chain.
+        }, this.navigationTimeout);
     }
 
-    async showPreview(linkElement) {
-        const previewKey = this.getPreviewKey(linkElement);
-        if (!previewKey) return;
-        // This means we are starting our chain, so we need to store parent
-        if (this.previewHistory.length == 0) {  
-            const parentPost = linkElement.closest('.post');
-            // Should always be true
-            if (parentPost) {
-                this.parentPost = this.getPreviewKey(parentPost);
-            }
+    async createPreview(linkElement) {
+        const key = this.getKey(linkElement);
+        const parentPost = linkElement.closest('.post');
+        const parentPostKey = this.getKey(parentPost);
+        if (!key || !parentPostKey) {
+            console.debug(`Can't get key element. Shit should not happen.`);
+            return
+        };
+        linkElement.dataset.key = key;
+        linkElement.dataset.postKey = parentPostKey;
+        if (!this.rootKey) {
+            this.rootKey = parentPostKey;
         }
-
-        if (previewKey == this.parentPost || this.previewIndexes.has(previewKey)) {
-            return; // Already showing this preview in the current chain
-        }
-
-        // Check cache first
-        let messageData = this.cache.get(previewKey);
-
-        if (messageData) {
-            this.createAndShowPreview(linkElement, messageData);
+        // Dont show root message preview to prevent cycles
+        if (key == this.rootKey) {
             return;
         }
-
+        // Dont show preview on parent message itself
+        if (parentPostKey == key) {
+            return;
+        }
+        // Dont show preview that is already displayed
+        if (this.previewIndexes.has(key)) {
+            return;
+        }
+        // Check cache first
+        let messageData = this.cache.get(key);
+        if (messageData) {
+            this.showPreview(linkElement, messageData);
+            return;
+        }
         // Fetch from API
         try {
-            messageData = await this.fetchMessage(previewKey);
-            this.cacheMessage(previewKey, messageData);
-            this.createAndShowPreview(linkElement, messageData);
+            messageData = await this.fetchMessage(key);
+            this.cacheMessage(key, messageData);
+            this.showPreview(linkElement, messageData);
         } catch (error) {
             console.error('Failed to fetch message:', error);
         }
     }
+
+    async pruneAndCreatePreview(linkElement) {
+        // Cleanup current previews first
+        // Branching/multiple chains isnt allowed
+        this.prunePreviews(linkElement);
+        await this.createPreview(linkElement);
+    }
+
+    prunePreviews(linkElement) {
+        // Clear active previews to prevent branching and multiple chains
+        const NO_PARENT_PREVIEW = -100;
+
+        let parent = linkElement.closest('.message-preview');
+        let parentKey;
+        let parentIdx;
+        if (parent) {
+            parentKey = this.getKey(parent);
+            parentIdx = this.previewIndexes.get(parentKey);
+        } else {
+            // Means we are ouside of preview chain
+            // If we navigating root element, mark it -1
+            // Otherwise -100 and always create new chain
+            parent = linkElement.closest('.post');
+            parentKey = this.getKey(parent);
+            parentIdx = NO_PARENT_PREVIEW;
+            if (parentKey == this.rootKey) {
+                parentIdx = -1;
+            }
+        }
+
+        const linkKey = this.getKey(linkElement);
+        let linkIdx = -1;
+        if (this.previewIndexes.has(linkKey)) {
+            linkIdx = this.previewIndexes.get(linkKey);
+        }
+        if (linkIdx == (parentIdx + 1)) {
+            // If closing and reopening preview wouldnt change anything
+            // i.e. we will prune next element and instantly reopen it
+            this.hideAllSuccessors(linkKey);
+            return
+        } else if (parentIdx >= 0) {
+            this.hideAllSuccessors(parentKey);
+        } else {
+            // If we are not in the chain and our is not 1st element of the chain - start new chain
+            this.hideAllPreviews();
+        }
+    }
+
+    showPreview(linkElement, messageData) {
+        const key = linkElement.dataset.key;
+        
+        const clone = this.template.content.cloneNode(true);
+        const preview = clone.querySelector('[data-js="preview-container"]');
+        preview.dataset.key = key;
+
+        this.renderPreviewContent(preview, messageData);
+
+        // We need this to get element size inside positionPreviewNearSource
+        preview.style.visibility = 'hidden';
+        preview.style.top = '0px';
+        preview.style.left = '0px'
+        document.body.appendChild(preview);
+
+        this.positionPreviewNearSource(linkElement, preview);
+
+        preview.style.visibility = 'visible';
     
-    async fetchMessage(previewKey) {
-        const [board, threadId, messageId] = previewKey.split('-');
+        this.previewHistory.push(preview);
+        this.previewIndexes.set(key, this.previewHistory.length - 1);
+    }
+
+    renderPreviewContent(preview, messageData) {
+        preview.dataset.board = messageData.Board;
+        preview.dataset.messageId = messageData.Id;
+        preview.dataset.threadId = messageData.ThreadId;
+
+        // Find our placeholder elements using the data-js hooks
+        const dateEl = preview.querySelector('[data-js="post-date"]');
+        const linkEl = preview.querySelector('[data-js="post-link"]');
+        const replyLinkEl = preview.querySelector('[data-js="post-reply-link"]');
+        const repliesEl = preview.querySelector('[data-js="reply-links"]');
+        const bodyEl = preview.querySelector('[data-js="post-body"]');
+        const linkToMsg = `/${messageData.Board}/${messageData.ThreadId}#p${messageData.Id}`;
+
+        dateEl.textContent = new Date(messageData.CreatedAt).toUTCString();
+        linkEl.textContent = messageData.Id;
+        linkEl.href = linkToMsg;
+        replyLinkEl.href = linkToMsg;
+        bodyEl.innerHTML = messageData.Text; // Safe because backend has escaped it
+
+        repliesEl.innerHTML = '';
+        if (messageData.Replies && messageData.Replies.length > 0) {
+            messageData.Replies.forEach(reply => {
+                const link = document.createElement('a');
+                link.href = `/${messageData.Board}/${reply.FromThreadId}#p${reply.From}`;
+                link.className = 'message-link'; // For hover previews
+                link.dataset.board = messageData.Board;
+                link.dataset.messageId = reply.From;
+                link.dataset.threadId = reply.FromThreadId;
+                link.textContent = `>>${reply.FromThreadId}/${reply.From}`;
+                repliesEl.appendChild(link);
+                repliesEl.appendChild(document.createTextNode(' ')); // For spacing
+            });
+        }
+    }
+
+    positionPreviewNearSource(linkElement, preview) {
+        // We are trying to position our preview towards furthest quarter of a page
+        const rect = linkElement.getBoundingClientRect();
+    
+        const previewWidth = preview.offsetWidth;
+        const previewHeight = preview.offsetHeight;
+    
+        // If we are closer to the right side of the screen - position preview towards left side
+        let left = window.scrollX + rect.right + 5;
+        if (rect.right > (window.innerWidth / 2)) {
+            left = window.scrollX + rect.left + 5 - previewWidth;
+        }
+
+         // If we are closer to the bottom of the screen - position preview towards top
+        let top = window.scrollY + rect.top;
+        if (rect.top > (window.innerHeight / 2)) {
+            top = window.scrollY + rect.bottom - previewHeight;
+        }
+
+        preview.style.left = `${left}px`;
+        preview.style.top = `${top}px`;
+    }
+
+    async fetchMessage(key) {
+        const [board, threadId, messageId] = key.split('-');
         const response = await fetch(`/api/v1/${board}/${threadId}/${messageId}`, {
             method: 'GET',
             credentials: 'include'
@@ -153,64 +307,6 @@ class MessagePreview {
         this.cache.set(key, data);
     }
 
-    createAndShowPreview(linkElement, messageData) {
-        const previewKey = `${messageData.Board}-${messageData.ThreadId}-${messageData.Id}`;
-        
-        const previewIndex = this.previewHistory.length;
-
-        const preview = document.createElement('div');
-        preview.className = 'message-preview post';
-        preview.dataset.previewKey = previewKey;
-
-        this.renderPreviewContent(preview, messageData);
-        this.positionPreviewNearSource(linkElement, preview);
-
-        document.body.appendChild(preview);
-        this.previewHistory.push(preview);
-        this.previewIndexes.set(previewKey, previewIndex);
-    }
-
-    renderPreviewContent(preview, messageData) {
-        const date = new Date(messageData.CreatedAt);
-        const formattedDate = date.toLocaleString('en-US', { /* formatting options */ });
-
-        let repliesHtml = '';
-        if (messageData.Replies && messageData.Replies.length > 0) {
-            repliesHtml = messageData.Replies.map(reply =>
-                `<a href="/${messageData.Board}/${reply.FromThreadId}#p${reply.From}" class="message-link" data-board="${messageData.Board}" data-message-id="${reply.From}" data-thread-id="${reply.FromThreadId}">>>${reply.FromThreadId}/${reply.From}</a>`
-            ).join(' ');
-        }
-
-        preview.innerHTML = `
-            <div class="post-header">
-                <span class="post-author">Anonymous</span>
-                <span class="post-date">${formattedDate}</span>
-                <span class="post-id">No.${messageData.Id}</span>
-                ${repliesHtml ? `<span class="reply-links">${repliesHtml}</span>` : ''}
-            </div>
-            <div class="post-body">${messageData.Text}</div>
-        `;
-    }
-
-    positionPreviewNearSource(linkElement, preview) {
-        const rect = linkElement.getBoundingClientRect();
-        preview.style.position = 'fixed';
-        
-        let left = rect.right + 10;
-        let top = rect.top;
-
-        // Simple positioning logic
-        if (left + 400 > window.innerWidth) {
-            left = rect.left - 410;
-        }
-        if (top + 200 > window.innerHeight) {
-            top = window.innerHeight - 210;
-        }
-
-        preview.style.left = `${Math.max(10, left)}px`;
-        preview.style.top = `${Math.max(10, top)}px`;
-    }
-
     hideAllPreviews() {
         this.previewHistory.forEach(preview => {
             if (preview && preview.parentNode) {
@@ -221,13 +317,13 @@ class MessagePreview {
         // Reset state
         this.previewHistory = [];
         this.previewIndexes.clear();
-        this.parentPost = null;
+        this.rootKey = null;
     }
 
-    hideAllSuccessors(previewKey) {
-        if (!this.previewIndexes.has(previewKey)) return;
+    hideAllSuccessors(key) {
+        if (!this.previewIndexes.has(key)) return;
         
-        const idx = this.previewIndexes.get(previewKey);
+        const idx = this.previewIndexes.get(key);
         
         // Get all previews that came after the current one
         const successors = this.previewHistory.slice(idx + 1);
@@ -235,14 +331,17 @@ class MessagePreview {
         successors.forEach(preview => {
             if (preview && preview.parentNode) {
                 preview.parentNode.removeChild(preview);
-                this.previewIndexes.delete(preview.dataset.previewKey);
+                this.previewIndexes.delete(preview.dataset.key);
             }
         });
 
         this.previewHistory.splice(idx + 1);
     }
 
-    getPreviewKey(element) {
+    getKey(element) {
+        if (!element) {
+            return null;
+        }
         const messageId = element.dataset.messageId;
         const threadId = element.dataset.threadId;
         const board = element.dataset.board;
@@ -250,11 +349,88 @@ class MessagePreview {
         if (!messageId || !threadId || !board) {
             return null; // Return null for invalid links
         }
-        return `${board}-${threadId}-${messageId}`;
+        return `${board}-${threadId}-${messageId}`
     }
 }
+
+function setupPopupReplySystem() {
+    const template = document.getElementById('popup-reply-template');
+    if (!template) return; // Do nothing if the template isn't on the page
+
+    let currentPopup = null; // Keep track of the currently open popup
+
+    // Function to remove the popup
+    const removeCurrentPopup = () => {
+        if (currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
+        }
+    };
+
+    // Main click listener using event delegation
+    document.body.addEventListener('click', (e) => {
+        const replyLink = e.target.closest('.post-reply-link');
+
+        // If we clicked a reply link...
+        if (replyLink) {
+            e.preventDefault();
+
+            // Remove any existing popup before creating a new one
+            removeCurrentPopup();
+
+            const postElement = replyLink.closest('.post');
+            if (!postElement) return;
+
+            const board = postElement.dataset.board;
+            const threadId = postElement.dataset.threadId;
+            const messageId = postElement.dataset.messageId;
+
+            // 1. CLONE: Create a new popup from the template
+            const clone = template.content.cloneNode(true);
+            const newPopup = clone.querySelector('.popup-reply-container');
+            
+            // 2. CONFIGURE: Set the form's action attribute
+            const form = newPopup.querySelector('form');
+            form.action = `/${board}/${threadId}`;
+            
+            // 3. POSITION: Place it near the clicked link
+            document.body.appendChild(newPopup);
+            const linkRect = replyLink.getBoundingClientRect();
+            newPopup.style.top = `${window.scrollY + linkRect.bottom + 5}px`;
+            newPopup.style.left = `${window.scrollX + linkRect.left}px`;
+            
+            // 4. ACTIVATE: Call addReplyLink on the new textarea
+            const textarea = newPopup.querySelector('textarea');
+            addReplyLink(textarea, threadId, messageId);
+
+            // Keep track of our new popup
+            currentPopup = newPopup;
+
+            // Stop the click from closing the form immediately (see below)
+            e.stopPropagation();
+            return;
+        }
+        
+        // Logic to close the popup
+        // If the click was on the close button...
+        if (e.target.closest('.popup-close-btn')) {
+            removeCurrentPopup();
+            return;
+        }
+
+        // If the click was anywhere on the body BUT not inside a popup...
+        if (currentPopup && !e.target.closest('.popup-reply-container')) {
+            removeCurrentPopup();
+        }
+    });
+}
+
 
 document.addEventListener('DOMContentLoaded', () => {
     window.messagePreview = new MessagePreview();
     console.log('Message preview system initialized');
+    
+    // Call the new, more powerful function
+    setupPopupReplySystem();
+    console.log('Popup reply system initialized');
 });

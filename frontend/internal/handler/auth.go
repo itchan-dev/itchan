@@ -18,14 +18,12 @@ func (h *Handler) RegisterGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
 		Error      template.HTML
 		User       *domain.User // Might be nil if not logged in
-		Validation struct {
-			ConfirmationCodeLen int
-			PasswordMinLen      int
-		}
+		Validation struct{ PasswordMinLen int }
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.Error, _ = parseMessagesFromQuery(r) // Get error from query param
-	templateData.Validation.ConfirmationCodeLen = h.Public.ConfirmationCodeLen
+	templateData.Validation.PasswordMinLen = h.Public.PasswordMinLen
+
 	h.renderTemplate(w, "register.html", templateData)
 }
 
@@ -164,6 +162,7 @@ func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 		Error            template.HTML
 		User             *domain.User
 		EmailPlaceholder string
+		Validation       struct{ PasswordMinLen int }
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.Error, _ = parseMessagesFromQuery(r)          // Get error message
@@ -172,6 +171,7 @@ func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 		// Fallback if not passed in query
 		templateData.EmailPlaceholder = parseEmail(r)
 	}
+	templateData.Validation.PasswordMinLen = h.Public.PasswordMinLen
 
 	h.renderTemplate(w, "login.html", templateData)
 }

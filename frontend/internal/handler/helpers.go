@@ -16,12 +16,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-func copyCookies(dst *http.Request, src *http.Request) {
-	for _, c := range src.Cookies() {
-		dst.AddCookie(c)
-	}
-}
-
 func requestWithCookie(r *http.Request, method, url string, body io.Reader, cookieName string) (*http.Request, error) {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
