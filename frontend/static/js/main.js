@@ -2,9 +2,9 @@
 function addReplyLink(textarea, threadId, messageId) {
     if (textarea) {
         const replyText = '>>' + threadId + '/' + messageId + '\n';
-        textarea.value = replyText + textarea.value;
+        textarea.value = textarea.value + replyText;
         textarea.focus();
-        textarea.setSelectionRange(replyText.length, replyText.length);
+        // textarea.setSelectionRange(replyText.length, replyText.length);
     }
 }
 
@@ -369,7 +369,7 @@ function setupPopupReplySystem() {
 
     // Main click listener using event delegation
     document.body.addEventListener('click', (e) => {
-        const replyLink = e.target.closest('.post-reply-link');
+        const replyLink = e.target.closest('.post-reply-popup-link');
 
         // If we clicked a reply link...
         if (replyLink) {
@@ -421,6 +421,17 @@ function setupPopupReplySystem() {
         // If the click was anywhere on the body BUT not inside a popup...
         if (currentPopup && !e.target.closest('.popup-reply-container')) {
             removeCurrentPopup();
+        }
+
+        if (e.target.closest('.post-reply-link')) {
+            const postElement = e.target.closest('.post');
+            if (!postElement) return;
+            const threadId = postElement.dataset.threadId;
+            const messageId = postElement.dataset.messageId;
+
+            const replyForm = document.getElementById('reply-form-bottom');
+            const textarea = replyForm.querySelector('textarea');
+            addReplyLink(textarea, threadId, messageId);
         }
     });
 }

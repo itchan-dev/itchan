@@ -44,8 +44,11 @@
     {{if .Subject}}<span class="post-subject">{{.Subject}}</span>{{end}}
     <span class="post-author">Anonymous</span>
     <time class="post-date" datetime="{{.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
-    <span class="post-id">No.<a href="{{.Link}}" class="post-link">{{.MessageID}}</a></span>
-    <span class="post-reply"><a href="{{.Link}}" class="post-reply-link">Reply</a></span>
+    <span class="post-id"><a href="{{.ThreadLink}}" class="thread-link">No.</a><a href="{{.Link}}" class="post-link">{{.MessageID}}</a></span>
+    {{if .ShowReplyButton}}
+        <span class="post-reply"><a href="#text-reply-bottom" class="post-reply-link">[reply]</a></span>
+    {{end}}
+    <span class="post-reply-popup"><a href="{{.Link}}" class="post-reply-popup-link">[popup-reply]</a></span>
     {{if .Replies}}
         {{range .Replies}}
             <span class="reply-link">{{.HTMLLinkFrom}}</span>
@@ -53,9 +56,6 @@
     {{end}}
     {{if .ShowDeleteButton}}
         {{template "delete-button" .DeleteButtonData}}
-    {{end}}
-    {{if .ShowReplyLink}}
-        <span class="reply-link">[<a href="{{.ReplyLink}}">Reply</a>]</span>
     {{end}}
 </div>
 {{end}}

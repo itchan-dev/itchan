@@ -316,16 +316,28 @@ blockquote {
     text-decoration: underline;
 }
 
-.reply-link {
-    margin-left: 5px;
-    font-size: 0.9em;
+.post-reply {
+    margin-right: 8px;
 }
-.reply-link a {
-    color: #0000ee; /* Standard link blue */
+.post-reply a {
+    color: inherit;
+    text-decoration: none;
+}
+.post-reply a:hover {
+    color: #dd0000; /* Red hover */
     text-decoration: underline;
 }
-.reply-link a:hover {
-    color: #dd0000;
+
+.post-reply-popup {
+    margin-right: 8px;
+}
+.post-reply-popup a {
+    color: inherit;
+    text-decoration: none;
+}
+.post-reply-popup a:hover {
+    color: #dd0000; /* Red hover */
+    text-decoration: underline;
 }
 
 .reply-to-info {
