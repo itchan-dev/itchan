@@ -81,7 +81,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	threadIdStr := vars["thread"]
 
 	// Redirect target (back to the same thread page on success or error)
-	targetURL := fmt.Sprintf("/%s/%s", shortName, threadIdStr)
+	targetURL := fmt.Sprintf("/%s/%s#bottom", shortName, threadIdStr)
 
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
