@@ -3,7 +3,7 @@
 <h2>Register / Reset Password</h2>
 <p>Enter your email and desired password. A confirmation code will be sent to your email.</p>
 <form method="POST" action="/register" class="auth-form">
-     <table class="form-table">
+    <table class="form-table">
         <tbody>
             <tr>
                 <td class="form-label"><label for="email">Email:</label></td>
@@ -12,7 +12,7 @@
             <tr>
                 <td class="form-label"><label for="password">Password:</label></td>
                 <td>
-                    <input type="password" id="password" name="password" required size="30" minlength="8" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" title="Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters">
+                    <input type="password" id="password" name="password" required size="30" minlength="{{.Validation.PasswordMinLen}}" maxlength="30" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" title="Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters">
                     <br><small>Requires: 8+ characters, upper & lower case, number.</small>
                 </td>
             </tr>
@@ -22,9 +22,7 @@
             </tr>
         </tbody>
     </table>
-    {{if .Error}}
-    <div class="error-message">{{.Error}}</div> <!-- Allow HTML in error for link -->
-    {{end}}
+    {{template "error-message" .}}
 </form>
- <p style="margin-top: 1em; font-size: 0.9em;">Already have a code? <a href="/check_confirmation_code">Confirm here</a>.</p>
+<p style="margin-top: 1em; font-size: 0.9em;">Already have a code? <a href="/check_confirmation_code">Confirm here</a>.</p>
 {{end}}

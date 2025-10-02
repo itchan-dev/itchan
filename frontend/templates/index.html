@@ -7,9 +7,7 @@
     <li>
         <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
         {{if $.User.Admin}}
-        <form method="POST" action="/{{.ShortName}}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete /{{.ShortName}}/?');">
-            [<button type="submit" class="delete-button">Delete</button>]
-        </form>
+        {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete"}}
         {{end}}
     </li>
     {{end}}
@@ -27,11 +25,11 @@
             <tbody>
                 <tr>
                     <td class="form-label"><label for="short-name">Short Name:</label></td>
-                    <td><input type="text" id="short-name" name="shortName" required pattern="[a-zA-Z0-9]+" maxlength="10" size="10"> (e.g., 'b', 'g', 'meta')</td>
+                    <td><input type="text" id="short-name" name="shortName" required pattern="[a-zA-Z0-9]+" size="10" maxlength="{{.Validation.BoardShortNameMaxLen}}"> (e.g., 'b', 'g', 'gog')</td>
                 </tr>
                  <tr>
                     <td class="form-label"><label for="name">Full Name:</label></td>
-                    <td><input type="text" id="name" name="name" required size="30"> (e.g., 'Random', 'Technology')</td>
+                    <td><input type="text" id="name" name="name" required size="30" maxlength="{{.Validation.BoardNameMaxLen}}"> (e.g., 'Random', 'Technology')</td>
                 </tr>
                  <tr>
                     <td class="form-label"><label for="allowed-emails">Allowed Emails:</label></td>
@@ -43,9 +41,7 @@
                 </tr>
             </tbody>
         </table>
-         {{if .Error}}
-         <div class="error-message">{{.Error}}</div>
-         {{end}}
+        {{template "error-message" .}}
     </form>
 </div>
 {{end}}

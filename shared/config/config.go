@@ -29,6 +29,7 @@ type Public struct {
 	MessageTextMaxLen    int `yaml:"message_text_max_len"`
 	MessageTextMinLen    int `yaml:"message_text_min_len"`
 	ConfirmationCodeLen  int `yaml:"confirmation_code_len"`
+	PasswordMinLen       int `yaml:"password_min_len"`
 }
 
 type Pg struct {
@@ -123,5 +124,8 @@ func applyValidationDefaults(public *Public) {
 	}
 	if public.ConfirmationCodeLen == 0 {
 		public.ConfirmationCodeLen = 6
+	}
+	if public.PasswordMinLen == 0 {
+		public.ConfirmationCodeLen = 8
 	}
 }

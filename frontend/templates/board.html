@@ -5,10 +5,7 @@
         <hr>
     </div>
 
-    <!-- Display Error Message -->
-    {{if .Error}}
-    <div class="error-message">{{.Error}}</div>
-    {{end}}
+    {{template "error-message" .}}
 
     <!-- New Thread Form -->
     <div class="post-form-container">
@@ -16,22 +13,20 @@
              <input type="hidden" name="form_action" value="new_thread">
              <table class="form-table">
                  <tbody>
-                    <tr>
-                        <td class="form-label"><label for="title">Subject:</label></td>
-                        <td>
-                            <input type="text" id="title" name="title" size="40" maxlength="{{.Validation.ThreadTitleMaxLen}}">
-                            <button type="submit">Post</button>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="form-label"><label for="text">Comment:</label></td>
-                        <td><textarea id="text" name="text" cols="48" rows="4" required maxlength="{{.Validation.MessageTextMaxLen}}"></textarea></td>
-                    </tr>
-                    <!-- File input -->
+                     <tr>
+                         <td class="form-label"><label for="title">Subject:</label></td>
+                         <td>
+                             <input type="text" id="title" name="title" size="40" maxlength="{{.Validation.ThreadTitleMaxLen}}">
+                             <button type="submit">Post</button>
+                         </td>
+                     </tr>
+                     <tr>
+                         <td class="form-label"><label for="text">Comment:</label></td>
+                         <td><textarea id="text" name="text" cols="48" rows="4" required maxlength="{{.Validation.MessageTextMaxLen}}"></textarea></td>
+                     </tr>
                  </tbody>
              </table>
         </form>
-        {{/* Removed error display from here, moved it above the form */}}
     </div>
 
     <hr class="section-separator">
@@ -45,68 +40,48 @@
             <div class="thread-preview">
                 {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
                     {{ $opMessage := index $thread.Messages 0 }}
-                    <div class="post op-post" data-board="{{ $thread.Board }}" data-message-id="{{ $opMessage.Id }}" data-thread-id="{{ $thread.Id }}" id="p{{ $opMessage.Id }}">
-                         <div class="post-header">
-                            <input type="checkbox" name="delete" value="{{ $opMessage.Id }}">
-                            {{if $thread.Title}}<span class="post-subject">{{ $thread.Title }}</span>{{end}}
-                            <span class="post-author">Anonymous</span>
-                            <span class="post-date">{{ $opMessage.CreatedAt.Format "01/02/06(Mon)15:04:05" }}</span>
-                            <span class="post-id">
-                                No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $opMessage.Id }}">{{ $opMessage.Id }}</a>
-                            </span>
-                            {{ if $opMessage.Replies }}
-                                {{ range $reply := $opMessage.Replies }}
-                                    <span class="reply-link">{{ $reply.HTMLLinkFrom }}</span>
-                                {{ end }}
-                            {{ end }}
-                            {{/* --- START: Thread Delete Button --- */}}
-                            {{if $.User.Admin}}
-                            <form method="POST" action="/{{ $thread.Board }}/{{ $thread.Id }}/delete" class="delete-form" onsubmit="return confirm('Are you sure you want to delete thread No.{{ $thread.Id }}? This cannot be undone.');">
-                                [<button type="submit" class="delete-button">Delete Thread</button>]
-                            </form>
-                            {{end}}
-                            {{/* --- END: Thread Delete Button --- */}}
-                            <span class="reply-link">[<a href="/{{ $thread.Board }}/{{ $thread.Id }}">Reply</a>]</span>
-                        </div>
-                        {{ if $opMessage.Attachments }}
-                            <div class="post-attachments">
-                                File:
-                                {{ range $opMessage.Attachments }}
-                                    <a href="{{ . }}" target="_blank">{{ . }}</a>
-                                {{ end }}
-                            </div>
-                        {{ end }}
-                        <blockquote class="post-body">{{ $opMessage.Text }}</blockquote>
-                    </div><!-- End OP Post -->
+                    {{template "post" dict 
+                        "IsOp" true
+                        "Board" $thread.Board
+                        "MessageID" $opMessage.Id
+                        "ThreadID" $thread.Id
+                        "HeaderData" (dict 
+                            "MessageID" $opMessage.Id
+                            "Subject" $thread.Title
+                            "CreatedAt" $opMessage.CreatedAt
+                            "Link" (printf "/%s/%d#p%d" $thread.Board $thread.Id $opMessage.Id)
+                            "Replies" $opMessage.Replies
+                            "ShowDeleteButton" $.User.Admin
+                            "DeleteButtonData" (dict 
+                                "Action" (printf "/%s/%d/delete" $thread.Board $thread.Id)
+                                "ConfirmMessage" (printf "Are you sure you want to delete thread No.%d? This cannot be undone." $thread.Id)
+                                "ButtonText" "Delete Thread"
+                            )
+                            "ShowReplyLink" true
+                            "ReplyLink" (printf "/%s/%d" $thread.Board $thread.Id)
+                        )
+                        "AttachmentData" (dict "Attachments" $opMessage.Attachments)
+                        "BodyData" (dict "Text" $opMessage.Text)
+                    }}
 
                     {{/* Display Reply Previews (rest of the messages) */}}
                     {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
                     {{ range $replyIndex, $reply := $previewReplies }}
-                         <div class="post reply-post" data-board="{{ $thread.Board }}" data-message-id="{{ $reply.Id }}" data-thread-id="{{ $thread.Id }}" id="p{{ $reply.Id }}">
-                            <div class="post-header">
-                                <input type="checkbox" name="delete" value="{{ $reply.Id }}">
-                                <span class="post-author">Anonymous</span>
-                                <span class="post-date">{{ $reply.CreatedAt.Format "01/02/06(Mon)15:04:05" }}</span>
-                                <span class="post-id">
-                                    No.<a href="/{{ $thread.Board }}/{{ $thread.Id }}#p{{ $reply.Id }}">{{ $reply.Id }}</a>
-                                </span>
-                                {{ if $reply.Replies }}
-                                    {{ range $replyLink := $reply.Replies }}
-                                        <span class="reply-link">{{ $replyLink.HTMLLinkFrom }}</span>
-                                    {{ end }}
-                                {{ end }}
-                                {{/* No delete button for replies in preview */}}
-                            </div>
-                            {{ if $reply.Attachments }}
-                                <div class="post-attachments">
-                                    File:
-                                    {{ range $reply.Attachments }}
-                                        <a href="{{ . }}" target="_blank">{{ . }}</a>
-                                    {{ end }}
-                                </div>
-                            {{ end }}
-                            <blockquote class="post-body">{{ $reply.Text }}</blockquote>
-                        </div><!-- End Reply Post Preview -->
+                        {{template "post" dict 
+                            "IsOp" false
+                            "Board" $thread.Board
+                            "MessageID" $reply.Id
+                            "ThreadID" $thread.Id
+                            "HeaderData" (dict 
+                                "MessageID" $reply.Id
+                                "CreatedAt" $reply.CreatedAt
+                                "Link" (printf "/%s/%d#p%d" $thread.Board $thread.Id $reply.Id)
+                                "Replies" $reply.Replies
+                                "ShowDeleteButton" false
+                            )
+                            "AttachmentData" (dict "Attachments" $reply.Attachments)
+                            "BodyData" (dict "Text" $reply.Text)
+                        }}
                     {{ end }}
 
                     {{/* Calculate and Display Omitted Count Info */}}
@@ -120,15 +95,12 @@
 
                     {{ if gt $omittedReplies 0 }}
                          <div class="reply-summary">
-                            {{ $omittedReplies }} {{ if eq $omittedReplies 1 }}post{{ else }}posts{{ end }} omitted. Click Reply to view.
+                            {{$plural := "posts"}}
+                            {{if eq $omittedReplies 1}}
+                                {{$plural = "post"}}
+                            {{end}}
+                            {{ $omittedReplies }} {{ $plural }} omitted. Click Reply to view.
                          </div>
-                    {{ else if gt $thread.NumReplies 0 }} {{/* If there are replies, but none are omitted (all shown) */}}
-                        {{/* Optional: Show a link even if all replies are shown, if desired */}}
-                        <!--
-                        <div class="reply-summary">
-                            Click Reply to view.
-                        </div>
-                        -->
                     {{ end }}
 
 
@@ -171,4 +143,6 @@
     <!-- Delete Form -->
     <!-- <form id="delete-form" action="/delete" method="post"> ... </form> -->
 
+    {{template "popup-reply-form" .}}
+    {{template "message-preview-template"}}
 {{ end }}

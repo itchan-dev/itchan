@@ -45,9 +45,13 @@ func getBoards(r *http.Request) ([]domain.Board, error) {
 
 func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Boards []domain.Board
-		Error  template.HTML
-		User   *domain.User
+		Boards     []domain.Board
+		Error      template.HTML
+		User       *domain.User
+		Validation struct {
+			BoardNameMaxLen      int
+			BoardShortNameMaxLen int
+		}
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.Error, _ = parseMessagesFromQuery(r) // Get error from query param
@@ -61,6 +65,8 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	templateData.Boards = boards
+	templateData.Validation.BoardNameMaxLen = h.Public.BoardNameMaxLen
+	templateData.Validation.BoardShortNameMaxLen = h.Public.BoardShortNameMaxLen
 
 	h.renderTemplate(w, "index.html", templateData)
 }

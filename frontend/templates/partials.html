@@ -1,0 +1,124 @@
+{{/* Error message display */}}
+{{define "error-message"}}
+{{if .Error}}
+<div class="error-message">{{.Error}}</div>
+{{end}}
+{{end}}
+
+{{/* Success message display */}}
+{{define "success-message"}}
+{{if .Success}}
+<div class="success-message">{{.Success}}</div>
+{{end}}
+{{end}}
+
+{{define "popup-reply-form"}}
+<template id="popup-reply-template">
+    <div class="popup-reply-container post-form-container">
+        <button class="popup-close-btn" aria-label="Close">&times;</button>
+        <form method="post"> {{/* Action will be set by JS */}}
+            <input type="hidden" name="form_action" value="reply">
+            <table class="form-table">
+                <tbody>
+                    <tr>
+                        <td>
+                            <textarea name="text" cols="48" rows="4" required maxlength="{{.Validation.MessageTextMaxLen}}"></textarea>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><button type="submit">Post</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </form>
+    </div>
+</template>
+{{end}}
+
+{{/* ===== POST COMPONENTS ===== */}}
+
+{{/* Post header with all standard elements */}}
+{{define "post-header"}}
+<div class="post-header">
+    <input type="checkbox" name="delete" value="{{.MessageID}}">
+    {{if .Subject}}<span class="post-subject">{{.Subject}}</span>{{end}}
+    <span class="post-author">Anonymous</span>
+    <time class="post-date" datetime="{{.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
+    <span class="post-id">No.<a href="{{.Link}}" class="post-link">{{.MessageID}}</a></span>
+    <span class="post-reply"><a href="{{.Link}}" class="post-reply-link">Reply</a></span>
+    {{if .Replies}}
+        {{range .Replies}}
+            <span class="reply-link">{{.HTMLLinkFrom}}</span>
+        {{end}}
+    {{end}}
+    {{if .ShowDeleteButton}}
+        {{template "delete-button" .DeleteButtonData}}
+    {{end}}
+    {{if .ShowReplyLink}}
+        <span class="reply-link">[<a href="{{.ReplyLink}}">Reply</a>]</span>
+    {{end}}
+</div>
+{{end}}
+
+{{/* Post attachments section */}}
+{{define "post-attachments"}}
+{{if .Attachments}}
+<div class="post-attachments">
+    File:
+    {{range .Attachments}}
+        <a href="{{.}}" target="_blank">{{.}}</a>
+    {{end}}
+</div>
+{{end}}
+{{end}}
+
+{{/* Post body content */}}
+{{define "post-body"}}
+<blockquote class="post-body">{{.Text}}</blockquote>
+{{end}}
+
+{{/* Complete post structure */}}
+{{/*
+    Renders a single post, used on board and thread pages.
+    Expects a dict with the following top-level keys:
+    - IsOp: (bool) True if the post is the Original Post of a thread.
+    - Board: (string) The short name of the board (e.g., "g").
+    - MessageID: (int) The unique ID of the message.
+    - ThreadID: (int) The ID of the parent thread.
+    - HeaderData: (dict) Data for the "post-header" partial.
+    - AttachmentData: (dict) Data for the "post-attachments" partial.
+    - BodyData: (dict) Data for the "post-body" partial.
+*/}}
+{{define "post"}}
+<div class="post {{if .IsOp}}op-post{{else}}reply-post{{end}}" data-board="{{.Board}}" data-message-id="{{.MessageID}}" data-thread-id="{{.ThreadID}}" id="p{{.MessageID}}">
+    {{template "post-header" .HeaderData}}
+    {{template "post-attachments" .AttachmentData}}
+    {{template "post-body" .BodyData}}
+</div>
+{{end}}
+
+{{/* ===== DELETE BUTTONS ===== */}}
+
+{{/* Generic delete button form */}}
+{{define "delete-button"}}
+<form method="POST" action="{{.Action}}" class="delete-form" onsubmit="return confirm('{{.ConfirmMessage}}');">
+    [<button type="submit" class="delete-button">{{.ButtonText}}</button>]
+</form>
+{{end}}
+
+{{/* ===== MESSAGE PREVIEW TEMPLATE ===== */}}
+
+{{define "message-preview-template"}}
+<template id="message-preview-template">
+    <div class="message-preview post" data-js="preview-container">
+        <div class="post-header">
+            <span class="post-author">Anonymous</span>
+            <span class="post-date" data-js="post-date"></span>
+            <span class="post-id" data-js="post-id">No.<a class="post-link" data-js="post-link"></a></span>
+            <span class="post-reply" data-js="post-reply"><a class="post-reply-link" data-js="post-reply-link">Reply</a></span>
+            <span class="reply-links" data-js="reply-links"></span>
+        </div>
+        <div class="post-body" data-js="post-body"></div>
+    </div>
+</template>
+{{end}}
