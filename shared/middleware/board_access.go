@@ -3,6 +3,7 @@ package middleware
 import (
 	"log"
 	"net/http"
+	"slices"
 
 	"github.com/gorilla/mux"
 )
@@ -49,11 +50,9 @@ func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 			}
 
 			// Domain check
-			for _, d := range allowedDomains {
-				if d == emailDomain {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if slices.Contains(allowedDomains, emailDomain) {
+				next.ServeHTTP(w, r)
+				return
 			}
 
 			// Log and deny access
