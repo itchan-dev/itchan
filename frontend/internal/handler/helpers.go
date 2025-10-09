@@ -8,8 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"regexp"
-	"strconv"
 	"strings"
 
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
@@ -137,42 +135,6 @@ func parseMessagesFromQuery(r *http.Request) (errMsg template.HTML, successMsg t
 		// }
 	}
 	return errMsg, successMsg
-}
-
-// var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
-var escapedMessageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
-
-// processMessageLinks finds >>N/M patterns and converts them to internal links.
-// It also returns a list of all matched strings found in the input.
-func processMessageLinks(message domain.Message) (string, frontend_domain.Replies) {
-	var matches frontend_domain.Replies
-	seen := make(map[string]struct{})
-
-	processedText := escapedMessageLinkRegex.ReplaceAllStringFunc(template.HTMLEscapeString(message.Text), func(match string) string {
-		// Extract the capture groups from the current match
-		submatch := escapedMessageLinkRegex.FindStringSubmatch(match)
-		if len(submatch) < 3 {
-			return match // shouldn't happen due to prior match
-		}
-		threadId, err := strconv.ParseInt(submatch[1], 10, 64)
-		if err != nil {
-			return match
-		}
-		messageId, err := strconv.ParseInt(submatch[2], 10, 64)
-		if err != nil {
-			return match
-		}
-		reply := frontend_domain.Reply{Reply: domain.Reply{Board: message.Board, FromThreadId: message.ThreadId, ToThreadId: threadId, From: message.Id, To: messageId}}
-		linkTo := reply.LinkTo()
-		// We dont want to add reply link twice
-		if _, ok := seen[linkTo]; !ok {
-			seen[linkTo] = struct{}{}
-			matches = append(matches, &reply)
-		}
-		return reply.LinkTo()
-	})
-
-	return processedText, matches
 }
 
 func RenderReply(reply domain.Reply) *frontend_domain.Reply {

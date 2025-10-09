@@ -4,7 +4,7 @@ function addReplyLink(textarea, threadId, messageId) {
         const replyText = '>>' + threadId + '/' + messageId + '\n';
         textarea.value = textarea.value + replyText;
         textarea.focus();
-        // textarea.setSelectionRange(replyText.length, replyText.length);
+        textarea.setSelectionRange(replyText.length, replyText.length);
     }
 }
 
@@ -429,8 +429,7 @@ function setupPopupReplySystem() {
             const threadId = postElement.dataset.threadId;
             const messageId = postElement.dataset.messageId;
 
-            const replyForm = document.getElementById('reply-form-bottom');
-            const textarea = replyForm.querySelector('textarea');
+            const textarea = document.getElementById('text-reply-bottom');
             addReplyLink(textarea, threadId, messageId);
         }
     });
