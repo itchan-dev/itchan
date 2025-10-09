@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
+	"github.com/itchan-dev/itchan/frontend/internal/markdown"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
@@ -145,7 +146,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	text := r.FormValue("text")
 	// TODO: Handle attachments if necessary (multipart form?)
-	processedText, replyTo := processMessageLinks(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName}})
+	processedText, replyTo := markdown.ProcessMessage(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName}})
 	// TODO: Handle attachments if necessary
 
 	// Prepare backend request data using shared API DTOs
