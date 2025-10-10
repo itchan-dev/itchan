@@ -2,9 +2,12 @@ package markdown
 
 import (
 	"bytes"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"golang.org/x/net/html"
 
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -12,7 +15,8 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/renderer/html"
+
+	ghtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
 )
 
@@ -52,21 +56,30 @@ func New() *TextProcessor {
 
 	md := goldmark.New(
 		goldmark.WithParser(p),
-		goldmark.WithRendererOptions(html.WithUnsafe()),
+		goldmark.WithRendererOptions(ghtml.WithUnsafe()),
 		goldmark.WithExtensions(extension.Strikethrough),
 	)
 	return &TextProcessor{md: md}
 }
 
-func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, frontend_domain.Replies) {
+func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, frontend_domain.Replies, bool) {
+	var err error
 	// Render md and escape html
-	message.Text, _ = tp.renderText(message.Text)
+	message.Text, err = tp.renderText(message.Text)
+	if err != nil {
+		log.Printf("Error rendering text: %v", err)
+	}
 	// Parse links
 	processedText, matches := tp.processMessageLinks(message)
 	// Sanitize html
 	sanitizedText := tp.sanitizeText(processedText)
+	// Check if message actually has payload
+	hasPayload, err := tp.hasPayload(sanitizedText)
+	if err != nil {
+		log.Printf("Error checking payload: %v", err)
+	}
 
-	return sanitizedText, matches
+	return sanitizedText, matches, hasPayload
 }
 
 // processMessageLinks finds >>N/M patterns and converts them to internal links.
@@ -124,28 +137,28 @@ func (tp *TextProcessor) sanitizeText(text string) string {
 	return safeHTML
 }
 
-// // hasPayload checks if an HTML string contains any text content that is not just whitespace.
-// func hasPayload(htmlString string) (bool, error) {
-// 	doc, err := html.Parse(strings.NewReader(htmlString))
-// 	if err != nil {
-// 		return false, err
-// 	}
+// hasPayload checks if an HTML string contains any text content that is not just whitespace.
+func (tp *TextProcessor) hasPayload(htmlString string) (bool, error) {
+	doc, err := html.Parse(strings.NewReader(htmlString))
+	if err != nil {
+		return false, err
+	}
 
-// 	var traverse func(*html.Node) bool
-// 	traverse = func(n *html.Node) bool {
-// 		if n.Type == html.TextNode {
-// 			if strings.TrimSpace(n.Data) != "" {
-// 				return true
-// 			}
-// 		}
+	var traverse func(*html.Node) bool
+	traverse = func(n *html.Node) bool {
+		if n.Type == html.TextNode {
+			if strings.TrimSpace(n.Data) != "" {
+				return true
+			}
+		}
 
-// 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-// 			if traverse(c) {
-// 				return true
-// 			}
-// 		}
-// 		return false
-// 	}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if traverse(c) {
+				return true
+			}
+		}
+		return false
+	}
 
-// 	return traverse(doc), nil
-// }
+	return traverse(doc), nil
+}

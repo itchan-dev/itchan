@@ -145,7 +145,11 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	text := r.FormValue("text")
 	// TODO: Handle attachments if necessary (multipart form?)
-	processedText, replyTo := h.TextProcessor.ProcessMessage(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName}})
+	processedText, replyTo, hasPayload := h.TextProcessor.ProcessMessage(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName}})
+	if !hasPayload {
+		redirectWithError(w, r, errorTargetURL, "Message has empty payload.")
+		return
+	}
 	// TODO: Handle attachments if necessary
 
 	// Prepare backend request data using shared API DTOs
