@@ -16,9 +16,9 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
+// var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
 
-// var escapedMessageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
+var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
 
 type TextProcessor struct {
 	md goldmark.Markdown
@@ -42,7 +42,7 @@ func New() *TextProcessor {
 			util.Prioritized(parser.NewCodeSpanParser(), 100),
 			// util.Prioritized(parser.NewLinkParser(), 200),
 			// util.Prioritized(parser.NewAutoLinkParser(), 300),
-			util.Prioritized(parser.NewRawHTMLParser(), 400),
+			// util.Prioritized(parser.NewRawHTMLParser(), 400),
 			util.Prioritized(parser.NewEmphasisParser(), 500),
 		),
 		// parser.WithBlockParsers(
@@ -59,9 +59,13 @@ func New() *TextProcessor {
 }
 
 func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, frontend_domain.Replies) {
+	// Render md and escape html
+	message.Text, _ = tp.renderText(message.Text)
+	// Parse links
 	processedText, matches := tp.processMessageLinks(message)
-	renderedText, _ := tp.renderText(processedText)
-	sanitizedText := tp.sanitizeText(renderedText)
+	// Sanitize html
+	sanitizedText := tp.sanitizeText(processedText)
+
 	return sanitizedText, matches
 }
 
@@ -119,3 +123,29 @@ func (tp *TextProcessor) sanitizeText(text string) string {
 	safeHTML := p.Sanitize(text)
 	return safeHTML
 }
+
+// // hasPayload checks if an HTML string contains any text content that is not just whitespace.
+// func hasPayload(htmlString string) (bool, error) {
+// 	doc, err := html.Parse(strings.NewReader(htmlString))
+// 	if err != nil {
+// 		return false, err
+// 	}
+
+// 	var traverse func(*html.Node) bool
+// 	traverse = func(n *html.Node) bool {
+// 		if n.Type == html.TextNode {
+// 			if strings.TrimSpace(n.Data) != "" {
+// 				return true
+// 			}
+// 		}
+
+// 		for c := n.FirstChild; c != nil; c = c.NextSibling {
+// 			if traverse(c) {
+// 				return true
+// 			}
+// 		}
+// 		return false
+// 	}
+
+// 	return traverse(doc), nil
+// }
