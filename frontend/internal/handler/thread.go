@@ -83,6 +83,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect target (back to the same thread page on success or error)
 	targetURL := fmt.Sprintf("/%s/%s#bottom", shortName, threadIdStr)
+	errorTargetURL := fmt.Sprintf("/%s/%s", shortName, threadIdStr)
 
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
@@ -94,7 +95,11 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse form data (assuming text, maybe attachments)
 	text := r.FormValue("text")
 	// Escape HTML first to prevent XSS, then process links
-	processedText, replyTo := h.TextProcessor.ProcessMessage(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName, ThreadId: domain.ThreadId(threadId)}})
+	processedText, replyTo, hasPayload := h.TextProcessor.ProcessMessage(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName, ThreadId: domain.ThreadId(threadId)}})
+	if !hasPayload {
+		redirectWithError(w, r, errorTargetURL, "Message has empty payload.")
+		return
+	}
 	// TODO: Handle attachments if necessary
 
 	// Prepare backend request data using shared API DTOs

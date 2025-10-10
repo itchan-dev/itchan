@@ -27,3 +27,5 @@ CSRF protection !
 убрать секреты из докерфайлов
 add greentext
 проверить error message в thread
+фон для блока с кодом
+fix redirectWithError to account for #anchors
