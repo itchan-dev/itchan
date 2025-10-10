@@ -10,23 +10,64 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/util"
 )
 
 var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
 
 // var escapedMessageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
 
-func ProcessMessage(message domain.Message) (string, frontend_domain.Replies) {
-	processedText, matches := processMessageLinks(message)
-	renderedText, _ := renderText(processedText)
-	sanitizedText := sanitizeText(renderedText)
+type TextProcessor struct {
+	md goldmark.Markdown
+}
+
+func New() *TextProcessor {
+	p := parser.NewParser(
+		parser.WithBlockParsers(
+			// util.Prioritized(parser.NewSetextHeadingParser(), 100),
+			// util.Prioritized(parser.NewThematicBreakParser(), 200),
+			// util.Prioritized(parser.NewListParser(), 300),
+			// util.Prioritized(parser.NewListItemParser(), 400),
+			// util.Prioritized(parser.NewCodeBlockParser(), 500),
+			// util.Prioritized(parser.NewATXHeadingParser(), 600),
+			util.Prioritized(parser.NewFencedCodeBlockParser(), 700),
+			// util.Prioritized(parser.NewBlockquoteParser(), 800),
+			// util.Prioritized(parser.NewHTMLBlockParser(), 900),
+			util.Prioritized(NewLenientParagraphParser(), 1000),
+		),
+		parser.WithInlineParsers(
+			util.Prioritized(parser.NewCodeSpanParser(), 100),
+			// util.Prioritized(parser.NewLinkParser(), 200),
+			// util.Prioritized(parser.NewAutoLinkParser(), 300),
+			util.Prioritized(parser.NewRawHTMLParser(), 400),
+			util.Prioritized(parser.NewEmphasisParser(), 500),
+		),
+		// parser.WithBlockParsers(
+		// 	util.Prioritized(parser.LinkReferenceParagraphTransformer, 100),
+		// ),
+	)
+
+	md := goldmark.New(
+		goldmark.WithParser(p),
+		goldmark.WithRendererOptions(html.WithUnsafe()),
+		goldmark.WithExtensions(extension.Strikethrough),
+	)
+	return &TextProcessor{md: md}
+}
+
+func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, frontend_domain.Replies) {
+	processedText, matches := tp.processMessageLinks(message)
+	renderedText, _ := tp.renderText(processedText)
+	sanitizedText := tp.sanitizeText(renderedText)
 	return sanitizedText, matches
 }
 
 // processMessageLinks finds >>N/M patterns and converts them to internal links.
 // It also returns a list of all matched strings found in the input.
-func processMessageLinks(message domain.Message) (string, frontend_domain.Replies) {
+func (tp *TextProcessor) processMessageLinks(message domain.Message) (string, frontend_domain.Replies) {
 	var matches frontend_domain.Replies
 	seen := make(map[string]struct{})
 
@@ -57,14 +98,9 @@ func processMessageLinks(message domain.Message) (string, frontend_domain.Replie
 	return processedText, matches
 }
 
-func renderText(text string) (string, error) {
-	markdown := goldmark.New(
-		goldmark.WithRendererOptions(
-			html.WithUnsafe(),
-		),
-	)
+func (tp *TextProcessor) renderText(text string) (string, error) {
 	var buf bytes.Buffer
-	if err := markdown.Convert([]byte(text), &buf); err != nil {
+	if err := tp.md.Convert([]byte(text), &buf); err != nil {
 		return text, err
 	}
 	unsafeHTML := buf.String()
@@ -72,7 +108,7 @@ func renderText(text string) (string, error) {
 	return strings.TrimSpace(unsafeHTML), nil
 }
 
-func sanitizeText(text string) string {
+func (tp *TextProcessor) sanitizeText(text string) string {
 	p := bluemonday.UGCPolicy()
 
 	p.AllowAttrs("class").Matching(regexp.MustCompile("^message-link$")).OnElements("a")
