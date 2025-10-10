@@ -12,7 +12,6 @@ import (
 
 	"github.com/gorilla/mux"
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
-	"github.com/itchan-dev/itchan/frontend/internal/markdown"
 
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -95,7 +94,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse form data (assuming text, maybe attachments)
 	text := r.FormValue("text")
 	// Escape HTML first to prevent XSS, then process links
-	processedText, replyTo := markdown.ProcessMessage(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName, ThreadId: domain.ThreadId(threadId)}})
+	processedText, replyTo := h.TextProcessor.ProcessMessage(domain.Message{Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName, ThreadId: domain.ThreadId(threadId)}})
 	// TODO: Handle attachments if necessary
 
 	// Prepare backend request data using shared API DTOs

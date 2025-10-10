@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/frontend/internal/handler"
+	"github.com/itchan-dev/itchan/frontend/internal/markdown"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/jwt"
 )
@@ -31,7 +32,8 @@ type Dependencies struct {
 func SetupDependencies() *Dependencies {
 	templates := mustLoadTemplates(tmplPath)
 	public := fetchPublicConfig()
-	h := handler.New(templates, public)
+	textProcessor := markdown.New()
+	h := handler.New(templates, public, textProcessor)
 	startTemplateReloader(h, tmplPath)
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
