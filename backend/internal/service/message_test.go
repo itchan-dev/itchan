@@ -1,13 +1,13 @@
 package service
 
 import (
-	"database/sql"
 	"errors"
 	"sync" // Used for tracking calls in mocks safely in parallel tests
 	"testing"
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors" // Assuming this is the correct path based on broken_tests.txt
+	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +16,7 @@ import (
 
 // MockMessageStorage mocks the MessageStorage interface.
 type MockMessageStorage struct {
-	createMessageFunc func(creationData domain.MessageCreationData, isOp bool, tx *sql.Tx) (domain.MsgId, error)
+	createMessageFunc func(creationData domain.MessageCreationData) (domain.MsgId, error)
 	getMessageFunc    func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
 	deleteMessageFunc func(board domain.BoardShortName, id domain.MsgId) error
 
@@ -42,14 +42,14 @@ func (m *MockMessageStorage) ResetCallTracking() {
 	m.deleteMessageArgId = 0
 }
 
-func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData, isOp bool, tx *sql.Tx) (domain.MsgId, error) {
+func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error) {
 	m.mu.Lock()
 	m.createMessageCalled = true
 	m.createMessageArg = creationData
 	m.mu.Unlock()
 
 	if m.createMessageFunc != nil {
-		return m.createMessageFunc(creationData, false, nil)
+		return m.createMessageFunc(creationData)
 	}
 	// Default success returns an arbitrary ID (e.g., 1)
 	return 1, nil
@@ -98,7 +98,18 @@ func (m *MockMessageValidator) Text(text domain.MsgText) error {
 func TestMessageCreate(t *testing.T) {
 	// Common test data
 	testAuthor := domain.User{Id: 1}
-	testAttachments := domain.Attachments{"file1.jpg"}
+	testAttachments := domain.Attachments{
+		&domain.Attachment{
+			File: &domain.File{
+				FilePath:         "file1.jpg",
+				OriginalFilename: "file1.jpg",
+				FileSizeBytes:    1024,
+				MimeType:         "image/jpeg",
+				ImageWidth:       utils.IntPtr(800),
+				ImageHeight:      utils.IntPtr(600),
+			},
+		},
+	}
 	testCreationData := domain.MessageCreationData{
 		Board:       "tst",
 		Author:      testAuthor,
@@ -119,7 +130,7 @@ func TestMessageCreate(t *testing.T) {
 			assert.Equal(t, testCreationData.Text, text)
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData, isOp bool, tx *sql.Tx) (domain.MsgId, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
 			assert.Equal(t, testCreationData, creationData)
 			return expectedCreatedId, nil // Storage create succeeds
 		}
@@ -149,7 +160,7 @@ func TestMessageCreate(t *testing.T) {
 		validator.textFunc = func(text domain.MsgText) error {
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData, isOp bool, tx *sql.Tx) (domain.MsgId, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
 			assert.Equal(t, testCreationData, creationData)
 			return 0, storageError // Storage create fails
 		}

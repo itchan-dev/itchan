@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -17,67 +15,42 @@ import (
 func (h *Handler) RegisterGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
 		Error      template.HTML
-		User       *domain.User // Might be nil if not logged in
+		User       *domain.User
 		Validation struct{ PasswordMinLen int }
 	}
 	templateData.User = mw.GetUserFromContext(r)
-	templateData.Error, _ = parseMessagesFromQuery(r) // Get error from query param
+	templateData.Error, _ = parseMessagesFromQuery(r)
 	templateData.Validation.PasswordMinLen = h.Public.PasswordMinLen
 
 	h.renderTemplate(w, "register.html", templateData)
 }
 
 func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
-	targetURL := "/register" // Redirect target on error
+	targetURL := "/register"
 	successURL := "/check_confirmation_code"
 
-	// Parse form data
 	email := r.FormValue("email")
 	password := r.FormValue("password")
-	creds := credentials{Email: email, Password: password}
 
-	// Prepare backend request data
-	credsJson, err := json.Marshal(creds)
+	resp, err := h.APIClient.Register(email, password)
 	if err != nil {
-		log.Printf("Error marshalling registration data: %v", err)
-		redirectWithError(w, r, targetURL, "Internal error: could not prepare data.")
-		return
-	}
-
-	// Send request to backend
-	resp, err := http.Post("http://api:8080/v1/auth/register", "application/json", bytes.NewBuffer(credsJson))
-	if err != nil {
-		log.Printf("Error contacting backend API for registration: %v", err)
-		redirectWithError(w, r, targetURL, "Internal error: backend unavailable.")
+		log.Printf("Error during registration API call: %v", err)
+		redirectWithParams(w, r, targetURL, map[string]string{"error": "Internal error: backend unavailable."})
 		return
 	}
 	defer resp.Body.Close()
 
-	// Check response status
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusTooEarly {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
-		errMsg := fmt.Sprintf("Registration failed (status %d)", resp.StatusCode) // Default message
-		if readErr == nil && len(bodyBytes) > 0 {
-			errMsg = fmt.Sprintf("Error: %s", string(bodyBytes))
-		} else if readErr != nil {
-			log.Printf("Error reading backend error response body: %v", readErr)
-		}
-		redirectWithError(w, r, targetURL, errMsg)
-		return
-	}
+	bodyBytes, _ := io.ReadAll(resp.Body)
 
 	// Handle specific case: confirmation needed
 	if resp.StatusCode == http.StatusTooEarly {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
-		errMsg := "Confirmation required." // Default message
-		if readErr == nil && len(bodyBytes) > 0 {
-			// Include the backend message and a link hint in the error for the redirect
-			errMsg = fmt.Sprintf(`%s Please check your email or use the confirmation page. <a href="/check_confirmation_code?email=%s">Go to Confirmation</a>`, string(bodyBytes), url.QueryEscape(email))
-		} else if readErr != nil {
-			log.Printf("Error reading backend StatusTooEarly response body: %v", readErr)
-		}
-		// Redirect back to register page with this specific error message
-		redirectWithError(w, r, targetURL, errMsg)
+		msg := fmt.Sprintf(`%s Please check your email or use the confirmation page. <a href="/check_confirmation_code?email=%s">Go to Confirmation</a>`, string(bodyBytes), url.QueryEscape(email))
+		redirectWithParams(w, r, targetURL, map[string]string{"error": msg})
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		redirectWithParams(w, r, targetURL, map[string]string{"error": string(bodyBytes)})
 		return
 	}
 
@@ -108,53 +81,18 @@ func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse form data
 	email := r.FormValue("email")
 	code := r.FormValue("confirmation_code")
-
-	// Redirect target on error (back to the confirmation page with email)
 	targetURL := fmt.Sprintf("/check_confirmation_code?email=%s", url.QueryEscape(email))
 
-	// Prepare backend request data
-	backendData := struct {
-		Email            string `json:"email"`
-		ConfirmationCode string `json:"confirmation_code"`
-	}{Email: email, ConfirmationCode: code}
-
-	backendDataJson, err := json.Marshal(backendData)
+	err := h.APIClient.ConfirmEmail(email, code)
 	if err != nil {
-		log.Printf("Error marshalling confirmation data: %v", err)
-		redirectWithError(w, r, targetURL, "Internal error: could not prepare data.")
+		log.Printf("Error confirming email via API: %v", err)
+		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
 		return
 	}
 
-	// Send request to backend
-	resp, err := http.Post("http://api:8080/v1/auth/check_confirmation_code", "application/json", bytes.NewBuffer(backendDataJson))
-	if err != nil {
-		log.Printf("Error contacting backend API for confirmation: %v", err)
-		redirectWithError(w, r, targetURL, "Internal error: backend unavailable.")
-		return
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
-		errMsg := fmt.Sprintf("Confirmation failed (status %d)", resp.StatusCode) // Default message
-		if readErr == nil && len(bodyBytes) > 0 {
-			errMsg = string(bodyBytes)
-		} else if readErr != nil {
-			log.Printf("Error reading backend error response body: %v", readErr)
-		}
-		redirectWithError(w, r, targetURL, errMsg)
-		return
-	}
-
-	// Success: Redirect back to confirmation page with a success flag/message
-	// Using a simple flag like "confirmed"
-	redirectWithSuccess(w, r, targetURL, "confirmed")
-	// Or redirect to login page directly:
-	// http.Redirect(w, r, "/login?success=confirmed", http.StatusSeeOther)
+	redirectWithParams(w, r, targetURL, map[string]string{"success": "confirmed"})
 }
 
 func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -177,58 +115,30 @@ func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse form data
 	email := r.FormValue("email")
 	password := r.FormValue("password")
-
-	// Redirect target on error (back to login page, preserving email)
 	targetURL := fmt.Sprintf("/login?email=%s", url.QueryEscape(email))
-	successURL := "/" // Redirect target on success
 
-	// Prepare backend request data
-	backendData := struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}{Email: email, Password: password}
-
-	backendDataJson, err := json.Marshal(backendData)
+	resp, err := h.APIClient.Login(email, password)
 	if err != nil {
-		log.Printf("Error marshalling login data: %v", err)
-		redirectWithError(w, r, targetURL, "Internal error: could not prepare data.")
-		return
-	}
-
-	// Send request to backend
-	resp, err := http.Post("http://api:8080/v1/auth/login", "application/json", bytes.NewBuffer(backendDataJson))
-	if err != nil {
-		log.Printf("Error contacting backend API for login: %v", err)
-		redirectWithError(w, r, targetURL, "Internal error: backend unavailable.")
+		log.Printf("Error during login API call: %v", err)
+		redirectWithParams(w, r, targetURL, map[string]string{"error": "Internal error: backend unavailable."})
 		return
 	}
 	defer resp.Body.Close()
 
-	// Check response status
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, readErr := io.ReadAll(resp.Body)
-		errMsg := fmt.Sprintf("Login failed (status %d)", resp.StatusCode) // Default message
-		if readErr == nil && len(bodyBytes) > 0 {
-			errMsg = string(bodyBytes)
-		} else if readErr != nil {
-			log.Printf("Error reading backend error response body: %v", readErr)
-		}
-		redirectWithError(w, r, targetURL, errMsg)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		redirectWithParams(w, r, targetURL, map[string]string{"error": string(bodyBytes)})
 		return
 	}
 
-	// Success: Forward cookies from backend response
+	// Success: Forward cookies from the backend response to the user's browser
 	for _, cookie := range resp.Cookies() {
-		// Make sure critical cookies like session tokens are HttpOnly
-		// The backend should set HttpOnly=true, this just forwards it.
 		http.SetCookie(w, cookie)
 	}
 
-	// Redirect to the success URL (index page)
-	http.Redirect(w, r, successURL, http.StatusSeeOther)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/frontend/internal/handler"
 	"github.com/itchan-dev/itchan/frontend/internal/setup"
@@ -12,6 +13,9 @@ import (
 func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	r := mux.NewRouter()
 	r.StrictSlash(true)
+
+	// Enable gzip compression for all responses (HTML, CSS, JS)
+	r.Use(handlers.CompressHandler)
 
 	// Public routes
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
@@ -34,18 +38,18 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	authRouter.HandleFunc("/", deps.Handler.IndexGetHandler).Methods("GET")
 	authRouter.HandleFunc("/", deps.Handler.IndexPostHandler).Methods("POST")
 	authRouter.HandleFunc("/logout", handler.LogoutHandler)
-	authRouter.HandleFunc("/{board}/delete", handler.BoardDeleteHandler).Methods("POST")
+	authRouter.HandleFunc("/{board}/delete", deps.Handler.BoardDeleteHandler).Methods("POST")
 
 	authRouter.HandleFunc("/{board}", deps.Handler.BoardGetHandler).Methods("GET")
 	authRouter.HandleFunc("/{board}", deps.Handler.BoardPostHandler).Methods("POST")
-	authRouter.HandleFunc("/{board}/{thread}/delete", handler.ThreadDeleteHandler).Methods("POST")
+	authRouter.HandleFunc("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler).Methods("POST")
 
 	authRouter.HandleFunc("/{board}/{thread}", deps.Handler.ThreadGetHandler).Methods("GET")
 	authRouter.HandleFunc("/{board}/{thread}", deps.Handler.ThreadPostHandler).Methods("POST")
-	authRouter.HandleFunc("/{board}/{thread}/{message}/delete", handler.MessageDeleteHandler).Methods("POST")
+	authRouter.HandleFunc("/{board}/{thread}/{message}/delete", deps.Handler.MessageDeleteHandler).Methods("POST")
 
 	// API proxy for message preview
-	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}", handler.MessagePreviewHandler).Methods("GET")
+	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler).Methods("GET")
 
 	return r
 }

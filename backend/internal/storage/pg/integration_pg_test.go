@@ -1,8 +1,33 @@
+// Package pg_test contains the integration tests for the PostgreSQL storage layer.
+//
+// Test Philosophy:
+// This package employs a robust testing strategy to ensure reliability and isolation:
+//  1. Test Containerization: `TestMain` uses testcontainers-go to spin up a fresh, ephemeral
+//     PostgreSQL instance for each run of the test suite. This guarantees that tests run
+//     in a clean, predictable environment, identical to the production setup.
+//  2. Transactional Tests: Each top-level test function (e.g., `TestDeleteMessage`) is
+//     responsible for creating a single database transaction. All setup, execution, and
+//     assertions for that test are performed within this transaction. At the end of the
+//     test, the transaction is rolled back, wiping out all changes.
+//  3. Test Helpers with Querier: The test helper functions (`createTestUser`, `createTestBoard`, etc.)
+//     are designed to work with the transactional test pattern. They accept a `Querier`
+//     interface as their first argument, allowing them to operate within the transaction
+//     created by the calling test function. They call the *internal* (unexported) storage
+//     methods, bypassing the public transaction-managing wrappers.
+//  4. Build Tags for Test Isolation: Tests that cannot use transactions (e.g., concurrent
+//     materialized view refreshes) are separated into files with the 'polluting' build tag.
+//     Run clean tests with `go test ./...` and polluting tests with `go test -tags=polluting ./...`
+//
+// This approach provides perfect test isolation, preventing one test from impacting another,
+// and ensures that the core database logic works correctly under atomic conditions.
 package pg
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,70 +46,77 @@ import (
 )
 
 const (
-	dbName        = "itchan"
+	dbName        = "itchan_test"
 	dbUser        = "user"
 	dbPassword    = "password"
-	initScriptRel = "migrations/init.sql"
+	initScriptRel = "migrations/init.sql" // Relative path from the test file
 )
 
 var (
-	storage    *Storage
-	containers []testcontainers.Container
-	cancel     context.CancelFunc
+	// storage is a global instance of our storage layer, initialized once for the suite.
+	storage *Storage
 )
 
+// TestMain is the entry point for the entire test suite. It sets up the
+// database container and tears it down after all tests have run.
 func TestMain(m *testing.M) {
-	ctx := context.Background()
-	storage, containers, cancel = mustSetup(ctx)
-	cancel() // refresh board_preview manually
-	defer teardown(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	// mustSetup handles the creation of the container and storage instance.
+	container, err := mustSetup(ctx)
+	if err != nil {
+		log.Fatalf("Failed to setup test environment: %v", err)
+	}
+
+	// Run all tests.
 	exitCode := m.Run()
+
+	// Teardown the container.
+	teardown(ctx, container)
 	os.Exit(exitCode)
 }
 
-func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container, context.CancelFunc) {
-	// Resolve absolute path for init script
+// mustSetup initializes the testcontainers environment and the Storage service.
+func mustSetup(ctx context.Context) (testcontainers.Container, error) {
 	initScriptPath, err := filepath.Abs(initScriptRel)
 	if err != nil {
-		log.Fatalf("failed to resolve init script path: %v", err)
+		return nil, fmt.Errorf("failed to resolve init script path: %w", err)
 	}
 
 	container, err := postgres.Run(ctx,
-		"postgres:17.4-alpine",
+		"postgres:16-alpine", // Using a recent, stable version
 		postgres.WithInitScripts(initScriptPath),
 		postgres.WithDatabase(dbName),
 		postgres.WithUsername(dbUser),
 		postgres.WithPassword(dbPassword),
 		testcontainers.WithWaitStrategy(
-			wait.ForAll(
-				wait.ForListeningPort("5432/tcp"),
-				wait.ForLog("database system is ready to accept connections").
-					WithOccurrence(2),
-			).WithDeadline(10*time.Second),
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(15*time.Second),
 		),
 	)
 	if err != nil {
-		log.Fatalf("failed to start container: %v", err)
+		return nil, fmt.Errorf("failed to start container: %w", err)
 	}
 
 	host, err := container.Host(ctx)
 	if err != nil {
-		log.Fatalf("failed to get container host: %v", err)
+		return nil, fmt.Errorf("failed to get container host: %w", err)
 	}
 
 	portStr, err := container.MappedPort(ctx, "5432")
 	if err != nil {
-		log.Fatalf("failed to get container port: %v", err)
+		return nil, fmt.Errorf("failed to get container port: %w", err)
 	}
 	port, _ := strconv.Atoi(portStr.Port())
 
-	cfg := config.Config{
+	cfg := &config.Config{
 		Public: config.Public{
 			ThreadsPerPage:              3,
 			NLastMsg:                    3,
 			BumpLimit:                   15,
-			BoardPreviewRefreshInterval: 1,
+			BoardPreviewRefreshInterval: 60, // Use a longer interval for tests
 		},
 		Private: config.Private{
 			Pg: config.Pg{
@@ -97,108 +129,150 @@ func mustSetup(ctx context.Context) (*Storage, []testcontainers.Container, conte
 		},
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	storage, err := New(ctx, &cfg)
+	// Use a canceled context for New to prevent the view refresher from starting during tests.
+	// Tests will manage the view refresh manually if needed.
+	initCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	storage, err = New(initCtx, cfg)
 	if err != nil {
-		log.Fatalf("failed to initialize storage: %v", err)
+		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	return storage, []testcontainers.Container{container}, cancel
+	return container, nil
 }
 
-func teardown(ctx context.Context) {
+// teardown handles the cleanup of the storage connection and the test container.
+func teardown(ctx context.Context, container testcontainers.Container) {
 	if storage != nil {
 		if err := storage.Cleanup(); err != nil {
-			log.Printf("error cleaning up storage: %v", err)
+			log.Printf("Error cleaning up storage: %v", err)
 		}
 	}
-
-	for _, container := range containers {
+	if container != nil {
 		if err := container.Terminate(ctx); err != nil {
-			log.Printf("error terminating container: %v", err)
+			log.Printf("Error terminating container: %v", err)
 		}
 	}
 }
 
-// Helper functions
-func setupBoard(t *testing.T) domain.BoardShortName {
+// =========================================================================
+// Transactional Test Helpers
+// =========================================================================
+
+// createTestUser creates a user within the given transaction.
+func createTestUser(t *testing.T, q Querier, email string) domain.UserId {
 	t.Helper()
-	boardName := "testboard"
-	boardShortName := generateString(t)
-	err := storage.CreateBoard(domain.BoardCreationData{Name: boardName, ShortName: boardShortName, AllowedEmails: nil})
-	require.NoError(t, err, "CreateBoard should not return an error")
-
-	t.Cleanup(func() {
-		// cleanup every thread and msg
-		err := storage.DeleteBoard(boardShortName)
-		if err != nil {
-			requireNotFoundError(t, err) // already deleted in test
-		}
-	})
-
-	return boardShortName
-}
-
-func setupBoardAndThread(t *testing.T) (domain.BoardShortName, domain.ThreadId) {
-	t.Helper()
-	boardShortName := setupBoard(t)
-
-	threadID, err := storage.CreateThread(domain.ThreadCreationData{Title: generateString(t), Board: boardShortName, OpMessage: domain.MessageCreationData{Board: boardShortName, Author: domain.User{Id: 1}, Text: "Test OP"}})
-	require.NoError(t, err, "CreateThread should not return an error")
-
-	return boardShortName, threadID
-}
-
-func setupBoardAndThreadAndMessage(t *testing.T) (domain.BoardShortName, domain.ThreadId, domain.MsgId) {
-	t.Helper()
-	boardShortName, threadID := setupBoardAndThread(t)
-
-	author := domain.User{Id: 2}
-	attachments := &domain.Attachments{"file1.jpg", "file2.png"}
-	msgID, err := storage.CreateMessage(domain.MessageCreationData{Board: boardShortName, Author: author, Text: generateString(t), Attachments: attachments, ThreadId: threadID}, false, nil)
-	require.NoError(t, err, "CreateMessage should not return an error")
-
-	return boardShortName, threadID, msgID
-}
-
-func generateString(t *testing.T) string {
-	t.Helper()
-	return strings.ReplaceAll(uuid.NewString()[:10], "-", "_")
-}
-
-func requireNotFoundError(t *testing.T, err error) {
-	t.Helper()
-	var e *internal_errors.ErrorWithStatusCode
-	require.ErrorAs(t, err, &e)
-	require.Equal(t, 404, e.StatusCode)
-}
-
-func createTestThread(t *testing.T, thread domain.ThreadCreationData) domain.ThreadId {
-	t.Helper()
-	threadID, err := storage.CreateThread(thread)
+	user := domain.User{Email: domain.Email(email), PassHash: "test_hash"}
+	userID, err := storage.saveUser(q, user)
 	require.NoError(t, err)
-	return threadID
+	return userID
 }
 
-func createTestMessage(t *testing.T, message domain.MessageCreationData) domain.MsgId {
+// createTestBoard creates a board and its partitions within the given transaction.
+func createTestBoard(t *testing.T, q Querier, shortName domain.BoardShortName) {
 	t.Helper()
-	msgID, err := storage.CreateMessage(message, false, nil)
+	err := storage.createBoard(q, domain.BoardCreationData{
+		Name:      "Test Board " + string(shortName),
+		ShortName: shortName,
+	})
+	require.NoError(t, err)
+}
+
+// createTestThread creates a thread and its OP message within the given transaction.
+func createTestThread(t *testing.T, q Querier, data domain.ThreadCreationData) (domain.ThreadId, domain.MsgId) {
+	t.Helper()
+	threadID, createdTs, err := storage.createThread(q, data)
+	require.NoError(t, err)
+
+	data.OpMessage.ThreadId = threadID
+	data.OpMessage.CreatedAt = &createdTs
+	data.OpMessage.Board = data.Board
+
+	opMsgID, err := storage.createMessage(q, data.OpMessage)
+	require.NoError(t, err)
+	return threadID, opMsgID
+}
+
+// createTestMessage creates a message within the given transaction.
+func createTestMessage(t *testing.T, q Querier, data domain.MessageCreationData) domain.MsgId {
+	t.Helper()
+	msgID, err := storage.createMessage(q, data)
 	require.NoError(t, err)
 	return msgID
 }
 
+// =========================================================================
+// General Test Utility Functions
+// =========================================================================
+
+// generateString creates a short, unique, alphanumeric string for test data.
+func generateString(t *testing.T) string {
+	t.Helper()
+	return strings.ReplaceAll(uuid.New().String()[:8], "-", "")
+}
+
+// requireNotFoundError asserts that an error is a not-found error with status code 404.
+func requireNotFoundError(t *testing.T, err error) {
+	t.Helper()
+	require.Error(t, err, "Expected a not-found error, but got nil")
+	var e *internal_errors.ErrorWithStatusCode
+	require.ErrorAs(t, err, &e, "Error is not of type ErrorWithStatusCode")
+	require.Equal(t, http.StatusNotFound, e.StatusCode, "Expected status code 404")
+}
+
+// getRandomAttachments generates a sample attachments slice for use in tests.
+func getRandomAttachments(t *testing.T) domain.Attachments {
+	t.Helper()
+	f1Name := generateString(t)
+	f2Name := generateString(t)
+	attachments := domain.Attachments{
+		&domain.Attachment{
+			File: &domain.File{
+				FilePath:         f1Name,
+				OriginalFilename: f1Name,
+				FileSizeBytes:    1024,
+				MimeType:         "image/jpeg",
+			},
+		},
+		&domain.Attachment{
+			File: &domain.File{
+				FilePath:         f2Name,
+				OriginalFilename: f2Name,
+				FileSizeBytes:    2048,
+				MimeType:         "image/png",
+			},
+		},
+	}
+	return attachments
+}
+
+// beginTx starts a new transaction and returns it, failing the test on error.
+// Also returns a cleanup function that rolls back the transaction.
+func beginTx(t *testing.T) (*sql.Tx, func()) {
+	t.Helper()
+	tx, err := storage.db.Begin()
+	require.NoError(t, err)
+	return tx, func() { tx.Rollback() }
+}
+
+// requireThreadOrder verifies that threads appear in the expected order by title.
 func requireThreadOrder(t *testing.T, threads []*domain.Thread, expectedTitles []string) {
 	t.Helper()
-	require.Len(t, threads, len(expectedTitles))
-	for i, title := range expectedTitles {
-		require.Equal(t, title, threads[i].Title, "Position %d", i)
+	require.Len(t, threads, len(expectedTitles), "Thread count mismatch")
+	for i, expectedTitle := range expectedTitles {
+		require.Equal(t, expectedTitle, string(threads[i].Title),
+			"Thread at index %d has wrong title: expected %q, got %q",
+			i, expectedTitle, threads[i].Title)
 	}
 }
 
+// requireMessageOrder verifies that messages appear in the expected order by text.
 func requireMessageOrder(t *testing.T, messages []*domain.Message, expectedTexts []string) {
 	t.Helper()
-	require.Len(t, messages, len(expectedTexts))
-	for i, text := range expectedTexts {
-		require.Equal(t, text, messages[i].Text, "Position %d", i)
+	require.Len(t, messages, len(expectedTexts), "Message count mismatch")
+	for i, expectedText := range expectedTexts {
+		require.Equal(t, expectedText, string(messages[i].Text),
+			"Message at index %d has wrong text: expected %q, got %q",
+			i, expectedText, messages[i].Text)
 	}
 }

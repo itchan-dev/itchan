@@ -1,8 +1,6 @@
 package service
 
 import (
-	"database/sql"
-
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
@@ -18,7 +16,7 @@ type Message struct {
 }
 
 type MessageStorage interface {
-	CreateMessage(creationData domain.MessageCreationData, isOp bool, tx *sql.Tx) (domain.MsgId, error)
+	CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error)
 	GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
 	DeleteMessage(board domain.BoardShortName, id domain.MsgId) error
 }
@@ -37,7 +35,7 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 		return 0, err
 	}
 
-	id, err := b.storage.CreateMessage(creationData, false, nil)
+	id, err := b.storage.CreateMessage(creationData)
 	if err != nil {
 		return 0, err
 	}

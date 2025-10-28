@@ -7,5 +7,5 @@ CREATE TABLE %[2]s PARTITION OF %[3]s (
 )
 FOR VALUES IN (%[5]s);
 
--- Optionally, associate the sequence with the column for automatic cleanup
+-- Associate the sequence with the column for automatic cleanup
 ALTER SEQUENCE %[1]s OWNED BY %[2]s.id;

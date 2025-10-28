@@ -90,7 +90,7 @@
                         {{ $numShownReplies = sub $numShownMessages 1 }}
                     {{ end }}
                     {{/* Omitted = TotalReplies - ShownReplies */}}
-                    {{ $omittedReplies := sub $thread.NumReplies $numShownReplies }}
+                    {{ $omittedReplies := sub $thread.MessageCount $numShownReplies }}
 
                     {{ if gt $omittedReplies 0 }}
                          <div class="reply-summary">

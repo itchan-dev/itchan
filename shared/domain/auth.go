@@ -16,7 +16,7 @@ type User struct {
 
 type ConfirmationData struct {
 	Email                Email
-	NewPassHash          Password
+	PasswordHash         Password
 	ConfirmationCodeHash string
 	Expires              time.Time
 }

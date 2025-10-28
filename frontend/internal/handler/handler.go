@@ -4,27 +4,25 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/itchan-dev/itchan/frontend/internal/apiclient"
 	"github.com/itchan-dev/itchan/frontend/internal/markdown"
 	"github.com/itchan-dev/itchan/shared/config"
 	// Added for splitAndTrim if not already imported elsewhere
 )
 
-type credentials struct {
-	Email    string `validate:"required" json:"email"`
-	Password string `validate:"required" json:"password"`
-}
-
 type Handler struct {
 	Templates     map[string]*template.Template
 	Public        config.Public
 	TextProcessor *markdown.TextProcessor
+	APIClient     *apiclient.APIClient
 }
 
-func New(templates map[string]*template.Template, publicCfg config.Public, textProcessor *markdown.TextProcessor) *Handler {
+func New(templates map[string]*template.Template, publicCfg config.Public, textProcessor *markdown.TextProcessor, apiClient *apiclient.APIClient) *Handler {
 	return &Handler{
 		Templates:     templates,
 		Public:        publicCfg,
 		TextProcessor: textProcessor,
+		APIClient:     apiClient,
 	}
 }
 

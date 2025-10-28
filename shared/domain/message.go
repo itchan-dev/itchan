@@ -30,7 +30,7 @@ type MessageMetadata struct {
 type Message struct {
 	MessageMetadata
 	Text        string
-	Attachments *Attachments
+	Attachments Attachments
 }
 
 type Reply struct {

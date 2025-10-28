@@ -17,6 +17,9 @@ import (
 func New(deps *setup.Dependencies) *mux.Router {
 	r := mux.NewRouter()
 
+	// Enable gzip compression for all responses
+	r.Use(handlers.CompressHandler)
+
 	// setup CORS for frontend
 	r.Use(handlers.CORS(
 		handlers.AllowedOrigins([]string{"http://localhost:8081"}),
@@ -35,16 +38,6 @@ func New(deps *setup.Dependencies) *mux.Router {
 	v1 := r.PathPrefix("/v1").Subrouter()
 	// Public config endpoint
 	v1.HandleFunc("/public_config", h.GetPublicConfig).Methods("GET")
-
-	// test := v1.PathPrefix("/test").Subrouter()                                                     //
-	// test.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test")) }) //
-	// test_tmp := v1.PathPrefix("/test").Subrouter()
-	// test_tmp.HandleFunc("/xa", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test")) })
-	// test2 := v1.PathPrefix("/test2").Subrouter()                                                     //
-	// test2.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test2")) }) //
-	// test3 := v1.PathPrefix("/{board}").Subrouter()                                                   //
-	// test3.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("test3")) }) //
-	// v1.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("v1")) })
 
 	// Admin routes
 	admin := v1.PathPrefix("/admin").Subrouter()

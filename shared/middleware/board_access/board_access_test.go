@@ -6,27 +6,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockStorage struct {
-	mu     sync.RWMutex
-	boards []domain.Board
-	err    error
+	mu          sync.RWMutex
+	permissions map[string][]string
+	err         error
 }
 
-func (m *mockStorage) GetBoards() ([]domain.Board, error) {
+func (m *mockStorage) GetBoardsWithPermissions() (map[string][]string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.boards, m.err
+	return m.permissions, m.err
 }
 
-func (m *mockStorage) setBoards(boards []domain.Board) {
+func (m *mockStorage) setPermissions(permissions map[string][]string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.boards = boards
+	m.permissions = permissions
 }
 
 func TestNew(t *testing.T) {
@@ -39,13 +38,8 @@ func TestNew(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	t.Run("successful update", func(t *testing.T) {
 		ms := &mockStorage{
-			boards: []domain.Board{
-				{
-					BoardMetadata: domain.BoardMetadata{
-						ShortName:     "test",
-						AllowedEmails: &domain.Emails{"example.com"},
-					},
-				},
+			permissions: map[string][]string{
+				"test": {"example.com"},
 			},
 		}
 
@@ -67,16 +61,16 @@ func TestUpdate(t *testing.T) {
 
 	t.Run("should refresh data completely", func(t *testing.T) {
 		ms := &mockStorage{}
-		ms.setBoards([]domain.Board{
-			{BoardMetadata: domain.BoardMetadata{ShortName: "old", AllowedEmails: &domain.Emails{"old.com"}}},
+		ms.setPermissions(map[string][]string{
+			"old": {"old.com"},
 		})
 
 		ba := New()
 		require.NoError(t, ba.Update(ms))
 
 		// Update mock data
-		ms.setBoards([]domain.Board{
-			{BoardMetadata: domain.BoardMetadata{ShortName: "new", AllowedEmails: &domain.Emails{"new.com"}}},
+		ms.setPermissions(map[string][]string{
+			"new": {"new.com"},
 		})
 
 		require.NoError(t, ba.Update(ms))
@@ -104,8 +98,8 @@ func TestAllowedDomains(t *testing.T) {
 func TestConcurrentAccess(t *testing.T) {
 	ba := New()
 	ms := &mockStorage{
-		boards: []domain.Board{
-			{BoardMetadata: domain.BoardMetadata{ShortName: "test", AllowedEmails: &domain.Emails{"example.com"}}},
+		permissions: map[string][]string{
+			"test": {"example.com"},
 		},
 	}
 
@@ -144,8 +138,8 @@ func TestBackgroundUpdates(t *testing.T) {
 	interval := 10 * time.Millisecond
 
 	// Initial data setup
-	ms.setBoards([]domain.Board{
-		{BoardMetadata: domain.BoardMetadata{ShortName: "test", AllowedEmails: &domain.Emails{"initial.com"}}},
+	ms.setPermissions(map[string][]string{
+		"test": {"initial.com"},
 	})
 
 	ba.StartBackgroundUpdate(interval, ms)
@@ -160,8 +154,8 @@ func TestBackgroundUpdates(t *testing.T) {
 	assert.Equal(t, []string{"initial.com"}, ba.AllowedDomains("test"))
 
 	// Update mock data
-	ms.setBoards([]domain.Board{
-		{BoardMetadata: domain.BoardMetadata{ShortName: "test", AllowedEmails: &domain.Emails{"updated.com"}}},
+	ms.setPermissions(map[string][]string{
+		"test": {"updated.com"},
 	})
 
 	// Wait for refresh cycle
