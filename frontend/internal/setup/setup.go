@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/itchan-dev/itchan/frontend/internal/apiclient"
 	"github.com/itchan-dev/itchan/frontend/internal/handler"
 	"github.com/itchan-dev/itchan/frontend/internal/markdown"
 	"github.com/itchan-dev/itchan/shared/config"
@@ -33,7 +34,8 @@ func SetupDependencies() *Dependencies {
 	templates := mustLoadTemplates(tmplPath)
 	public := fetchPublicConfig()
 	textProcessor := markdown.New()
-	h := handler.New(templates, public, textProcessor)
+	apiClient := apiclient.New("http://api:8080")
+	h := handler.New(templates, public, textProcessor, apiClient)
 	startTemplateReloader(h, tmplPath)
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {

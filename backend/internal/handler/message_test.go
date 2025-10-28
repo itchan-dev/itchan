@@ -14,7 +14,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/backend/internal/service" // Use service interface from internal/service
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware" // Use shared middleware
+	mw "github.com/itchan-dev/itchan/shared/middleware"
+	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,12 +69,33 @@ func TestCreateMessageHandler(t *testing.T) {
 	threadIdStr := strconv.FormatInt(threadId, 10)
 	route := "/" + board + "/" + threadIdStr
 	user := domain.User{Id: 1, Email: "test@test.com"}
-	validRequestBody := []byte(`{"text": "test text", "attachments": ["one", "two"]}`)
+	validRequestBody := []byte(`{"text": "test text", "attachments": [{"file": {"file_path": "one.jpg", "original_filename": "one.jpg", "file_size_bytes": 1024, "mime_type": "image/jpeg", "image_width": 800, "image_height": 600}}, {"file": {"file_path": "two.png", "original_filename": "two.png", "file_size_bytes": 2048, "mime_type": "image/png", "image_width": 1200, "image_height": 900}}]}`)
 	expectedText := "test text"
-	expectedAttachments := &domain.Attachments{"one", "two"}
+	expectedAttachments := &domain.Attachments{
+		&domain.Attachment{
+			File: &domain.File{
+				FilePath:         "one.jpg",
+				OriginalFilename: "one.jpg",
+				FileSizeBytes:    1024,
+				MimeType:         "image/jpeg",
+				ImageWidth:       utils.IntPtr(800),
+				ImageHeight:      utils.IntPtr(600),
+			},
+		},
+		&domain.Attachment{
+			File: &domain.File{
+				FilePath:         "two.png",
+				OriginalFilename: "two.png",
+				FileSizeBytes:    2048,
+				MimeType:         "image/png",
+				ImageWidth:       utils.IntPtr(1200),
+				ImageHeight:      utils.IntPtr(900),
+			},
+		},
+	}
 
 	// Test data for replies
-	validRequestBodyWithReplies := []byte(`{"text": "test text", "attachments": ["one", "two"], "reply_to": [{"To": 123, "ToThreadId": 1, "From": 0, "FromThreadId": 0, "CreatedAt": "2023-01-01T00:00:00Z"}]}`)
+	validRequestBodyWithReplies := []byte(`{"text": "test text", "attachments": [{"file": {"file_path": "one.jpg", "original_filename": "one.jpg", "file_size_bytes": 1024, "mime_type": "image/jpeg", "image_width": 800, "image_height": 600}}, {"file": {"file_path": "two.png", "original_filename": "two.png", "file_size_bytes": 2048, "mime_type": "image/png", "image_width": 1200, "image_height": 900}}], "reply_to": [{"To": 123, "ToThreadId": 1, "From": 0, "FromThreadId": 0, "CreatedAt": "2023-01-01T00:00:00Z"}]}`)
 
 	t.Run("successful request", func(t *testing.T) {
 		expectedMsgId := domain.MsgId(123)

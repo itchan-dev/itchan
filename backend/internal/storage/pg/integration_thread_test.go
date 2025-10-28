@@ -1,3 +1,5 @@
+//go:build !polluting
+
 package pg
 
 import (
@@ -6,398 +8,509 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/lib/pq" // PostgreSQL driver
+	_ "github.com/lib/pq"
 )
 
-// ==================
-// CreateThread Tests
-// ==================
+// TestThreadOperations verifies thread CRUD operations and bump limit enforcement.
+func TestThreadOperations(t *testing.T) {
+	t.Run("CreateThread", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
 
-func TestCreateThread(t *testing.T) {
-	boardShortName := setupBoard(t)
-	title := "Test Thread Creation"
-	opMsg := domain.MessageCreationData{
-		Board:       boardShortName,
-		Author:      domain.User{Id: 1},
-		Text:        "Original Post Text",
-		Attachments: &domain.Attachments{"op_image.png"},
-	}
-	creationData := domain.ThreadCreationData{
-		Title:     title,
-		Board:     boardShortName,
-		OpMessage: opMsg,
-	}
+		boardShortName := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
 
-	t.Run("Success", func(t *testing.T) {
-		boardBefore, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err)
-
-		// Allow some time for distinct timestamps
-		time.Sleep(50 * time.Millisecond)
-		creationTimeStart := time.Now()
-
-		threadID, err := storage.CreateThread(creationData)
-		require.NoError(t, err, "CreateThread should succeed")
-		require.Greater(t, threadID, int64(0), "Thread ID should be positive")
-
-		boardAfter, err := storage.GetBoard(boardShortName, 1)
-		require.NoError(t, err)
-
-		createdThread, err := storage.GetThread(boardShortName, threadID)
-		require.NoError(t, err, "GetThread should find the newly created thread")
-
-		assert.Equal(t, title, createdThread.Title, "Thread title mismatch")
-		assert.Equal(t, boardShortName, createdThread.Board, "Thread board mismatch")
-		assert.Equal(t, 0, createdThread.NumReplies, "New thread should have 0 replies")
-		require.Len(t, createdThread.Messages, 1, "Thread should contain only the OP message")
-
-		// Verify OP message details
-		op := createdThread.Messages[0]
-		assert.Equal(t, opMsg.Text, op.Text, "OP message text mismatch")
-		assert.Equal(t, opMsg.Author.Id, op.Author.Id, "OP author ID mismatch")
-		require.NotNil(t, op.Attachments, "OP attachments should not be nil")
-		assert.Equal(t, *opMsg.Attachments, *op.Attachments, "OP attachments mismatch")
-		assert.Equal(t, threadID, op.ThreadId, "OP message ThreadId should match thread ID")
-
-		// Verify timestamps and board last_activity update
-		assert.WithinDuration(t, creationTimeStart, createdThread.LastBumped, 5*time.Second, "LastBumped should be recent")
-		assert.Equal(t, op.CreatedAt, createdThread.LastBumped, "LastBumped should equal OP CreatedAt")
-		assert.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Board last_activity should update on thread creation")
-		assert.WithinDuration(t, boardAfter.LastActivity, createdThread.LastBumped, 100*time.Millisecond, "Board last_activity should be very close to LastBumped")
-
-		// Cleanup
-		err = storage.DeleteThread(boardShortName, threadID)
-		require.NoError(t, err, "Failed to cleanup thread in subtest")
-	})
-
-	t.Run("BoardNotFound", func(t *testing.T) {
-		// Change board for OP msg to an invalid value.
-		opMsgInvalid := opMsg
-		opMsgInvalid.Board = "nonexistentboard"
-		invalidData := domain.ThreadCreationData{
-			Title:     "Invalid Board Thread",
-			Board:     "nonexistentboard",
-			OpMessage: opMsgInvalid,
-		}
-		_, err := storage.CreateThread(invalidData)
-		requireNotFoundError(t, err)
-	})
-
-	t.Run("CreateStickyThread", func(t *testing.T) {
-		stickyData := domain.ThreadCreationData{
-			Title:     "Sticky Thread",
-			Board:     boardShortName,
-			IsSticky:  true,
-			OpMessage: opMsg,
-		}
-		threadID, err := storage.CreateThread(stickyData)
-		require.NoError(t, err)
-
-		thread, err := storage.GetThread(boardShortName, threadID)
-		require.NoError(t, err)
-		assert.True(t, thread.IsSticky, "Thread should be marked as sticky")
-	})
-}
-
-// ==================
-// GetThread Tests
-// ==================
-
-func TestGetThread(t *testing.T) {
-	boardShortName := setupBoard(t)
-	title := "Test Get Thread"
-	opMsg := domain.MessageCreationData{
-		Board:       boardShortName,
-		Author:      domain.User{Id: 1},
-		Text:        "Test OP Get",
-		Attachments: &domain.Attachments{"file1.jpg"},
-	}
-
-	t.Run("WithReplies", func(t *testing.T) {
-		threadID := createTestThread(t, domain.ThreadCreationData{
-			Title:     title + "_WithReplies",
-			Board:     boardShortName,
-			OpMessage: opMsg,
-		})
-		t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardShortName, threadID)) })
-
-		// Create two replies
-		replyMsgs := []struct {
-			author domain.User
-			text   string
-		}{
-			{author: domain.User{Id: 2}, text: "Reply 1 Text"},
-			{author: domain.User{Id: 3}, text: "Reply 2 Text"},
-		}
-		msgID1 := createTestMessage(t, domain.MessageCreationData{
-			Board:    boardShortName,
-			Author:   replyMsgs[0].author,
-			Text:     replyMsgs[0].text,
-			ThreadId: threadID,
-		})
-		time.Sleep(10 * time.Millisecond) // Ensure distinct timestamps
-		msgID2 := createTestMessage(t, domain.MessageCreationData{
-			Board:    boardShortName,
-			Author:   replyMsgs[1].author,
-			Text:     replyMsgs[1].text,
-			ThreadId: threadID,
-		})
-
-		thread, err := storage.GetThread(boardShortName, threadID)
-		require.NoError(t, err, "GetThread should not return an error")
-		assert.Equal(t, title+"_WithReplies", thread.Title)
-		assert.Equal(t, boardShortName, thread.Board)
-		assert.Equal(t, 2, thread.NumReplies, "Mismatch in reply count")
-		require.Len(t, thread.Messages, 3, "Expected 3 messages (OP + 2 replies)")
-
-		// Verify ordering using helper
-		requireMessageOrder(t, thread.Messages, []string{opMsg.Text, replyMsgs[0].text, replyMsgs[1].text})
-
-		// Check OP message details
-		op := thread.Messages[0]
-		assert.Equal(t, threadID, op.ThreadId)
-		require.NotNil(t, op.Attachments)
-		assert.Equal(t, *opMsg.Attachments, *op.Attachments)
-
-		// Verify reply 1
-		reply1 := thread.Messages[1]
-		assert.Equal(t, msgID1, reply1.Id)
-		require.NotNil(t, reply1.ThreadId)
-		assert.Equal(t, threadID, reply1.ThreadId)
-		assert.Nil(t, reply1.Attachments)
-		assert.Equal(t, replyMsgs[0].author.Id, reply1.Author.Id)
-		assert.Len(t, reply1.Replies, 0, "Reply 1 should have no nested replies")
-
-		// Verify reply 2
-		reply2 := thread.Messages[2]
-		assert.Equal(t, msgID2, reply2.Id)
-		require.NotNil(t, reply2.ThreadId)
-		assert.Equal(t, threadID, reply2.ThreadId)
-		assert.Nil(t, reply2.Attachments)
-		assert.Equal(t, replyMsgs[1].author.Id, reply2.Author.Id)
-		assert.Len(t, reply2.Replies, 0, "Reply 2 should have no nested replies")
-
-		// LastBumped should equal the creation time of the last reply
-		assert.Equal(t, reply2.CreatedAt, thread.LastBumped, "LastBumped should equal last reply's CreatedAt")
-	})
-
-	t.Run("RepliesToMessages", func(t *testing.T) {
-		// Test nested replies (reply to a reply)
-		boardForNested := setupBoard(t)
-		title := "Thread With Message Replies"
-		opMsg := domain.MessageCreationData{
-			Board:       boardForNested,
-			Author:      domain.User{Id: 1},
-			Text:        "OP for replies test",
-			Attachments: &domain.Attachments{"op.png"},
-		}
-		threadID := createTestThread(t, domain.ThreadCreationData{
-			Title:     title,
-			Board:     boardForNested,
-			OpMessage: opMsg,
-		})
-		t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardForNested, threadID)) })
-
-		// Create first reply to the OP
-		msgID1 := createTestMessage(t, domain.MessageCreationData{
-			Board:    boardForNested,
-			Author:   domain.User{Id: 2},
-			Text:     "First reply",
-			ThreadId: threadID,
-		})
-		// Create second reply replying to the first reply (nested reply)
-		msgID2 := createTestMessage(t, domain.MessageCreationData{
-			Board:    boardForNested,
-			Author:   domain.User{Id: 3},
-			Text:     "Reply to first reply",
-			ThreadId: threadID,
-			ReplyTo: &domain.Replies{
-				{
-					FromThreadId: threadID,
-					To:           msgID1,
-					ToThreadId:   threadID,
-					CreatedAt:    time.Now().UTC(),
+		t.Run("Success", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: userID},
+				Text:   "Original Post Text",
+				Attachments: &domain.Attachments{
+					&domain.Attachment{
+						File: &domain.File{
+							FilePath:         "op_image.png",
+							OriginalFilename: "op_image.png",
+							FileSizeBytes:    2048,
+							MimeType:         "image/png",
+							ImageWidth:       utils.IntPtr(800),
+							ImageHeight:      utils.IntPtr(600),
+						},
+					},
 				},
-			},
+			}
+
+			time.Sleep(50 * time.Millisecond)
+			creationTimeStart := time.Now()
+
+			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Test Thread Creation",
+				Board:     boardShortName,
+				OpMessage: opMsg,
+			})
+			require.NoError(t, err)
+			require.Greater(t, threadID, int64(0))
+
+			opMsg.ThreadId = threadID
+			opMsg.CreatedAt = &createdAt
+			opMsg.Board = boardShortName
+			_, err = storage.createMessage(tx, opMsg)
+			require.NoError(t, err)
+
+			createdThread, err := storage.getThread(tx, boardShortName, threadID)
+			require.NoError(t, err)
+
+			assert.Equal(t, "Test Thread Creation", createdThread.Title)
+			assert.Equal(t, boardShortName, createdThread.Board)
+			assert.Equal(t, 1, createdThread.MessageCount)
+			require.Len(t, createdThread.Messages, 1)
+
+			op := createdThread.Messages[0]
+			assert.Equal(t, opMsg.Text, op.Text)
+			assert.Equal(t, opMsg.Author.Id, op.Author.Id)
+			require.NotNil(t, op.Attachments)
+			assert.Equal(t, threadID, op.ThreadId)
+
+			assert.WithinDuration(t, creationTimeStart, createdThread.LastBumped, 5*time.Second)
+			assert.Equal(t, createdAt, createdThread.LastBumped)
 		})
 
-		thread, err := storage.GetThread(boardForNested, threadID)
-		require.NoError(t, err, "GetThread should not return an error")
-		require.Len(t, thread.Messages, 3, "Expected 3 messages (OP, first reply, nested reply)")
-
-		// Find the first reply among messages
-		var firstReply *domain.Message
-		for i := range thread.Messages {
-			if thread.Messages[i].Id == msgID1 {
-				firstReply = thread.Messages[i]
-				break
+		t.Run("BoardNotFound", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  "nonexistentboard",
+				Author: domain.User{Id: userID},
+				Text:   "Original Post Text",
 			}
+			_, _, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Invalid Board Thread",
+				Board:     "nonexistentboard",
+				OpMessage: opMsg,
+			})
+			requireNotFoundError(t, err)
+		})
+
+		t.Run("CreateStickyThread", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: userID},
+				Text:   "Sticky Post",
+			}
+			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Sticky Thread",
+				Board:     boardShortName,
+				IsSticky:  true,
+				OpMessage: opMsg,
+			})
+			require.NoError(t, err)
+
+			opMsg.ThreadId = threadID
+			opMsg.CreatedAt = &createdAt
+			opMsg.Board = boardShortName
+			_, err = storage.createMessage(tx, opMsg)
+			require.NoError(t, err)
+
+			thread, err := storage.getThread(tx, boardShortName, threadID)
+			require.NoError(t, err)
+			assert.True(t, thread.IsSticky)
+		})
+	})
+
+	t.Run("GetThread", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		boardShortName := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		t.Run("WithReplies", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: userID},
+				Text:   "Test OP Get",
+				Attachments: &domain.Attachments{
+					&domain.Attachment{
+						File: &domain.File{
+							FilePath:         "file1.jpg",
+							OriginalFilename: "file1.jpg",
+							FileSizeBytes:    1024,
+							MimeType:         "image/jpeg",
+							ImageWidth:       utils.IntPtr(800),
+							ImageHeight:      utils.IntPtr(600),
+						},
+					},
+				},
+			}
+
+			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Test Get Thread WithReplies",
+				Board:     boardShortName,
+				OpMessage: opMsg,
+			})
+			require.NoError(t, err)
+
+			opMsg.ThreadId = threadID
+			opMsg.CreatedAt = &createdAt
+			opMsg.Board = boardShortName
+			_, err = storage.createMessage(tx, opMsg)
+			require.NoError(t, err)
+
+			user2 := createTestUser(t, tx, generateString(t)+"@example.com")
+			user3 := createTestUser(t, tx, generateString(t)+"@example.com")
+
+			msgID1, err := storage.createMessage(tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: user2},
+				Text:     "Reply 1 Text",
+				ThreadId: threadID,
+			})
+			require.NoError(t, err)
+
+			time.Sleep(10 * time.Millisecond)
+			msgID2, err := storage.createMessage(tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: user3},
+				Text:     "Reply 2 Text",
+				ThreadId: threadID,
+			})
+			require.NoError(t, err)
+
+			thread, err := storage.getThread(tx, boardShortName, threadID)
+			require.NoError(t, err)
+			assert.Equal(t, "Test Get Thread WithReplies", thread.Title)
+			assert.Equal(t, boardShortName, thread.Board)
+			assert.Equal(t, 3, thread.MessageCount)
+			require.Len(t, thread.Messages, 3)
+
+			requireMessageOrder(t, thread.Messages, []string{"Test OP Get", "Reply 1 Text", "Reply 2 Text"})
+
+			op := thread.Messages[0]
+			assert.Equal(t, threadID, op.ThreadId)
+			require.NotNil(t, op.Attachments)
+
+			reply1 := thread.Messages[1]
+			assert.Equal(t, msgID1, reply1.Id)
+			require.NotNil(t, reply1.ThreadId)
+			assert.Equal(t, threadID, reply1.ThreadId)
+			assert.Nil(t, reply1.Attachments)
+			assert.Equal(t, user2, reply1.Author.Id)
+			assert.Len(t, reply1.Replies, 0)
+
+			reply2 := thread.Messages[2]
+			assert.Equal(t, msgID2, reply2.Id)
+			require.NotNil(t, reply2.ThreadId)
+			assert.Equal(t, threadID, reply2.ThreadId)
+			assert.Nil(t, reply2.Attachments)
+			assert.Equal(t, user3, reply2.Author.Id)
+			assert.Len(t, reply2.Replies, 0)
+
+			assert.Equal(t, reply2.CreatedAt, thread.LastBumped)
+		})
+
+		t.Run("RepliesToMessages", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: userID},
+				Text:   "OP for replies test",
+				Attachments: &domain.Attachments{
+					&domain.Attachment{
+						File: &domain.File{
+							FilePath:         "op.png",
+							OriginalFilename: "op.png",
+							FileSizeBytes:    1024,
+							MimeType:         "image/png",
+							ImageWidth:       utils.IntPtr(800),
+							ImageHeight:      utils.IntPtr(600),
+						},
+					},
+				},
+			}
+
+			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Thread With Message Replies",
+				Board:     boardShortName,
+				OpMessage: opMsg,
+			})
+			require.NoError(t, err)
+
+			opMsg.ThreadId = threadID
+			opMsg.CreatedAt = &createdAt
+			opMsg.Board = boardShortName
+			_, err = storage.createMessage(tx, opMsg)
+			require.NoError(t, err)
+
+			user2 := createTestUser(t, tx, generateString(t)+"@example.com")
+			user3 := createTestUser(t, tx, generateString(t)+"@example.com")
+
+			msgID1, err := storage.createMessage(tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: user2},
+				Text:     "First reply",
+				ThreadId: threadID,
+			})
+			require.NoError(t, err)
+
+			msgID2, err := storage.createMessage(tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: user3},
+				Text:     "Reply to first reply",
+				ThreadId: threadID,
+				ReplyTo: &domain.Replies{
+					{
+						FromThreadId: threadID,
+						To:           msgID1,
+						ToThreadId:   threadID,
+						CreatedAt:    time.Now().UTC(),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			thread, err := storage.getThread(tx, boardShortName, threadID)
+			require.NoError(t, err)
+			require.Len(t, thread.Messages, 3)
+
+			var firstReply *domain.Message
+			for i := range thread.Messages {
+				if thread.Messages[i].Id == msgID1 {
+					firstReply = thread.Messages[i]
+					break
+				}
+			}
+
+			require.NotNil(t, firstReply)
+			require.Len(t, firstReply.Replies, 1)
+			assert.Equal(t, msgID2, firstReply.Replies[0].From)
+			assert.Equal(t, msgID1, firstReply.Replies[0].To)
+		})
+
+		t.Run("OnlyOP", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: userID},
+				Text:   "Lonely OP",
+			}
+
+			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Only OP Thread",
+				Board:     boardShortName,
+				OpMessage: opMsg,
+			})
+			require.NoError(t, err)
+
+			opMsg.ThreadId = threadID
+			opMsg.CreatedAt = &createdAt
+			opMsg.Board = boardShortName
+			_, err = storage.createMessage(tx, opMsg)
+			require.NoError(t, err)
+
+			thread, err := storage.getThread(tx, boardShortName, threadID)
+			require.NoError(t, err)
+			assert.Equal(t, "Only OP Thread", thread.Title)
+			assert.Equal(t, boardShortName, thread.Board)
+			assert.Equal(t, 1, thread.MessageCount)
+			require.Len(t, thread.Messages, 1)
+
+			op := thread.Messages[0]
+			assert.Equal(t, "Lonely OP", op.Text)
+			assert.Equal(t, createdAt, thread.LastBumped)
+		})
+
+		t.Run("NotFound", func(t *testing.T) {
+			_, err := storage.getThread(tx, boardShortName, -999)
+			requireNotFoundError(t, err)
+		})
+	})
+
+	t.Run("DeleteThread", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		boardShortName := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		t.Run("NotFoundThread", func(t *testing.T) {
+			err := storage.deleteThread(tx, boardShortName, -999)
+			requireNotFoundError(t, err)
+		})
+
+		t.Run("NotFoundBoard", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: userID},
+				Text:   "Temp OP",
+			}
+			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Temp Thread",
+				Board:     boardShortName,
+				OpMessage: opMsg,
+			})
+			require.NoError(t, err)
+
+			opMsg.ThreadId = threadID
+			opMsg.CreatedAt = &createdAt
+			opMsg.Board = boardShortName
+			_, err = storage.createMessage(tx, opMsg)
+			require.NoError(t, err)
+
+			err = storage.deleteThread(tx, "nonexistentboard", threadID)
+			requireNotFoundError(t, err)
+		})
+
+		t.Run("Success", func(t *testing.T) {
+			opMsg := domain.MessageCreationData{
+				Board:  boardShortName,
+				Author: domain.User{Id: userID},
+				Text:   "Test OP Delete",
+				Attachments: &domain.Attachments{
+					&domain.Attachment{
+						File: &domain.File{
+							FilePath:         "file1.jpg",
+							OriginalFilename: "file1.jpg",
+							FileSizeBytes:    1024,
+							MimeType:         "image/jpeg",
+							ImageWidth:       utils.IntPtr(800),
+							ImageHeight:      utils.IntPtr(600),
+						},
+					},
+				},
+			}
+
+			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+				Title:     "Test Delete Thread",
+				Board:     boardShortName,
+				OpMessage: opMsg,
+			})
+			require.NoError(t, err)
+
+			opMsg.ThreadId = threadID
+			opMsg.CreatedAt = &createdAt
+			opMsg.Board = boardShortName
+			opMsgID, err := storage.createMessage(tx, opMsg)
+			require.NoError(t, err)
+
+			reply1 := createTestMessage(t, tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     "Reply 1 Delete",
+				ThreadId: threadID,
+			})
+			reply2 := createTestMessage(t, tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     "Reply 2 Delete",
+				ThreadId: threadID,
+				ReplyTo: &domain.Replies{
+					{
+						FromThreadId: threadID,
+						To:           opMsgID,
+						ToThreadId:   threadID,
+					},
+				},
+			})
+
+			err = storage.deleteThread(tx, boardShortName, threadID)
+			require.NoError(t, err)
+
+			_, err = storage.getThread(tx, boardShortName, threadID)
+			requireNotFoundError(t, err)
+
+			_, err = storage.getMessage(tx, boardShortName, opMsgID)
+			requireNotFoundError(t, err)
+			_, err = storage.getMessage(tx, boardShortName, reply1)
+			requireNotFoundError(t, err)
+			_, err = storage.getMessage(tx, boardShortName, reply2)
+			requireNotFoundError(t, err)
+
+			// Verify that cascading deletes removed related data
+			replies, err := storage.getMessageRepliesFrom(tx, boardShortName, opMsgID)
+			require.NoError(t, err)
+			assert.Empty(t, replies, "Replies should be deleted via cascade")
+
+			attachments, err := storage.getMessageAttachments(tx, boardShortName, opMsgID)
+			require.NoError(t, err)
+			assert.Empty(t, attachments, "Attachments should be deleted via cascade")
+		})
+	})
+
+	t.Run("BumpLimit", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		boardShortName := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		opMsg := domain.MessageCreationData{
+			Board:  boardShortName,
+			Author: domain.User{Id: userID},
+			Text:   "OP for bump test",
 		}
 
-		require.NotNil(t, firstReply, "First reply must be found")
-		require.Len(t, firstReply.Replies, 1, "First reply should have one nested reply")
-		assert.Equal(t, msgID2, firstReply.Replies[0].From, "Nested reply From mismatch")
-		assert.Equal(t, msgID1, firstReply.Replies[0].To, "Nested reply To should match first reply ID")
-	})
-
-	t.Run("NotFound", func(t *testing.T) {
-		_, err := storage.GetThread(boardShortName, -999) // Non-existent thread ID
-		requireNotFoundError(t, err)
-	})
-
-	t.Run("OnlyOP", func(t *testing.T) {
-		threadID := createTestThread(t, domain.ThreadCreationData{
-			Title:     title + "_OnlyOP",
+		threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+			Title:     "Bump Limit Test",
 			Board:     boardShortName,
 			OpMessage: opMsg,
 		})
-		t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardShortName, threadID)) })
-
-		thread, err := storage.GetThread(boardShortName, threadID)
-		require.NoError(t, err, "GetThread should succeed for OP only")
-		assert.Equal(t, title+"_OnlyOP", thread.Title)
-		assert.Equal(t, boardShortName, thread.Board)
-		assert.Equal(t, 0, thread.NumReplies)
-		require.Len(t, thread.Messages, 1, "Only OP message expected")
-
-		op := thread.Messages[0]
-		assert.Equal(t, opMsg.Text, op.Text)
-		require.NotNil(t, op.Attachments)
-		assert.Equal(t, *opMsg.Attachments, *op.Attachments)
-		assert.Equal(t, op.CreatedAt, thread.LastBumped, "LastBumped should equal OP CreatedAt")
-	})
-}
-
-// ==================
-// DeleteThread Tests
-// ==================
-
-func TestDeleteThread(t *testing.T) {
-	boardShortName := setupBoard(t)
-	opMsg := domain.MessageCreationData{
-		Board:       boardShortName,
-		Author:      domain.User{Id: 1},
-		Text:        "Test OP for delete",
-		Attachments: &domain.Attachments{"file1.jpg"},
-	}
-
-	t.Run("NotFoundThread", func(t *testing.T) {
-		err := storage.DeleteThread(boardShortName, -999)
-		requireNotFoundError(t, err)
-	})
-
-	t.Run("NotFoundBoard", func(t *testing.T) {
-		// Create a thread to ensure thread exists but board is invalid
-		threadID := createTestThread(t, domain.ThreadCreationData{
-			Title:     "Temp Thread",
-			Board:     boardShortName,
-			OpMessage: opMsg,
-		})
-		t.Cleanup(func() { _ = storage.DeleteThread(boardShortName, threadID) })
-		err := storage.DeleteThread("nonexistentboard", threadID)
-		requireNotFoundError(t, err)
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		title := "Test Delete Thread"
-		opMsgCopy := opMsg
-		opMsgCopy.Text = "Test OP Delete"
-		threadID := createTestThread(t, domain.ThreadCreationData{
-			Title:     title,
-			Board:     boardShortName,
-			OpMessage: opMsgCopy,
-		})
-		// Create two replies for the thread
-		_ = createTestMessage(t, domain.MessageCreationData{
-			Board:    boardShortName,
-			Author:   domain.User{Id: 2},
-			Text:     "Reply 1 Delete",
-			ThreadId: threadID,
-		})
-		_ = createTestMessage(t, domain.MessageCreationData{
-			Board:    boardShortName,
-			Author:   domain.User{Id: 3},
-			Text:     "Reply 2 Delete",
-			ThreadId: threadID,
-		})
-
-		boardBefore, err := storage.GetBoard(boardShortName, 1)
 		require.NoError(t, err)
-		time.Sleep(50 * time.Millisecond)
 
-		err = storage.DeleteThread(boardShortName, threadID)
-		require.NoError(t, err, "DeleteThread should succeed")
-
-		_, err = storage.GetThread(boardShortName, threadID)
-		requireNotFoundError(t, err)
-
-		boardAfter, err := storage.GetBoard(boardShortName, 1)
+		opMsg.ThreadId = threadID
+		opMsg.CreatedAt = &createdAt
+		opMsg.Board = boardShortName
+		_, err = storage.createMessage(tx, opMsg)
 		require.NoError(t, err)
-		assert.True(t, boardBefore.LastActivity.Before(boardAfter.LastActivity), "Board last_activity should update after deletion")
-		assert.WithinDuration(t, time.Now(), boardAfter.LastActivity, 5*time.Second, "Board last_activity should be recent")
-	})
-}
 
-// ==================
-// TestBumpLimit
-// ==================
+		bumpLimit := storage.cfg.Public.BumpLimit
+		require.Greater(t, bumpLimit, 0)
 
-func TestBumpLimit(t *testing.T) {
-	boardShortName, threadID := setupBoardAndThread(t)
-	t.Cleanup(func() { require.NoError(t, storage.DeleteThread(boardShortName, threadID)) })
+		for i := 0; i < bumpLimit-1; i++ {
+			_, err := storage.createMessage(tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     fmt.Sprintf("Reply %d", i+1),
+				ThreadId: threadID,
+			})
+			require.NoError(t, err)
+		}
 
-	bumpLimit := storage.cfg.Public.BumpLimit
-	require.Greater(t, bumpLimit, 0, "BumpLimit must be > 0")
+		threadBefore, err := storage.getThread(tx, boardShortName, threadID)
+		require.NoError(t, err)
+		require.Equal(t, bumpLimit, threadBefore.MessageCount)
+		lastBumpBefore := threadBefore.LastBumped
 
-	// Send messages to reach just below the bump limit
-	for i := 0; i < bumpLimit-1; i++ {
-		createTestMessage(t, domain.MessageCreationData{
+		msgAtLimit, err := storage.createMessage(tx, domain.MessageCreationData{
 			Board:    boardShortName,
-			Author:   domain.User{Id: int64(i + 2)},
-			Text:     fmt.Sprintf("Reply %d", i+1),
+			Author:   domain.User{Id: userID},
+			Text:     fmt.Sprintf("Reply %d (at limit)", bumpLimit),
 			ThreadId: threadID,
 		})
-	}
+		require.NoError(t, err)
 
-	threadBefore, err := storage.GetThread(boardShortName, threadID)
-	require.NoError(t, err)
-	require.Equal(t, bumpLimit-1, threadBefore.NumReplies)
-	lastBumpBefore := threadBefore.LastBumped
+		createdMsgAtLimit, err := storage.getMessage(tx, boardShortName, msgAtLimit)
+		require.NoError(t, err)
 
-	time.Sleep(10 * time.Millisecond)
-	msgAtLimitID := createTestMessage(t, domain.MessageCreationData{
-		Board:    boardShortName,
-		Author:   domain.User{Id: int64(bumpLimit + 1)},
-		Text:     fmt.Sprintf("Reply %d (at limit)", bumpLimit),
-		ThreadId: threadID,
+		threadAtLimit, err := storage.getThread(tx, boardShortName, threadID)
+		require.NoError(t, err)
+		assert.Equal(t, bumpLimit+1, threadAtLimit.MessageCount)
+		assert.Equal(t, createdMsgAtLimit.CreatedAt, threadAtLimit.LastBumped)
+		assert.True(t, threadAtLimit.LastBumped.After(lastBumpBefore))
+		lastBumpAtLimit := threadAtLimit.LastBumped
+
+		_ = createTestMessage(t, tx, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: userID},
+			Text:     "Reply over limit",
+			ThreadId: threadID,
+		})
+
+		threadOverLimit, err := storage.getThread(tx, boardShortName, threadID)
+		require.NoError(t, err)
+		assert.Equal(t, bumpLimit+2, threadOverLimit.MessageCount)
+		assert.Equal(t, lastBumpAtLimit.UTC(), threadOverLimit.LastBumped.UTC())
 	})
-	time.Sleep(10 * time.Millisecond)
-
-	msgAtLimit, err := storage.GetMessage(boardShortName, msgAtLimitID)
-	require.NoError(t, err)
-
-	threadAtLimit, err := storage.GetThread(boardShortName, threadID)
-	require.NoError(t, err)
-	assert.Equal(t, bumpLimit, threadAtLimit.NumReplies)
-	assert.Equal(t, msgAtLimit.CreatedAt, threadAtLimit.LastBumped, "LastBumped should match message at limit")
-	assert.True(t, threadAtLimit.LastBumped.After(lastBumpBefore), "LastBumped should update")
-	lastBumpAtLimit := threadAtLimit.LastBumped
-
-	time.Sleep(10 * time.Millisecond)
-	_ = createTestMessage(t, domain.MessageCreationData{
-		Board:    boardShortName,
-		Author:   domain.User{Id: int64(bumpLimit + 2)},
-		Text:     "Reply over limit",
-		ThreadId: threadID,
-	})
-	time.Sleep(10 * time.Millisecond)
-
-	threadOverLimit, err := storage.GetThread(boardShortName, threadID)
-	require.NoError(t, err)
-	// The reply count still increases but LastBumped remains unchanged
-	assert.Equal(t, bumpLimit+1, threadOverLimit.NumReplies)
-	assert.Equal(t, lastBumpAtLimit.UTC(), threadOverLimit.LastBumped.UTC(), "LastBumped should not change after exceeding bump limit")
 }

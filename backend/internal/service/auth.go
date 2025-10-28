@@ -88,7 +88,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		log.Print(err.Error())
 		return err
 	}
-	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, NewPassHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(5 * time.Minute)})
+	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, PasswordHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(5 * time.Minute)})
 	if err != nil {
 		return err
 	}
@@ -134,14 +134,14 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 	if err != nil {
 		e, ok := err.(*errors.ErrorWithStatusCode)
 		if ok && e.StatusCode == http.StatusNotFound {
-			if _, err := a.storage.SaveUser(domain.User{Email: email, PassHash: data.NewPassHash}); err != nil {
+			if _, err := a.storage.SaveUser(domain.User{Email: email, PassHash: data.PasswordHash}); err != nil {
 				return err
 			}
 		} else {
 			return err
 		}
 	} else {
-		if err := a.storage.UpdatePassword(domain.Credentials{Email: email, Password: data.NewPassHash}); err != nil {
+		if err := a.storage.UpdatePassword(domain.Credentials{Email: email, Password: data.PasswordHash}); err != nil {
 			return err
 		}
 	}

@@ -12,11 +12,10 @@ type BoardCreationData struct {
 }
 
 type BoardMetadata struct {
-	Name          BoardName
-	ShortName     BoardShortName
-	AllowedEmails *Emails
-	CreatedAt     time.Time
-	LastActivity  time.Time
+	Name           BoardName
+	ShortName      BoardShortName
+	CreatedAt      time.Time
+	LastActivityAt time.Time
 }
 
 type Board struct {

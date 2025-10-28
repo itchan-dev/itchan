@@ -13,12 +13,12 @@ type ThreadCreationData struct {
 }
 
 type ThreadMetadata struct {
-	Id         ThreadId
-	Title      ThreadTitle
-	Board      BoardShortName
-	NumReplies int
-	LastBumped time.Time
-	IsSticky   bool
+	Id           ThreadId
+	Title        ThreadTitle
+	Board        BoardShortName
+	MessageCount int
+	LastBumped   time.Time
+	IsSticky     bool
 }
 
 type Thread struct {

@@ -14,9 +14,9 @@ type (
 	ThreadTitle = string
 	ThreadId    = int64
 
-	// Attachment  = string
-	Attachments = pq.StringArray // to save into postgres REDO TO STRING (attachment)
-	MsgText     = string
-	MsgId       = int64
-	Replies     = []*Reply
+	MsgText      = string
+	MsgId        = int64
+	Replies      = []*Reply
+	FileId       = int64
+	AttachmentId = int64
 )

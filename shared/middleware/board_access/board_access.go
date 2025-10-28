@@ -4,12 +4,10 @@ import (
 	"log"
 	"sync"
 	"time"
-
-	"github.com/itchan-dev/itchan/shared/domain"
 )
 
 type Storage interface {
-	GetBoards() ([]domain.Board, error)
+	GetBoardsWithPermissions() (map[string][]string, error)
 }
 
 type BoardAccess struct {
@@ -24,7 +22,7 @@ func New() *BoardAccess {
 }
 
 func (b *BoardAccess) Update(s Storage) error {
-	boards, err := s.GetBoards()
+	permissions, err := s.GetBoardsWithPermissions()
 	if err != nil {
 		return err
 	}
@@ -33,13 +31,8 @@ func (b *BoardAccess) Update(s Storage) error {
 	defer b.mu.Unlock()
 
 	// Replace the entire map to avoid stale entries
-	newData := make(map[string][]string)
-	for _, board := range boards {
-		if board.AllowedEmails != nil {
-			newData[board.ShortName] = *board.AllowedEmails
-		}
-	}
-	b.data = newData
+	// Boards without entries in the map are public (no restrictions)
+	b.data = permissions
 
 	return nil
 }

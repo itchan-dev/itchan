@@ -140,12 +140,12 @@ func TestRegister(t *testing.T) {
 		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
 			saveCalled = true
 			assert.Equal(t, lowerCaseEmail, data.Email)
-			assert.NotEmpty(t, data.NewPassHash)
+			assert.NotEmpty(t, data.PasswordHash)
 			assert.NotEmpty(t, data.ConfirmationCodeHash)
 			assert.True(t, data.Expires.After(time.Now().UTC().Add(-1*time.Minute))) // Allow for slight clock skew
 			assert.True(t, data.Expires.Before(time.Now().UTC().Add(6*time.Minute))) // Should be around 5 mins expiry
 			// Check if password was hashed correctly
-			err := bcrypt.CompareHashAndPassword([]byte(data.NewPassHash), []byte(creds.Password))
+			err := bcrypt.CompareHashAndPassword([]byte(data.PasswordHash), []byte(creds.Password))
 			assert.NoError(t, err)
 			return nil
 		}
@@ -360,7 +360,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 
 	validConfirmationData := domain.ConfirmationData{
 		Email:                lowerCaseEmail,
-		NewPassHash:          correctPassHash,
+		PasswordHash:         correctPassHash,
 		ConfirmationCodeHash: correctCodeHash,
 		Expires:              time.Now().UTC().Add(5 * time.Minute),
 	}
