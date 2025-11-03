@@ -1,14 +1,14 @@
-.PHONY: start test show_coverage
+.PHONY: up build-up test show-coverage
 
-run:
+up:
 	docker-compose up
 
-build_run:
+build-up:
 	docker-compose up --build
 
 test:
 	go test ./...
 
-show_coverage:
+show-coverage:
 	go test ./... -coverprofile fmtcoverage.html
 	go tool cover -html fmtcoverage.html
