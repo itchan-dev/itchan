@@ -38,11 +38,10 @@ func TestMessageOperations(t *testing.T) {
 
 			attachments := getRandomAttachments(t)
 			creationData := domain.MessageCreationData{
-				Board:       boardShortName,
-				Author:      domain.User{Id: userID},
-				Text:        "A new message",
-				Attachments: &attachments,
-				ThreadId:    threadID,
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     "A new message",
+				ThreadId: threadID,
 				ReplyTo: &domain.Replies{
 					{To: targetMsgID, ToThreadId: threadID},
 				},
@@ -51,6 +50,10 @@ func TestMessageOperations(t *testing.T) {
 			msgID, err := storage.createMessage(tx, creationData)
 			require.NoError(t, err)
 			require.Greater(t, msgID, int64(0))
+
+			// Add attachments separately
+			err = storage.addAttachments(tx, boardShortName, msgID, attachments)
+			require.NoError(t, err)
 
 			createdMsg, err := storage.getMessage(tx, boardShortName, msgID)
 			require.NoError(t, err)
@@ -110,15 +113,26 @@ func TestMessageOperations(t *testing.T) {
 			OpMessage: domain.MessageCreationData{Author: domain.User{Id: userID}, Text: "OP"},
 		})
 
-		attachments := getRandomAttachments(t)
-		msgID := createTestMessage(t, tx, domain.MessageCreationData{
+		targetMsgID := createTestMessage(t, tx, domain.MessageCreationData{
 			Board: boardShortName, Author: domain.User{Id: userID},
-			Text: "Message to get", ThreadId: threadID, Attachments: &attachments,
+			Text: "Target message", ThreadId: threadID,
 		})
 
-		createTestMessage(t, tx, domain.MessageCreationData{
+		msgID := createTestMessage(t, tx, domain.MessageCreationData{
 			Board: boardShortName, Author: domain.User{Id: userID},
-			Text: "A reply", ThreadId: threadID,
+			Text: "Message to get", ThreadId: threadID,
+			ReplyTo: &domain.Replies{{To: targetMsgID, ToThreadId: threadID}},
+		})
+
+		// Add attachments
+		attachments := getRandomAttachments(t)
+		err := storage.addAttachments(tx, boardShortName, msgID, attachments)
+		require.NoError(t, err)
+
+		// Create a reply TO msgID
+		_ = createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Reply to msgID", ThreadId: threadID,
 			ReplyTo: &domain.Replies{{To: msgID, ToThreadId: threadID}},
 		})
 
@@ -151,15 +165,18 @@ func TestMessageOperations(t *testing.T) {
 			Text: "I will be replied to", ThreadId: threadID,
 		})
 
-		attachments := getRandomAttachments(t)
 		msgToDelete := createTestMessage(t, tx, domain.MessageCreationData{
-			Board:       boardShortName,
-			Author:      domain.User{Id: userID},
-			Text:        "I will be deleted",
-			ThreadId:    threadID,
-			Attachments: &attachments,
-			ReplyTo:     &domain.Replies{{To: msgBeingRepliedTo, ToThreadId: threadID}},
+			Board:    boardShortName,
+			Author:   domain.User{Id: userID},
+			Text:     "I will be deleted",
+			ThreadId: threadID,
+			ReplyTo:  &domain.Replies{{To: msgBeingRepliedTo, ToThreadId: threadID}},
 		})
+
+		// Add attachments to message that will be deleted
+		attachments := getRandomAttachments(t)
+		err := storage.addAttachments(tx, boardShortName, msgToDelete, attachments)
+		require.NoError(t, err)
 
 		msgReplyingToDeleted := createTestMessage(t, tx, domain.MessageCreationData{
 			Board: boardShortName, Author: domain.User{Id: userID},
@@ -167,7 +184,7 @@ func TestMessageOperations(t *testing.T) {
 			ReplyTo: &domain.Replies{{To: msgToDelete, ToThreadId: threadID}},
 		})
 
-		_, err := storage.getMessage(tx, boardShortName, msgToDelete)
+		_, err = storage.getMessage(tx, boardShortName, msgToDelete)
 		require.NoError(t, err)
 		attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, msgToDelete)
 		require.NoError(t, err)
@@ -211,4 +228,164 @@ func TestMessageOperations(t *testing.T) {
 			requireNotFoundError(t, err)
 		})
 	})
+
+	t.Run("AddAttachments", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		boardShortName := domain.BoardShortName("badd")
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, "adder@example.com")
+		threadID, _ := createTestThread(t, tx, domain.ThreadCreationData{
+			Title: "Add Attachments Test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Author: domain.User{Id: userID},
+				Text:   "OP",
+			},
+		})
+
+		t.Run("adds attachments to existing message", func(t *testing.T) {
+			// Create message without attachments
+			msgID := createTestMessage(t, tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     "Message without attachments",
+				ThreadId: threadID,
+			})
+
+			// Verify no attachments initially
+			attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			require.NoError(t, err)
+			assert.Empty(t, attachmentsBefore)
+
+			// Add attachments
+			attachments := domain.Attachments{
+				&domain.Attachment{
+					Board:     boardShortName,
+					MessageId: msgID,
+					File: &domain.File{
+						FilePath:         "tech/1/image1.jpg",
+						OriginalFilename: "image1.jpg",
+						FileSizeBytes:    1024,
+						MimeType:         "image/jpeg",
+						ImageWidth:       intPtr(800),
+						ImageHeight:      intPtr(600),
+					},
+				},
+				&domain.Attachment{
+					Board:     boardShortName,
+					MessageId: msgID,
+					File: &domain.File{
+						FilePath:         "tech/1/image2.png",
+						OriginalFilename: "image2.png",
+						FileSizeBytes:    2048,
+						MimeType:         "image/png",
+						ImageWidth:       intPtr(1024),
+						ImageHeight:      intPtr(768),
+					},
+				},
+			}
+
+			err = storage.addAttachments(tx, boardShortName, msgID, attachments)
+			require.NoError(t, err)
+
+			// Verify attachments were added
+			attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			require.NoError(t, err)
+			assert.Len(t, attachmentsAfter, 2)
+
+			// Verify first attachment
+			assert.Equal(t, "tech/1/image1.jpg", attachmentsAfter[0].File.FilePath)
+			assert.Equal(t, "image1.jpg", attachmentsAfter[0].File.OriginalFilename)
+			assert.Equal(t, int64(1024), attachmentsAfter[0].File.FileSizeBytes)
+			assert.Equal(t, "image/jpeg", attachmentsAfter[0].File.MimeType)
+			assert.NotNil(t, attachmentsAfter[0].File.ImageWidth)
+			assert.Equal(t, 800, *attachmentsAfter[0].File.ImageWidth)
+
+			// Verify second attachment
+			assert.Equal(t, "tech/1/image2.png", attachmentsAfter[1].File.FilePath)
+		})
+
+		t.Run("can add more attachments to message that already has some", func(t *testing.T) {
+			// Create message with attachments
+			initialAttachments := getRandomAttachments(t)
+			msgID := createTestMessage(t, tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     "Message with initial attachments",
+				ThreadId: threadID,
+			})
+
+			// Add initial attachments
+			err := storage.addAttachments(tx, boardShortName, msgID, initialAttachments)
+			require.NoError(t, err)
+			initialCount := len(initialAttachments)
+
+			// Create new attachments to add
+			newAttachments := getRandomAttachments(t)
+			err = storage.addAttachments(tx, boardShortName, msgID, newAttachments)
+			require.NoError(t, err)
+
+			// Verify total attachments
+			attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			require.NoError(t, err)
+			assert.Len(t, attachmentsAfter, initialCount+len(newAttachments))
+		})
+
+		t.Run("handles video files without dimensions", func(t *testing.T) {
+			msgID := createTestMessage(t, tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     "Message for video",
+				ThreadId: threadID,
+			})
+
+			attachments := domain.Attachments{
+				&domain.Attachment{
+					Board:     boardShortName,
+					MessageId: msgID,
+					File: &domain.File{
+						FilePath:         "tech/1/video.mp4",
+						OriginalFilename: "video.mp4",
+						FileSizeBytes:    10000,
+						MimeType:         "video/mp4",
+						ImageWidth:       nil,
+						ImageHeight:      nil,
+					},
+				},
+			}
+
+			err := storage.addAttachments(tx, boardShortName, msgID, attachments)
+			require.NoError(t, err)
+
+			retrieved, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			require.NoError(t, err)
+			assert.Len(t, retrieved, 1)
+			assert.Nil(t, retrieved[0].File.ImageWidth)
+			assert.Nil(t, retrieved[0].File.ImageHeight)
+		})
+
+		t.Run("fails with invalid message ID", func(t *testing.T) {
+			attachments := domain.Attachments{
+				&domain.Attachment{
+					Board:     boardShortName,
+					MessageId: -999,
+					File: &domain.File{
+						FilePath:         "tech/1/file.jpg",
+						OriginalFilename: "file.jpg",
+						FileSizeBytes:    1000,
+						MimeType:         "image/jpeg",
+					},
+				},
+			}
+
+			err := storage.addAttachments(tx, boardShortName, -999, attachments)
+			require.Error(t, err)
+		})
+	})
+}
+
+func intPtr(i int) *int {
+	return &i
 }

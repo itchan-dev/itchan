@@ -122,31 +122,6 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 		return -1, fmt.Errorf("failed to insert message: %w", err)
 	}
 
-	// If attachments are provided, insert each file and its corresponding attachment record.
-	if creationData.Attachments != nil {
-		for _, attachment := range *creationData.Attachments {
-			var fileId int64
-			err = q.QueryRow(`
-                INSERT INTO files (file_path, original_filename, file_size_bytes, mime_type, image_width, image_height)
-                VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-				attachment.File.FilePath, attachment.File.OriginalFilename, attachment.File.FileSizeBytes,
-				attachment.File.MimeType, attachment.File.ImageWidth, attachment.File.ImageHeight,
-			).Scan(&fileId)
-			if err != nil {
-				return -1, fmt.Errorf("failed to insert file: %w", err)
-			}
-
-			attachPartitionName := PartitionName(creationData.Board, "attachments")
-			_, err = q.Exec(fmt.Sprintf(`
-                INSERT INTO %s (board, message_id, file_id) VALUES ($1, $2, $3)`, attachPartitionName),
-				creationData.Board, id, fileId,
-			)
-			if err != nil {
-				return -1, fmt.Errorf("failed to insert attachment link: %w", err)
-			}
-		}
-	}
-
 	// If this message is a reply to others, insert those relationships.
 	if creationData.ReplyTo != nil {
 		for _, reply := range *creationData.ReplyTo {
@@ -311,4 +286,44 @@ func (s *Storage) getMessageRepliesFrom(q Querier, board domain.BoardShortName, 
 		replies = append(replies, &reply)
 	}
 	return replies, rows.Err()
+}
+
+// AddAttachments adds attachments to an existing message.
+// This is used when files are uploaded and saved after the message is created.
+func (s *Storage) AddAttachments(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		return s.addAttachments(tx, board, messageID, attachments)
+	})
+}
+
+// addAttachments is the internal method to add attachments within a transaction
+func (s *Storage) addAttachments(q Querier, board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+	for _, attachment := range attachments {
+		// Insert file record
+		var fileId int64
+		err := q.QueryRow(`
+            INSERT INTO files (file_path, original_filename, file_size_bytes, mime_type, image_width, image_height)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+			attachment.File.FilePath, attachment.File.OriginalFilename, attachment.File.FileSizeBytes,
+			attachment.File.MimeType, attachment.File.ImageWidth, attachment.File.ImageHeight,
+		).Scan(&fileId)
+		if err != nil {
+			return fmt.Errorf("failed to insert file: %w", err)
+		}
+
+		// Insert attachment record
+		attachPartitionName := PartitionName(board, "attachments")
+		_, err = q.Exec(fmt.Sprintf(`
+            INSERT INTO %s (board, message_id, file_id) VALUES ($1, $2, $3)`, attachPartitionName),
+			board, messageID, fileId,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert attachment link: %w", err)
+		}
+	}
+
+	return nil
 }

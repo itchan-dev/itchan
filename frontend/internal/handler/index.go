@@ -15,10 +15,7 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 		Boards     []domain.Board
 		Error      template.HTML
 		User       *domain.User
-		Validation struct {
-			BoardNameMaxLen      int
-			BoardShortNameMaxLen int
-		}
+		Validation ValidationData
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.Error, _ = parseMessagesFromQuery(r)
@@ -29,8 +26,7 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.Error = template.HTML(template.HTMLEscapeString(err.Error()))
 	}
 	templateData.Boards = boards
-	templateData.Validation.BoardNameMaxLen = h.Public.BoardNameMaxLen
-	templateData.Validation.BoardShortNameMaxLen = h.Public.BoardShortNameMaxLen
+	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "index.html", templateData)
 }

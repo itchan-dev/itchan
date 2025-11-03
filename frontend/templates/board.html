@@ -9,7 +9,7 @@
 
     <!-- New Thread Form -->
     <div class="post-form-container">
-        <form action="/{{ .Board.ShortName }}" method="post" id="new-thread-form">
+        <form action="/{{ .Board.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
              <input type="hidden" name="form_action" value="new_thread">
              <table class="form-table">
                  <tbody>
@@ -23,6 +23,10 @@
                      <tr>
                          <td class="form-label"><label for="text">Comment:</label></td>
                          <td><textarea id="text" name="text" cols="48" rows="4" required maxlength="{{.Validation.MessageTextMaxLen}}"></textarea></td>
+                     </tr>
+                     <tr>
+                         <td class="form-label"><label for="attachments">File:</label></td>
+                         <td>{{template "file-input" dict "InputID" "attachments" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
                      </tr>
                  </tbody>
              </table>

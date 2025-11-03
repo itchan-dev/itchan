@@ -11,15 +11,23 @@ import (
 )
 
 type Handler struct {
-	auth    service.AuthService
-	board   service.BoardService
-	thread  service.ThreadService
-	message service.MessageService
-	cfg     *config.Config
+	auth         service.AuthService
+	board        service.BoardService
+	thread       service.ThreadService
+	message      service.MessageService
+	mediaStorage service.MediaStorage
+	cfg          *config.Config
 }
 
-func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, cfg *config.Config) *Handler {
-	return &Handler{auth, board, thread, message, cfg}
+func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, mediaStorage service.MediaStorage, cfg *config.Config) *Handler {
+	return &Handler{
+		auth:         auth,
+		board:        board,
+		thread:       thread,
+		message:      message,
+		mediaStorage: mediaStorage,
+		cfg:          cfg,
+	}
 }
 
 func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
@@ -28,13 +36,13 @@ func (h *Handler) Test(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(v)
 	if err != nil {
 		log.Print(err.Error())
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 }
 
 // GetPublicConfig exposes the public part of the configuration for clients (frontend)

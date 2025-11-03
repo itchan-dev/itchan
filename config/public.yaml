@@ -3,3 +3,4 @@ threads_per_page: 3
 n_last_msg: 3
 bump_limit: 450
 board_preview_refresh_internval: 1
+max_thread_count: 500

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
-	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,18 +29,6 @@ func TestThreadOperations(t *testing.T) {
 				Board:  boardShortName,
 				Author: domain.User{Id: userID},
 				Text:   "Original Post Text",
-				Attachments: &domain.Attachments{
-					&domain.Attachment{
-						File: &domain.File{
-							FilePath:         "op_image.png",
-							OriginalFilename: "op_image.png",
-							FileSizeBytes:    2048,
-							MimeType:         "image/png",
-							ImageWidth:       utils.IntPtr(800),
-							ImageHeight:      utils.IntPtr(600),
-						},
-					},
-				},
 			}
 
 			time.Sleep(50 * time.Millisecond)
@@ -72,7 +59,7 @@ func TestThreadOperations(t *testing.T) {
 			op := createdThread.Messages[0]
 			assert.Equal(t, opMsg.Text, op.Text)
 			assert.Equal(t, opMsg.Author.Id, op.Author.Id)
-			require.NotNil(t, op.Attachments)
+			assert.Empty(t, op.Attachments) // No attachments added
 			assert.Equal(t, threadID, op.ThreadId)
 
 			assert.WithinDuration(t, creationTimeStart, createdThread.LastBumped, 5*time.Second)
@@ -132,18 +119,6 @@ func TestThreadOperations(t *testing.T) {
 				Board:  boardShortName,
 				Author: domain.User{Id: userID},
 				Text:   "Test OP Get",
-				Attachments: &domain.Attachments{
-					&domain.Attachment{
-						File: &domain.File{
-							FilePath:         "file1.jpg",
-							OriginalFilename: "file1.jpg",
-							FileSizeBytes:    1024,
-							MimeType:         "image/jpeg",
-							ImageWidth:       utils.IntPtr(800),
-							ImageHeight:      utils.IntPtr(600),
-						},
-					},
-				},
 			}
 
 			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
@@ -190,13 +165,13 @@ func TestThreadOperations(t *testing.T) {
 
 			op := thread.Messages[0]
 			assert.Equal(t, threadID, op.ThreadId)
-			require.NotNil(t, op.Attachments)
+			assert.Empty(t, op.Attachments) // No attachments added
 
 			reply1 := thread.Messages[1]
 			assert.Equal(t, msgID1, reply1.Id)
 			require.NotNil(t, reply1.ThreadId)
 			assert.Equal(t, threadID, reply1.ThreadId)
-			assert.Nil(t, reply1.Attachments)
+			assert.Empty(t, reply1.Attachments)
 			assert.Equal(t, user2, reply1.Author.Id)
 			assert.Len(t, reply1.Replies, 0)
 
@@ -216,18 +191,6 @@ func TestThreadOperations(t *testing.T) {
 				Board:  boardShortName,
 				Author: domain.User{Id: userID},
 				Text:   "OP for replies test",
-				Attachments: &domain.Attachments{
-					&domain.Attachment{
-						File: &domain.File{
-							FilePath:         "op.png",
-							OriginalFilename: "op.png",
-							FileSizeBytes:    1024,
-							MimeType:         "image/png",
-							ImageWidth:       utils.IntPtr(800),
-							ImageHeight:      utils.IntPtr(600),
-						},
-					},
-				},
 			}
 
 			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
@@ -367,18 +330,6 @@ func TestThreadOperations(t *testing.T) {
 				Board:  boardShortName,
 				Author: domain.User{Id: userID},
 				Text:   "Test OP Delete",
-				Attachments: &domain.Attachments{
-					&domain.Attachment{
-						File: &domain.File{
-							FilePath:         "file1.jpg",
-							OriginalFilename: "file1.jpg",
-							FileSizeBytes:    1024,
-							MimeType:         "image/jpeg",
-							ImageWidth:       utils.IntPtr(800),
-							ImageHeight:      utils.IntPtr(600),
-						},
-					},
-				},
 			}
 
 			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{

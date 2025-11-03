@@ -22,6 +22,9 @@ type Public struct {
 	BumpLimit                   int           `yaml:"bump_limit" validate:"required"` // if thread have more messages it will not get "bumped"
 	BoardPreviewRefreshInterval time.Duration `yaml:"board_preview_refresh_internval" validate:"required"`
 
+	// Security settings
+	SecureCookies bool `yaml:"secure_cookies"` // Enable Secure flag on cookies (requires HTTPS)
+
 	// Validation constants (optional; sensible defaults are used when zero)
 	BoardNameMaxLen      int `yaml:"board_name_max_len"`
 	BoardShortNameMaxLen int `yaml:"board_short_name_max_len"`
@@ -30,6 +33,13 @@ type Public struct {
 	MessageTextMinLen    int `yaml:"message_text_min_len"`
 	ConfirmationCodeLen  int `yaml:"confirmation_code_len"`
 	PasswordMinLen       int `yaml:"password_min_len"`
+
+	// Attachment validation constants (optional; sensible defaults are used when zero)
+	MaxAttachmentsPerMessage int      `yaml:"max_attachments_per_message"`
+	MaxAttachmentSizeBytes   int64    `yaml:"max_attachment_size_bytes"`
+	MaxTotalAttachmentSize   int64    `yaml:"max_total_attachment_size"`
+	AllowedImageMimeTypes    []string `yaml:"allowed_image_mime_types"`
+	AllowedVideoMimeTypes    []string `yaml:"allowed_video_mime_types"`
 }
 
 type Pg struct {
@@ -127,5 +137,30 @@ func applyValidationDefaults(public *Public) {
 	}
 	if public.PasswordMinLen == 0 {
 		public.ConfirmationCodeLen = 8
+	}
+
+	// Attachment defaults
+	if public.MaxAttachmentsPerMessage == 0 {
+		public.MaxAttachmentsPerMessage = 4
+	}
+	if public.MaxAttachmentSizeBytes == 0 {
+		public.MaxAttachmentSizeBytes = 10 * 1024 * 1024 // 10MB per file
+	}
+	if public.MaxTotalAttachmentSize == 0 {
+		public.MaxTotalAttachmentSize = 20 * 1024 * 1024 // 20MB total
+	}
+	if len(public.AllowedImageMimeTypes) == 0 {
+		public.AllowedImageMimeTypes = []string{
+			"image/jpeg",
+			"image/png",
+			"image/gif",
+			"image/webp",
+		}
+	}
+	if len(public.AllowedVideoMimeTypes) == 0 {
+		public.AllowedVideoMimeTypes = []string{
+			"video/mp4",
+			"video/webm",
+		}
 	}
 }

@@ -5,20 +5,33 @@ import (
 	"sync" // Used for tracking calls in mocks safely in parallel tests
 	"testing"
 
+	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors" // Assuming this is the correct path based on broken_tests.txt
-	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// --- Helpers ---
+
+func createDefaultTestConfig() *config.Public {
+	return &config.Public{
+		MaxAttachmentsPerMessage: 4,
+		MaxAttachmentSizeBytes:   10 * 1024 * 1024,
+		MaxTotalAttachmentSize:   20 * 1024 * 1024,
+		AllowedImageMimeTypes:    []string{"image/jpeg", "image/png", "image/gif"},
+		AllowedVideoMimeTypes:    []string{"video/mp4", "video/webm"},
+	}
+}
 
 // --- Mocks ---
 
 // MockMessageStorage mocks the MessageStorage interface.
 type MockMessageStorage struct {
-	createMessageFunc func(creationData domain.MessageCreationData) (domain.MsgId, error)
-	getMessageFunc    func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
-	deleteMessageFunc func(board domain.BoardShortName, id domain.MsgId) error
+	createMessageFunc  func(creationData domain.MessageCreationData) (domain.MsgId, error)
+	getMessageFunc     func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
+	deleteMessageFunc  func(board domain.BoardShortName, id domain.MsgId) error
+	addAttachmentsFunc func(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error
 
 	mu                    sync.Mutex
 	createMessageCalled   bool
@@ -81,9 +94,17 @@ func (m *MockMessageStorage) DeleteMessage(board domain.BoardShortName, id domai
 	return nil // Default success
 }
 
+func (m *MockMessageStorage) AddAttachments(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+	if m.addAttachmentsFunc != nil {
+		return m.addAttachmentsFunc(board, messageID, attachments)
+	}
+	return nil // Default success
+}
+
 // MockMessageValidator mocks the MessageValidator interface.
 type MockMessageValidator struct {
-	textFunc func(text domain.MsgText) error
+	textFunc         func(text domain.MsgText) error
+	pendingFilesFunc func(files []*domain.PendingFile) error
 }
 
 func (m *MockMessageValidator) Text(text domain.MsgText) error {
@@ -93,29 +114,23 @@ func (m *MockMessageValidator) Text(text domain.MsgText) error {
 	return nil // Default valid
 }
 
+func (m *MockMessageValidator) PendingFiles(files []*domain.PendingFile) error {
+	if m.pendingFilesFunc != nil {
+		return m.pendingFilesFunc(files)
+	}
+	return nil // Default valid
+}
+
 // --- Tests ---
 
 func TestMessageCreate(t *testing.T) {
 	// Common test data
 	testAuthor := domain.User{Id: 1}
-	testAttachments := domain.Attachments{
-		&domain.Attachment{
-			File: &domain.File{
-				FilePath:         "file1.jpg",
-				OriginalFilename: "file1.jpg",
-				FileSizeBytes:    1024,
-				MimeType:         "image/jpeg",
-				ImageWidth:       utils.IntPtr(800),
-				ImageHeight:      utils.IntPtr(600),
-			},
-		},
-	}
 	testCreationData := domain.MessageCreationData{
-		Board:       "tst",
-		Author:      testAuthor,
-		Text:        "Valid message text",
-		Attachments: &testAttachments,
-		ThreadId:    1,
+		Board:    "tst",
+		Author:   testAuthor,
+		Text:     "Valid message text",
+		ThreadId: 1,
 	}
 	expectedCreatedId := domain.MsgId(1)
 
@@ -124,7 +139,8 @@ func TestMessageCreate(t *testing.T) {
 		storage := &MockMessageStorage{}
 		storage.ResetCallTracking()
 		validator := &MockMessageValidator{}
-		service := NewMessage(storage, validator)
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 
 		validator.textFunc = func(text domain.MsgText) error {
 			assert.Equal(t, testCreationData.Text, text)
@@ -154,7 +170,8 @@ func TestMessageCreate(t *testing.T) {
 		storage := &MockMessageStorage{}
 		storage.ResetCallTracking()
 		validator := &MockMessageValidator{}
-		service := NewMessage(storage, validator)
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 		storageError := errors.New("db write failed")
 
 		validator.textFunc = func(text domain.MsgText) error {
@@ -184,7 +201,8 @@ func TestMessageCreate(t *testing.T) {
 		storage := &MockMessageStorage{}
 		storage.ResetCallTracking()
 		validator := &MockMessageValidator{}
-		service := NewMessage(storage, validator)
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 		validationError := &internal_errors.ErrorWithStatusCode{Message: "Invalid text", StatusCode: 400}
 
 		validator.textFunc = func(text domain.MsgText) error {
@@ -217,7 +235,8 @@ func TestMessageGet(t *testing.T) {
 		storage := &MockMessageStorage{}
 		storage.ResetCallTracking()
 		validator := &MockMessageValidator{} // Not used in Get, but needed for constructor
-		service := NewMessage(storage, validator)
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 		expectedMessage := domain.Message{
 			MessageMetadata: domain.MessageMetadata{Id: testId},
 			Text:            "test_text",
@@ -248,7 +267,8 @@ func TestMessageGet(t *testing.T) {
 		storage := &MockMessageStorage{}
 		storage.ResetCallTracking()
 		validator := &MockMessageValidator{}
-		service := NewMessage(storage, validator)
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 		storageError := errors.New("db read failed")
 
 		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
@@ -282,7 +302,17 @@ func TestMessageDelete(t *testing.T) {
 		storage := &MockMessageStorage{}
 		storage.ResetCallTracking()
 		validator := &MockMessageValidator{} // Not used in Delete, but needed for constructor
-		service := NewMessage(storage, validator)
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		// Mock GetMessage to return a message with no attachments
+		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testId, id)
+			return domain.Message{
+				MessageMetadata: domain.MessageMetadata{Id: testId, Board: testBoard},
+			}, nil
+		}
 
 		// Use built-in mock tracking via the func override
 		storage.deleteMessageFunc = func(board domain.BoardShortName, id domain.MsgId) error {
@@ -302,7 +332,7 @@ func TestMessageDelete(t *testing.T) {
 		assert.Equal(t, testBoard, storage.deleteMessageArgBoard)
 		assert.Equal(t, testId, storage.deleteMessageArgId)
 		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called")
-		assert.False(t, storage.getMessageCalled, "GetMessage should not be called")
+		assert.True(t, storage.getMessageCalled, "GetMessage should have been called")
 		storage.mu.Unlock()
 	})
 
@@ -311,8 +341,18 @@ func TestMessageDelete(t *testing.T) {
 		storage := &MockMessageStorage{}
 		storage.ResetCallTracking()
 		validator := &MockMessageValidator{}
-		service := NewMessage(storage, validator)
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 		storageError := errors.New("db delete failed")
+
+		// Mock GetMessage to return a message with no attachments
+		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testId, id)
+			return domain.Message{
+				MessageMetadata: domain.MessageMetadata{Id: testId, Board: testBoard},
+			}, nil
+		}
 
 		// Use built-in mock tracking via the func override
 		storage.deleteMessageFunc = func(board domain.BoardShortName, id domain.MsgId) error {
@@ -333,7 +373,7 @@ func TestMessageDelete(t *testing.T) {
 		assert.Equal(t, testBoard, storage.deleteMessageArgBoard) // Verify args even on failure
 		assert.Equal(t, testId, storage.deleteMessageArgId)
 		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called")
-		assert.False(t, storage.getMessageCalled, "GetMessage should not be called")
+		assert.True(t, storage.getMessageCalled, "GetMessage should have been called")
 		storage.mu.Unlock()
 	})
 }

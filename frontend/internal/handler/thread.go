@@ -20,9 +20,7 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		Thread     *frontend_domain.Thread
 		Error      template.HTML
 		User       *domain.User
-		Validation struct {
-			MessageTextMaxLen int
-		}
+		Validation ValidationData
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	vars := mux.Vars(r)
@@ -37,7 +35,7 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templateData.Thread = RenderThread(thread)
-	templateData.Validation.MessageTextMaxLen = h.Public.MessageTextMaxLen
+	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "thread.html", templateData)
 }
@@ -53,18 +51,19 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
-		redirectWithParams(w, r, targetURL, map[string]string{"error": "Invalid thread ID."})
+		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Invalid thread ID."})
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		redirectWithParams(w, r, targetURL, map[string]string{"error": "Invalid form data."})
+	// Validate request size and parse multipart form
+	if !h.parseAndValidateMultipartForm(w, r, errorTargetURL) {
 		return
 	}
 
 	text := r.FormValue("text")
-	processedText, replyTo, hasPayload := h.TextProcessor.ProcessMessage(domain.Message{
-		Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName, ThreadId: domain.ThreadId(threadId)},
+	processedText, domainReplies, hasPayload := h.processMessageText(text, domain.MessageMetadata{
+		Board:    shortName,
+		ThreadId: domain.ThreadId(threadId),
 	})
 
 	if !hasPayload {
@@ -72,19 +71,12 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var domainReplies domain.Replies
-	for _, rep := range replyTo {
-		if rep != nil {
-			domainReplies = append(domainReplies, &rep.Reply)
-		}
-	}
-
 	backendData := api.CreateMessageRequest{
 		Text:    processedText,
-		ReplyTo: &domainReplies,
+		ReplyTo: domainReplies,
 	}
 
-	err = h.APIClient.CreateReply(r, shortName, threadIdStr, backendData)
+	err = h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)
 	if err != nil {
 		log.Printf("Error posting reply via API: %v", err)
 		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": err.Error()})

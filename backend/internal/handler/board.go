@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/shared/api"
@@ -38,9 +36,8 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	if pageQuery == "" {
 		page = default_page
 	} else {
-		if page, err = strconv.Atoi(pageQuery); err != nil {
-			log.Print(err.Error())
-			http.Error(w, "Page param should be integer", http.StatusBadRequest)
+		if page, err = parseIntParam(pageQuery, "page"); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}

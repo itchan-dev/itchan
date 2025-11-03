@@ -16,11 +16,11 @@ func (h *Handler) RegisterGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
 		Error      template.HTML
 		User       *domain.User
-		Validation struct{ PasswordMinLen int }
+		Validation ValidationData
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.Error, _ = parseMessagesFromQuery(r)
-	templateData.Validation.PasswordMinLen = h.Public.PasswordMinLen
+	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "register.html", templateData)
 }
@@ -44,8 +44,11 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Handle specific case: confirmation needed
 	if resp.StatusCode == http.StatusTooEarly {
-		msg := fmt.Sprintf(`%s Please check your email or use the confirmation page. <a href="/check_confirmation_code?email=%s">Go to Confirmation</a>`, string(bodyBytes), url.QueryEscape(email))
-		redirectWithParams(w, r, targetURL, map[string]string{"error": msg})
+		// Safely construct message without XSS risk - use template escaping
+		msg := string(bodyBytes) + " Please check your email or use the confirmation page."
+		// Pass email separately for URL construction in the redirect
+		targetWithEmail := fmt.Sprintf("/check_confirmation_code?email=%s", url.QueryEscape(email))
+		redirectWithParams(w, r, targetURL, map[string]string{"error": msg, "redirect_to": targetWithEmail})
 		return
 	}
 
@@ -65,12 +68,12 @@ func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request)
 		Success          template.HTML
 		EmailPlaceholder string
 		User             *domain.User
-		Validation       struct{ ConfirmationCodeLen int }
+		Validation       ValidationData
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.EmailPlaceholder = parseEmail(r)                        // Get email from query param
 	templateData.Error, templateData.Success = parseMessagesFromQuery(r) // Get messages
-	templateData.Validation.ConfirmationCodeLen = h.Public.ConfirmationCodeLen
+	templateData.Validation = h.NewValidationData()
 
 	// Customize success message if needed based on query param
 	if r.URL.Query().Get("success") == "confirmed" {
@@ -100,7 +103,7 @@ func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 		Error            template.HTML
 		User             *domain.User
 		EmailPlaceholder string
-		Validation       struct{ PasswordMinLen int }
+		Validation       ValidationData
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	templateData.Error, _ = parseMessagesFromQuery(r)          // Get error message
@@ -109,7 +112,7 @@ func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 		// Fallback if not passed in query
 		templateData.EmailPlaceholder = parseEmail(r)
 	}
-	templateData.Validation.PasswordMinLen = h.Public.PasswordMinLen
+	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "login.html", templateData)
 }
@@ -141,7 +144,7 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Clear the access token cookie
 	cookie := &http.Cookie{
 		Path:     "/",
@@ -149,8 +152,8 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		MaxAge:   -1, // Expire immediately
 		HttpOnly: true,
-		// Secure: true, // Add this if using HTTPS
-		// SameSite: http.SameSiteLaxMode, // Or Strict
+		Secure:   h.Public.SecureCookies,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, cookie)
 

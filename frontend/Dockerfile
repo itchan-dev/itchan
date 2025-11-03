@@ -1,5 +1,7 @@
 FROM golang:1.24-alpine AS builder
 WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
 RUN go build -o frontend ./frontend/cmd/frontend/
 
@@ -8,7 +10,8 @@ ENV JWT_SECRET=0e93ba7e182bc111d84474103037684c7af855a5fa33499eb58df5d31021914cf
 ENV ENV=development
 WORKDIR /root/
 COPY --from=builder /app/frontend/frontend .
+COPY --from=builder /app/config ./config/
 # COPY --from=builder /app/frontend/templates ./templates
 # COPY --from=builder /app/frontend/static ./static
 EXPOSE 8081
-CMD ["./frontend"]
+CMD ["./frontend", "-config_folder", "./config"]

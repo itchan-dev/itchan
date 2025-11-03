@@ -363,6 +363,37 @@ blockquote {
     word-wrap: break-word;
     max-width: 100%;
     color: #555; /* Grey file info text */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px; /* Space between attachments */
+    align-items: flex-start; /* Align items to the top */
+}
+
+.attachment-item {
+    display: flex;
+    flex-direction: column;
+    max-width: 250px;
+}
+
+.attachment-link {
+    display: block;
+    line-height: 0; /* Remove extra space below inline images */
+}
+
+.attachment-thumbnail {
+    max-width: 250px;
+    max-height: 250px;
+    width: auto;
+    height: auto;
+    object-fit: contain; /* Preserve aspect ratio */
+    display: block;
+    margin-bottom: 4px;
+}
+
+.attachment-info {
+    font-size: 0.85em;
+    word-break: break-word;
+    max-width: 250px;
 }
 /* Style .post-attachments a specifically if needed */
 
@@ -637,6 +668,89 @@ blockquote {
     font-size: 1.5em;
     cursor: pointer;
     color: #800000;
+}
+
+/* ==========================================
+   File Preview Styles
+   ========================================== */
+
+.file-hint {
+    font-size: 0.85em;
+    color: #666;
+    font-style: italic;
+    margin-top: 2px;
+    margin-bottom: 5px;
+}
+
+.file-preview-list {
+    margin-top: 8px;
+}
+
+.file-preview-header {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.file-preview-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 5px 8px;
+    margin-bottom: 5px;
+    font-size: 0.85em;
+}
+
+.file-preview-thumbnail {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid #ddd;
+}
+
+.file-preview-icon {
+    font-size: 24px;
+    width: 40px;
+    text-align: center;
+}
+
+.file-preview-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #333;
+}
+
+.file-preview-size {
+    color: #666;
+    white-space: nowrap;
+    font-size: 0.9em;
+}
+
+.file-preview-remove {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-preview-remove:hover {
+    background-color: #c82333;
 }
 
 /* ==========================================

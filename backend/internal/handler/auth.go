@@ -64,6 +64,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		Value:    accessToken,
 		MaxAge:   int(h.cfg.JwtTTL().Seconds()),
 		HttpOnly: true,
+		Secure:   h.cfg.Public.SecureCookies,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, cookie)
 
@@ -78,6 +80,8 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   h.cfg.Public.SecureCookies,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, cookie)
 

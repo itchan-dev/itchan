@@ -16,40 +16,22 @@ import (
 // Public Methods (satisfy the service.ThreadStorage interface)
 // =========================================================================
 
-// CreateThread is the public entry point for creating a new thread.
-// Its primary responsibility is to manage the database transaction for this
-// complex operation. It orchestrates calls to the internal `createThread` and
-// `createMessage` methods, ensuring that the thread and its mandatory OP
-// (Original Post) message are created atomically.
-func (s *Storage) CreateThread(creationData domain.ThreadCreationData) (domain.ThreadId, error) {
+// CreateThread is the public entry point for creating a new thread record.
+// It ONLY creates the thread metadata - the OP message should be created
+// separately by the service layer. This maintains proper separation of concerns.
+func (s *Storage) CreateThread(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var id domain.ThreadId
+	var threadID domain.ThreadId
+	var createdAt time.Time
+
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
-		// First, call the internal method to create the thread record itself.
-		// This returns the new thread's ID and its creation timestamp.
-		var createdTs time.Time
 		var err error
-		id, createdTs, err = s.createThread(tx, creationData)
-		if err != nil {
-			return err
-		}
-
-		// Prepare the OP message data using the ID and timestamp from the new thread.
-		creationData.OpMessage.ThreadId = id
-		creationData.OpMessage.CreatedAt = &createdTs // Ensure OP message and thread have the same timestamp.
-		creationData.OpMessage.Board = creationData.Board
-
-		// Within the *same transaction*, call the internal method to create the OP message.
-		// This demonstrates the composability of the internal methods.
-		if _, err = s.createMessage(tx, creationData.OpMessage); err != nil {
-			return fmt.Errorf("failed to create OP message for new thread: %w", err)
-		}
-
-		return nil
+		threadID, createdAt, err = s.createThread(tx, creationData)
+		return err
 	})
-	return id, err
+	return threadID, createdAt, err
 }
 
 // GetThread is the public entry point for fetching a full thread, including all of its
