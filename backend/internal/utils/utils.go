@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"image"
 	"unicode"
 	"unicode/utf8"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/errors"
+	"golang.org/x/image/draw"
 )
 
 func IsLetter(s string) bool {
@@ -142,4 +144,30 @@ func (e *MessageValidator) validateFileMeta(mimeType string, size int64, allowed
 func GenerateConfirmationCode(len int) string {
 	code := uuid.NewString()
 	return code[:len]
+}
+
+// GenerateThumbnail creates a thumbnail of the given image with a maximum size.
+// It maintains the aspect ratio and returns a new image that fits within maxSize x maxSize.
+func GenerateThumbnail(src image.Image, maxSize int) image.Image {
+	bounds := src.Bounds()
+	srcWidth := bounds.Dx()
+	srcHeight := bounds.Dy()
+
+	// Calculate new dimensions while maintaining aspect ratio
+	var dstWidth, dstHeight int
+	if srcWidth > srcHeight {
+		dstWidth = maxSize
+		dstHeight = (srcHeight * maxSize) / srcWidth
+	} else {
+		dstHeight = maxSize
+		dstWidth = (srcWidth * maxSize) / srcHeight
+	}
+
+	// Create destination image
+	dst := image.NewRGBA(image.Rect(0, 0, dstWidth, dstHeight))
+
+	// Use BiLinear interpolation for good quality and performance balance
+	draw.BiLinear.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
+
+	return dst
 }

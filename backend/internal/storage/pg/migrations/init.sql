@@ -74,7 +74,8 @@ CREATE TABLE IF NOT EXISTS files (
     file_size_bytes   bigint NOT NULL,
     mime_type         varchar(255) NOT NULL,
     image_width       int,
-    image_height      int
+    image_height      int,
+    thumbnail_path    text
     -- file_hash_sha256  bytea UNIQUE
 );
 

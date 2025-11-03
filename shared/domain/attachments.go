@@ -2,13 +2,14 @@ package domain
 
 // File represents a file stored in the system
 type File struct {
-	Id               FileId `json:"id,omitempty"`
-	FilePath         string `json:"file_path,omitempty"`
-	OriginalFilename string `json:"original_filename,omitempty"`
-	FileSizeBytes    int64  `json:"file_size_bytes,omitempty"`
-	MimeType         string `json:"mime_type,omitempty"`
-	ImageWidth       *int   `json:"image_width,omitempty"`
-	ImageHeight      *int   `json:"image_height,omitempty"`
+	Id               FileId  `json:"id,omitempty"`
+	FilePath         string  `json:"file_path,omitempty"`
+	OriginalFilename string  `json:"original_filename,omitempty"`
+	FileSizeBytes    int64   `json:"file_size_bytes,omitempty"`
+	MimeType         string  `json:"mime_type,omitempty"`
+	ImageWidth       *int    `json:"image_width,omitempty"`
+	ImageHeight      *int    `json:"image_height,omitempty"`
+	ThumbnailPath    *string `json:"thumbnail_path,omitempty"`
 }
 
 // Attachment represents an attachment linking a message to a file

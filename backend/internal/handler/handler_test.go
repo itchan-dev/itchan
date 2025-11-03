@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"image"
 	"io"
 	"log"
 	"mime/multipart"
@@ -73,6 +74,10 @@ type MockMediaStorage struct {
 }
 
 func (m *MockMediaStorage) SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error) {
+	return "", nil
+}
+
+func (m *MockMediaStorage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
 	return "", nil
 }
 

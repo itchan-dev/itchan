@@ -1,12 +1,19 @@
 package service
 
-import "io"
+import (
+	"image"
+	"io"
+)
 
 type MediaStorage interface {
 	// SaveFile stores a file's content.
 	// It takes the board and thread IDs to construct the path and generates a unique filename.
 	// It returns the relative path where the file was stored.
 	SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
+
+	// SaveThumbnail saves a thumbnail image as JPEG.
+	// It returns the relative path where the thumbnail was stored.
+	SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error)
 
 	// Read opens a file for reading given its relative path.
 	Read(filePath string) (io.ReadCloser, error)

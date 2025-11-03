@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"errors"
+	"image"
 	"io"
 	"sync"
 	"testing"
@@ -60,6 +61,11 @@ func (m *SharedMockMediaStorage) SaveFile(fileData io.Reader, boardID, threadID,
 	}
 	// Default: return a fake path
 	return boardID + "/" + threadID + "/" + originalFilename, nil
+}
+
+func (m *SharedMockMediaStorage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
+	// Mock implementation - just return a thumbnail path
+	return "thumb_" + originalRelativePath, nil
 }
 
 func (m *SharedMockMediaStorage) Read(filePath string) (io.ReadCloser, error) {
