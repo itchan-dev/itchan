@@ -94,9 +94,13 @@
         {{if .File}}
             {{$mediaUrl := printf "/media/%s" .File.FilePath}}
             {{if hasPrefix .File.MimeType "image/"}}
+                {{$thumbnailUrl := $mediaUrl}}
+                {{if .File.ThumbnailPath}}
+                    {{$thumbnailUrl = printf "/media/%s" .File.ThumbnailPath}}
+                {{end}}
                 <div class="attachment-item">
                     <a href="{{$mediaUrl}}" target="_blank" class="attachment-link">
-                        <img src="{{$mediaUrl}}" alt="{{.File.OriginalFilename}}" loading="lazy" class="attachment-thumbnail">
+                        <img src="{{$thumbnailUrl}}" alt="{{.File.OriginalFilename}}" loading="lazy" class="attachment-thumbnail">
                     </a>
                     <div class="attachment-info">
                         <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>

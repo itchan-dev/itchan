@@ -2,9 +2,12 @@
 package fs
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"io"
 	"os"
 	"path/filepath"
@@ -74,6 +77,47 @@ func (s *Storage) SaveFile(fileData io.Reader, boardID, threadID, originalFilena
 	}
 
 	return relativePath, nil
+}
+
+// SaveThumbnail saves a thumbnail image as JPEG in the same directory as the original file.
+// The thumbnail filename is prefixed with "thumb_".
+// Returns the relative path to the thumbnail.
+func (s *Storage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
+	// Generate thumbnail filename by prefixing with "thumb_" and changing extension to .jpg
+	dir := filepath.Dir(originalRelativePath)
+	originalFilename := filepath.Base(originalRelativePath)
+	ext := filepath.Ext(originalFilename)
+	baseName := originalFilename[:len(originalFilename)-len(ext)]
+	thumbnailFilename := fmt.Sprintf("thumb_%s.jpg", baseName)
+
+	// Construct paths
+	thumbnailRelativePath := filepath.Join(dir, thumbnailFilename)
+	thumbnailFullPath := filepath.Join(s.rootPath, thumbnailRelativePath)
+
+	// Ensure directory exists (should already exist from SaveFile, but be safe)
+	if err := os.MkdirAll(filepath.Dir(thumbnailFullPath), 0755); err != nil {
+		return "", fmt.Errorf("failed to create thumbnail directory: %w", err)
+	}
+
+	// Encode thumbnail as JPEG to a buffer first
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, thumbnail, &jpeg.Options{Quality: 85}); err != nil {
+		return "", fmt.Errorf("failed to encode thumbnail as JPEG: %w", err)
+	}
+
+	// Write thumbnail to file
+	dst, err := os.Create(thumbnailFullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create thumbnail file: %w", err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, &buf); err != nil {
+		os.Remove(thumbnailFullPath) // Best effort cleanup
+		return "", fmt.Errorf("failed to write thumbnail data: %w", err)
+	}
+
+	return thumbnailRelativePath, nil
 }
 
 // Read opens a file for reading from the storage.

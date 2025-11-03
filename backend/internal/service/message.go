@@ -2,9 +2,17 @@ package service
 
 import (
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
+	"strings"
 
+	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
+	_ "golang.org/x/image/webp"
 )
 
 type MessageService interface {
@@ -102,6 +110,30 @@ func (b *Message) saveAndAttachFiles(
 		}
 		savedFiles = append(savedFiles, filePath)
 
+		// Generate and save thumbnail for images
+		var thumbnailPath *string
+		if strings.HasPrefix(pendingFile.MimeType, "image/") {
+			// Try to seek back to start if the reader supports it (it should, since it's a multipart.File)
+			if seeker, ok := pendingFile.Data.(io.Seeker); ok {
+				seeker.Seek(0, 0)
+
+				// Decode the image
+				img, _, err := image.Decode(pendingFile.Data)
+				if err == nil {
+					// Generate thumbnail (200x200 max)
+					thumbnail := utils.GenerateThumbnail(img, 200)
+
+					// Save thumbnail
+					thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
+					if err == nil {
+						thumbnailPath = &thumbPath
+						savedFiles = append(savedFiles, thumbPath) // Track for cleanup
+					}
+					// Note: We don't fail the upload if thumbnail generation fails
+				}
+			}
+		}
+
 		// Create file metadata
 		fileData := &domain.File{
 			FilePath:         filePath,
@@ -110,6 +142,7 @@ func (b *Message) saveAndAttachFiles(
 			MimeType:         pendingFile.MimeType,
 			ImageWidth:       pendingFile.ImageWidth,
 			ImageHeight:      pendingFile.ImageHeight,
+			ThumbnailPath:    thumbnailPath,
 		}
 
 		// Create attachment
@@ -159,10 +192,16 @@ func (b *Message) Delete(board domain.BoardShortName, id domain.MsgId) error {
 	// Delete the actual files from filesystem
 	for _, attachment := range msg.Attachments {
 		if attachment.File != nil {
-			// Best effort: log errors but don't fail the operation
+			// Delete original file
 			if err := b.mediaStorage.DeleteFile(attachment.File.FilePath); err != nil {
-				// In production, you might want to log this error
-				// For now, we continue to delete other files
+				// Best effort: log errors but don't fail the operation
+			}
+
+			// Delete thumbnail if it exists
+			if attachment.File.ThumbnailPath != nil {
+				if err := b.mediaStorage.DeleteFile(*attachment.File.ThumbnailPath); err != nil {
+					// Best effort: log errors but don't fail the operation
+				}
 			}
 		}
 	}
