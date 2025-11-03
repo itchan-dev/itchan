@@ -24,7 +24,7 @@ WORKDIR /root/
 
 # Copy the binary from the builder
 COPY --from=builder /app/itchan-api .
-COPY --from=builder /app/backend/config ./config/
+COPY --from=builder /app/config ./config/
 
 # Expose port (optional, since Docker Compose handles it)
 EXPOSE 8000

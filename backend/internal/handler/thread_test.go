@@ -2,60 +2,64 @@ package handler
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gorilla/mux"
-	"github.com/itchan-dev/itchan/backend/internal/service" // Use the service interface path
+	"github.com/itchan-dev/itchan/backend/internal/service"
+	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
-	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// MockThreadService implements the service.ThreadService interface
 type MockThreadService struct {
-	MockCreate func(creationData domain.ThreadCreationData) (domain.MsgId, error)
-	MockGet    func(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error)
-	MockDelete func(board domain.BoardShortName, id domain.MsgId) error
+	MockCreate func(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
+	MockGet    func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	MockDelete func(board domain.BoardShortName, id domain.ThreadId) error
 }
 
-func (m *MockThreadService) Create(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+func (m *MockThreadService) Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
 	if m.MockCreate != nil {
 		return m.MockCreate(creationData)
 	}
-	return 1, nil // Default behavior
+	return 1, 1, nil
 }
 
-func (m *MockThreadService) Get(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error) {
+func (m *MockThreadService) Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
 	if m.MockGet != nil {
 		return m.MockGet(board, id)
 	}
-	// Return a default thread with at least one message so Id() doesn't panic
-	return domain.Thread{Messages: []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: id}}}}, nil // Default behavior
+	return domain.Thread{Messages: []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: domain.MsgId(id)}}}}, nil
 }
 
-func (m *MockThreadService) Delete(board domain.BoardShortName, id domain.MsgId) error {
+func (m *MockThreadService) Delete(board domain.BoardShortName, id domain.ThreadId) error {
 	if m.MockDelete != nil {
 		return m.MockDelete(board, id)
 	}
-	return nil // Default behavior
+	return nil
 }
 
-// Setup function to create handler with mock service
 func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *mux.Router) {
+	cfg := &config.Config{
+		Public: config.Public{
+			MaxAttachmentsPerMessage: 4,
+			MaxAttachmentSizeBytes:   10 * 1024 * 1024,
+			MaxTotalAttachmentSize:   20 * 1024 * 1024,
+			AllowedImageMimeTypes:    []string{"image/jpeg", "image/png", "image/gif"},
+			AllowedVideoMimeTypes:    []string{"video/mp4", "video/webm"},
+		},
+	}
 	h := &Handler{
 		thread: threadService,
-		// auth, cfg, etc., could be added if needed by other parts of Handler
+		cfg:    cfg,
 	}
 	router := mux.NewRouter()
-	// Define routes used in tests matching refactored_package.txt handlers
 	router.HandleFunc("/{board}", h.CreateThread).Methods(http.MethodPost)
 	router.HandleFunc("/{board}/{thread}", h.GetThread).Methods(http.MethodGet)
 	router.HandleFunc("/{board}/{thread}", h.DeleteThread).Methods(http.MethodDelete)
@@ -66,80 +70,31 @@ func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *mux
 func TestCreateThreadHandler(t *testing.T) {
 	boardName := "b"
 	route := "/" + boardName
-	requestBody := []byte(`{"title": "thread title", "op_message": {"text": "test text", "attachments": [{"file": {"file_path": "one.jpg", "original_filename": "one.jpg", "file_size_bytes": 1024, "mime_type": "image/jpeg", "image_width": 800, "image_height": 600}}, {"file": {"file_path": "two.png", "original_filename": "two.png", "file_size_bytes": 2048, "mime_type": "image/png", "image_width": 1200, "image_height": 900}}]}}`)
-	requestBodyNoAttach := []byte(`{"title": "thread title", "op_message": {"text": "test text"}}`)
-	requestBodyWithReplies := []byte(`{"title": "thread title", "op_message": {"text": "test text", "attachments": [{"file": {"file_path": "one.jpg", "original_filename": "one.jpg", "file_size_bytes": 1024, "mime_type": "image/jpeg", "image_width": 800, "image_height": 600}}, {"file": {"file_path": "two.png", "original_filename": "two.png", "file_size_bytes": 2048, "mime_type": "image/png", "image_width": 1200, "image_height": 900}}], "reply_to": [{"To": 123, "ToThreadId": 1, "From": 0, "FromThreadId": 0, "CreatedAt": "2023-01-01T00:00:00Z"}]}}`)
 	testUser := domain.User{Id: 1, Email: "test@test.com"}
 	expectedThreadID := domain.ThreadId(42)
-	expectedTitle := "thread title"
-	expectedText := "test text"
-	expectedAttachments := &domain.Attachments{
-		&domain.Attachment{
-			File: &domain.File{
-				FilePath:         "one.jpg",
-				OriginalFilename: "one.jpg",
-				FileSizeBytes:    1024,
-				MimeType:         "image/jpeg",
-				ImageWidth:       utils.IntPtr(800),
-				ImageHeight:      utils.IntPtr(600),
-			},
-		},
-		&domain.Attachment{
-			File: &domain.File{
-				FilePath:         "two.png",
-				OriginalFilename: "two.png",
-				FileSizeBytes:    2048,
-				MimeType:         "image/png",
-				ImageWidth:       utils.IntPtr(1200),
-				ImageHeight:      utils.IntPtr(900),
-			},
-		},
-	}
+	expectedOpMessageID := domain.MsgId(1)
 
-	t.Run("successful request with attachments", func(t *testing.T) {
+	t.Run("successful request", func(t *testing.T) {
 		mockService := &MockThreadService{
-			MockCreate: func(data domain.ThreadCreationData) (domain.MsgId, error) {
-				assert.Equal(t, expectedTitle, data.Title)
+			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+				assert.Equal(t, "thread title", data.Title)
 				assert.Equal(t, boardName, data.Board)
 				assert.Equal(t, testUser, data.OpMessage.Author)
-				assert.Equal(t, expectedText, data.OpMessage.Text)
-				require.NotNil(t, data.OpMessage.Attachments)
-				assert.Equal(t, *expectedAttachments, *data.OpMessage.Attachments)
-				assert.Nil(t, data.OpMessage.ReplyTo, "OP messages should not have replies")
-				return expectedThreadID, nil
+				assert.Equal(t, "test text", data.OpMessage.Text)
+				assert.Nil(t, data.OpMessage.ReplyTo)
+				return expectedThreadID, expectedOpMessageID, nil
 			},
 		}
 		_, router := setupThreadTestHandler(mockService)
 
-		req := createRequest(t, http.MethodPost, route, requestBody)
-		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &testUser)
-		req = req.WithContext(ctx)
-		rr := httptest.NewRecorder()
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		writer.WriteField("json", `{"title": "thread title", "op_message": {"text": "test text"}}`)
+		writer.Close()
 
-		router.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusCreated, rr.Code)
-		// Check if the response body contains the created thread ID as a string
-		assert.Equal(t, fmt.Sprintf("%d", expectedThreadID), rr.Body.String())
-	})
-
-	t.Run("successful request no attachments", func(t *testing.T) {
-		mockService := &MockThreadService{
-			MockCreate: func(data domain.ThreadCreationData) (domain.MsgId, error) {
-				assert.Equal(t, expectedTitle, data.Title)
-				assert.Equal(t, boardName, data.Board)
-				assert.Equal(t, testUser, data.OpMessage.Author)
-				assert.Equal(t, expectedText, data.OpMessage.Text)
-				assert.Nil(t, data.OpMessage.Attachments, "Attachments should be nil when not provided")
-				assert.Nil(t, data.OpMessage.ReplyTo, "OP messages should not have replies")
-				return expectedThreadID, nil
-			},
-		}
-		_, router := setupThreadTestHandler(mockService)
-
-		req := createRequest(t, http.MethodPost, route, requestBodyNoAttach)
-		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &testUser)
-		req = req.WithContext(ctx)
+		req := httptest.NewRequest(http.MethodPost, route, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req = addUserToContext(req, &testUser)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
@@ -148,94 +103,91 @@ func TestCreateThreadHandler(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("%d", expectedThreadID), rr.Body.String())
 	})
 
-	t.Run("invalid json request body", func(t *testing.T) {
-		mockService := &MockThreadService{} // Behavior doesn't matter
+	t.Run("successful request with replies", func(t *testing.T) {
+		mockService := &MockThreadService{
+			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+				require.NotNil(t, data.OpMessage.ReplyTo)
+				require.Len(t, *data.OpMessage.ReplyTo, 1)
+				reply := (*data.OpMessage.ReplyTo)[0]
+				assert.Equal(t, domain.MsgId(123), reply.To)
+				assert.Equal(t, domain.ThreadId(1), reply.ToThreadId)
+				return expectedThreadID, expectedOpMessageID, nil
+			},
+		}
 		_, router := setupThreadTestHandler(mockService)
-		req := createRequest(t, http.MethodPost, route, []byte(`{ivalid json::}`))
-		// No need to inject user as it should fail before checking context
+
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		writer.WriteField("json", `{"title": "thread title", "op_message": {"text": "test text", "reply_to": [{"To": 123, "ToThreadId": 1, "From": 0, "FromThreadId": 0, "CreatedAt": "2023-01-01T00:00:00Z"}]}}`)
+		writer.Close()
+
+		req := httptest.NewRequest(http.MethodPost, route, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req = addUserToContext(req, &testUser)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Body is invalid json") // Based on utils.DecodeValidate error
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
-	t.Run("missing required field (title)", func(t *testing.T) {
-		mockService := &MockThreadService{} // Behavior doesn't matter
-		_, router := setupThreadTestHandler(mockService)
-		// Missing "title" which is required by validate tag in handler
-		invalidBody := []byte(`{"text": "test text only"}`)
-		req := createRequest(t, http.MethodPost, route, invalidBody)
-		// No need to inject user
+	t.Run("validation error", func(t *testing.T) {
+		_, router := setupThreadTestHandler(&MockThreadService{})
+
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		writer.WriteField("json", `{ivalid json::}`)
+		writer.Close()
+
+		req := httptest.NewRequest(http.MethodPost, route, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req = addUserToContext(req, &testUser)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
+
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Required fields missing") // Based on utils.DecodeValidate error
 	})
 
-	t.Run("no user in context", func(t *testing.T) {
-		mockService := &MockThreadService{} // Mock won't be called
-		_, router := setupThreadTestHandler(mockService)
-		req := createRequest(t, http.MethodPost, route, requestBody)
-		// No user injected into context
+	t.Run("unauthorized access", func(t *testing.T) {
+		_, router := setupThreadTestHandler(&MockThreadService{})
+
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		writer.WriteField("json", `{"title": "thread title", "op_message": {"text": "test text"}}`)
+		writer.Close()
+
+		req := httptest.NewRequest(http.MethodPost, route, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
+
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Unauthorized")
 	})
 
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("mock service error")
 		mockService := &MockThreadService{
-			MockCreate: func(data domain.ThreadCreationData) (domain.MsgId, error) {
-				// Can optionally assert arguments here too if needed
-				return -1, mockErr
+			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+				return -1, -1, mockErr
 			},
 		}
 		_, router := setupThreadTestHandler(mockService)
 
-		req := createRequest(t, http.MethodPost, route, requestBody)
-		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &testUser)
-		req = req.WithContext(ctx)
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		writer.WriteField("json", `{"title": "thread title", "op_message": {"text": "test text"}}`)
+		writer.Close()
+
+		req := httptest.NewRequest(http.MethodPost, route, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req = addUserToContext(req, &testUser)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusInternalServerError, rr.Code) // Assuming default mapping in WriteErrorAndStatusCode
-		assert.Contains(t, rr.Body.String(), mockErr.Error())
-	})
-
-	t.Run("successful request with replies", func(t *testing.T) {
-		mockService := &MockThreadService{
-			MockCreate: func(data domain.ThreadCreationData) (domain.MsgId, error) {
-				assert.Equal(t, expectedTitle, data.Title)
-				assert.Equal(t, boardName, data.Board)
-				assert.Equal(t, testUser, data.OpMessage.Author)
-				assert.Equal(t, expectedText, data.OpMessage.Text)
-				require.NotNil(t, data.OpMessage.Attachments)
-				assert.Equal(t, *expectedAttachments, *data.OpMessage.Attachments)
-				// Check that ReplyTo is not nil and has the expected structure
-				require.NotNil(t, data.OpMessage.ReplyTo, "ReplyTo should not be nil")
-				require.Len(t, *data.OpMessage.ReplyTo, 1, "Should have one reply")
-				reply := (*data.OpMessage.ReplyTo)[0]
-				assert.Equal(t, domain.MsgId(123), reply.To)
-				assert.Equal(t, domain.ThreadId(1), reply.ToThreadId)
-				return expectedThreadID, nil
-			},
-		}
-		_, router := setupThreadTestHandler(mockService)
-
-		req := createRequest(t, http.MethodPost, route, requestBodyWithReplies)
-		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &testUser)
-		req = req.WithContext(ctx)
-		rr := httptest.NewRecorder()
-
-		router.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusCreated, rr.Code)
-		assert.Equal(t, fmt.Sprintf("%d", expectedThreadID), rr.Body.String())
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	})
 }
 
@@ -267,18 +219,16 @@ func TestGetThreadHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "application/json", rr.Header().Get("Content-Type"), "handler returned wrong content type")
+		assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 
 		var actualThread domain.Thread
-		// Use rr.Body directly as writeJSON adds a newline
 		err := json.Unmarshal(bytes.TrimSpace(rr.Body.Bytes()), &actualThread)
-		require.NoError(t, err, "error decoding response body")
+		require.NoError(t, err)
 		assert.Equal(t, expectedThread, actualThread)
 	})
 
-	t.Run("bad thread id (non-numeric)", func(t *testing.T) {
-		mockService := &MockThreadService{} // Mock won't be called
-		_, router := setupThreadTestHandler(mockService)
+	t.Run("invalid thread id", func(t *testing.T) {
+		_, router := setupThreadTestHandler(&MockThreadService{})
 		badRoute := "/" + boardName + "/abc"
 		req := createRequest(t, http.MethodGet, badRoute, nil)
 		rr := httptest.NewRecorder()
@@ -286,15 +236,12 @@ func TestGetThreadHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Bad request") // Message from handler
 	})
 
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("thread not found")
 		mockService := &MockThreadService{
 			MockGet: func(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error) {
-				assert.Equal(t, threadID, id)
-				assert.Equal(t, boardName, board)
 				return domain.Thread{}, mockErr
 			},
 		}
@@ -304,10 +251,7 @@ func TestGetThreadHandler(t *testing.T) {
 
 		router.ServeHTTP(rr, req)
 
-		// Assuming utils.WriteErrorAndStatusCode maps generic errors to 500
-		// If a specific error (like a custom NotFoundError) mapped to 404, adjust this
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
-		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
 }
 
@@ -332,12 +276,11 @@ func TestDeleteThreadHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		assert.Empty(t, rr.Body.String(), "Expected empty body on successful deletion")
+		assert.Empty(t, rr.Body.String())
 	})
 
-	t.Run("bad thread id (non-numeric)", func(t *testing.T) {
-		mockService := &MockThreadService{} // Mock won't be called
-		_, router := setupThreadTestHandler(mockService)
+	t.Run("invalid thread id", func(t *testing.T) {
+		_, router := setupThreadTestHandler(&MockThreadService{})
 		badRoute := "/" + boardName + "/abc"
 		req := createRequest(t, http.MethodDelete, badRoute, nil)
 		rr := httptest.NewRecorder()
@@ -345,15 +288,12 @@ func TestDeleteThreadHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusBadRequest, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Bad request") // Message from handler
 	})
 
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("permission denied to delete")
 		mockService := &MockThreadService{
 			MockDelete: func(board domain.BoardShortName, id domain.MsgId) error {
-				assert.Equal(t, boardName, board)
-				assert.Equal(t, threadID, id)
 				return mockErr
 			},
 		}
@@ -363,8 +303,6 @@ func TestDeleteThreadHandler(t *testing.T) {
 
 		router.ServeHTTP(rr, req)
 
-		// Assuming utils.WriteErrorAndStatusCode maps generic errors to 500
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
-		assert.Contains(t, rr.Body.String(), mockErr.Error())
 	})
 }

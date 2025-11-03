@@ -22,20 +22,13 @@ import (
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
-
-	"github.com/lib/pq"
-	_ "github.com/lib/pq" // Registers the PostgreSQL driver.
+	sharedstorage "github.com/itchan-dev/itchan/shared/storage/pg"
 )
 
-// Querier is an interface that abstracts database operations.
-// It is satisfied by both the standard library's *sql.DB (for single operations
-// on the connection pool) and *sql.Tx (for operations within a transaction).
-// This abstraction is the key to creating testable and composable database logic.
-type Querier interface {
-	Exec(query string, args ...interface{}) (sql.Result, error)
-	Query(query string, args ...interface{}) (*sql.Rows, error)
-	QueryRow(query string, args ...interface{}) *sql.Row
-}
+// Querier is an alias to the shared Querier interface.
+// It abstracts database operations and is satisfied by *sql.DB and *sql.Tx.
+// This interface is defined in shared/storage/pg and used throughout the application.
+type Querier = sharedstorage.Querier
 
 // Interface satisfaction checks.
 // These are compile-time assertions that ensure our *Storage struct correctly
@@ -61,7 +54,7 @@ type Storage struct {
 // This function is the main entry point for initializing the persistence layer.
 func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 	log.Print("Connecting to database...")
-	db, err := Connect(cfg)
+	db, err := sharedstorage.Connect(cfg, sharedstorage.DefaultConnectionConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -71,32 +64,6 @@ func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 	storage.StartPeriodicViewRefresh(ctx, cfg.Public.BoardPreviewRefreshInterval*time.Second)
 
 	return storage, nil
-}
-
-// Connect establishes and verifies a connection to the PostgreSQL database.
-func Connect(cfg *config.Config) (*sql.DB, error) {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		cfg.Private.Pg.Host, cfg.Private.Pg.Port, cfg.Private.Pg.User, cfg.Private.Pg.Password, cfg.Private.Pg.Dbname)
-
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
-	}
-
-	// Configure connection pool for imageboard workload.
-	// These settings balance resource usage with performance for high read/write ratios.
-	db.SetMaxOpenConns(25)                  // Limit concurrent connections to avoid exhausting DB max_connections
-	db.SetMaxIdleConns(10)                  // Keep connections warm for burst traffic
-	db.SetConnMaxLifetime(5 * time.Minute)  // Recycle connections to prevent stale connections
-	db.SetConnMaxIdleTime(1 * time.Minute)  // Close idle connections to free resources
-
-	// Ping the database to verify that the connection is alive.
-	if err = db.Ping(); err != nil {
-		db.Close() // Close the connection if ping fails.
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	return db, nil
 }
 
 // Cleanup gracefully closes the database connection pool.
@@ -109,12 +76,8 @@ func (s *Storage) Cleanup() error {
 // Transaction Helper
 // =========================================================================
 
-// withTx executes a function within a database transaction.
-// It handles the boilerplate of beginning, committing, and rolling back transactions,
-// and respects context cancellation/timeout.
-//
-// If the provided function returns an error, the transaction is rolled back.
-// Otherwise, the transaction is committed.
+// withTx is a convenience wrapper around shared storage's WithTx helper.
+// It provides a method-style API while delegating to the shared implementation.
 //
 // Usage:
 //
@@ -125,48 +88,52 @@ func (s *Storage) Cleanup() error {
 //	    })
 //	}
 func (s *Storage) withTx(ctx context.Context, fn func(*sql.Tx) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback() // No-op if transaction is already committed
-
-	if err := fn(tx); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
+	return sharedstorage.WithTx(ctx, s.db, fn)
 }
 
 // =========================================================================
-// SQL Identifier Helper Functions
+// SQL Identifier Helper Functions (Wrappers to Shared Storage)
 // =========================================================================
 
-// partitionName generates the raw name for a board-specific partition table.
-// Example: ("tech", "messages") -> "messages_tech"
-func partitionName(shortName domain.BoardShortName, table string) string {
-	return fmt.Sprintf("%s_%s", table, shortName)
-}
-
-// PartitionName generates a properly quoted and escaped partition table name for use in SQL queries.
-// This prevents SQL injection issues with dynamic table names.
+// PartitionName is a convenience wrapper around shared storage's PartitionName.
+// It generates a properly quoted and escaped partition table name for use in SQL queries.
 // Example: ("tech", "messages") -> `"messages_tech"`
 func PartitionName(shortName domain.BoardShortName, table string) string {
-	return pq.QuoteIdentifier(partitionName(shortName, table))
+	return sharedstorage.PartitionName(shortName, table)
 }
 
-// viewTableName generates the raw name for a board-specific materialized view.
-// Example: ("tech") -> "board_preview_tech"
-func viewTableName(shortName domain.BoardShortName) string {
-	return fmt.Sprintf("board_preview_%s", shortName)
-}
-
-// ViewTableName generates a properly quoted and escaped materialized view name for use in SQL queries.
+// ViewTableName is a convenience wrapper around shared storage's ViewTableName.
+// It generates a properly quoted and escaped materialized view name for use in SQL queries.
 // Example: ("tech") -> `"board_preview_tech"`
 func ViewTableName(shortName domain.BoardShortName) string {
-	return pq.QuoteIdentifier(viewTableName(shortName))
+	return sharedstorage.ViewTableName(shortName)
+}
+
+// =========================================================================
+// Media Garbage Collection Methods
+// =========================================================================
+
+// GetAllFilePaths returns all file paths stored in the database.
+// This is used by the garbage collector to identify orphaned files.
+func (s *Storage) GetAllFilePaths() ([]string, error) {
+	rows, err := s.db.Query(`SELECT file_path FROM files WHERE file_path IS NOT NULL`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query file paths: %w", err)
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, fmt.Errorf("failed to scan file path: %w", err)
+		}
+		paths = append(paths, path)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating file paths: %w", err)
+	}
+
+	return paths, nil
 }

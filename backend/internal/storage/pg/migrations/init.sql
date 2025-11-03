@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Used for account confirmation or password resets
 CREATE TABLE IF NOT EXISTS confirmation_data (
-    email                  varchar(254) PRIMARY KEY REFERENCES users(email) ON DELETE CASCADE,
+    email                  varchar(254) PRIMARY KEY,
     password_hash          varchar(80) NOT NULL,
     confirmation_code_hash varchar(80) default '',
     expires_at             timestamp default (now() at time zone 'utc'),

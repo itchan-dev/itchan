@@ -14,6 +14,7 @@ type BoardService interface {
 type Board struct {
 	storage       BoardStorage
 	nameValidator BoardValidator
+	mediaStorage  MediaStorage
 }
 
 type BoardStorage interface {
@@ -28,8 +29,12 @@ type BoardValidator interface {
 	ShortName(name domain.BoardShortName) error
 }
 
-func NewBoard(storage BoardStorage, validator BoardValidator) BoardService {
-	return &Board{storage, validator}
+func NewBoard(storage BoardStorage, validator BoardValidator, mediaStorage MediaStorage) BoardService {
+	return &Board{
+		storage:       storage,
+		nameValidator: validator,
+		mediaStorage:  mediaStorage,
+	}
 }
 
 func (b *Board) Create(creationData domain.BoardCreationData) error {
@@ -69,5 +74,18 @@ func (b *Board) Delete(shortName domain.BoardShortName) error {
 		return err
 	}
 
-	return b.storage.DeleteBoard(shortName)
+	// Delete the board from storage (DB will cascade delete all threads, messages, and attachments)
+	err := b.storage.DeleteBoard(shortName)
+	if err != nil {
+		return err
+	}
+
+	// Delete all files for this board from filesystem
+	// Best effort: log errors but don't fail the operation
+	if err := b.mediaStorage.DeleteBoard(string(shortName)); err != nil {
+		// In production, you might want to log this error
+		// For now, we continue as the DB records are already deleted
+	}
+
+	return nil
 }

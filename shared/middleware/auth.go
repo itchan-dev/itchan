@@ -35,21 +35,45 @@ func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler)
 				return
 			}
 
-			claims := token.Claims.(jwt.MapClaims)
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if !ok {
+				log.Print("Invalid JWT claims format")
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				return
+			}
 
-			if adminOnly {
-				isAdmin, ok := claims["admin"].(bool)
-				if !ok || !isAdmin {
-					http.Error(w, "Access denied. Only for admin", http.StatusForbidden)
-					return
-				}
+			// Extract and validate required claims
+			uidFloat, ok := claims["uid"].(float64)
+			if !ok {
+				log.Print("Missing or invalid uid claim in JWT")
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				return
+			}
+
+			email, ok := claims["email"].(string)
+			if !ok {
+				log.Print("Missing or invalid email claim in JWT")
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				return
+			}
+
+			isAdmin, ok := claims["admin"].(bool)
+			if !ok {
+				log.Print("Missing or invalid admin claim in JWT")
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				return
+			}
+
+			if adminOnly && !isAdmin {
+				http.Error(w, "Access denied. Only for admin", http.StatusForbidden)
+				return
 			}
 
 			// Create a User struct from the claims
 			user := &domain.User{
-				Id:    int64(claims["uid"].(float64)),
-				Email: claims["email"].(string),
-				Admin: claims["admin"].(bool),
+				Id:    int64(uidFloat),
+				Email: email,
+				Admin: isAdmin,
 			}
 
 			// Store the user in the request context

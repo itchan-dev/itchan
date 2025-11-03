@@ -2,14 +2,20 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/itchan-dev/itchan/backend/internal/service"
+	"github.com/itchan-dev/itchan/shared/domain"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func createRequest(t *testing.T, method, url string, body []byte, cookies ...*http.Cookie) *http.Request {
@@ -21,51 +27,94 @@ func createRequest(t *testing.T, method, url string, body []byte, cookies ...*ht
 	return req
 }
 
-func TestWriteJSON(t *testing.T) {
-	tests := []struct {
-		name             string
-		input            interface{}
-		expected         string
-		status           int
-		checkContentType bool
-	}{
-		{
-			name:     "Valid JSON",
-			input:    map[string]string{"message": "hello"},
-			expected: `{"message":"hello"}`,
-			status:   http.StatusOK,
-		},
-		{
-			name:             "Invalid JSON (channel)", // Test for encoding errors
-			input:            make(chan int),
-			expected:         "Internal error",
-			status:           http.StatusInternalServerError,
-			checkContentType: false,
-		},
-	}
+func addUserToContext(req *http.Request, user *domain.User) *http.Request {
+	ctx := context.WithValue(req.Context(), mw.UserClaimsKey, user)
+	return req.WithContext(ctx)
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Initialize the recorder
-			rr := httptest.NewRecorder()
+func createMultipartFiles(t *testing.T, files []fileData) []*multipart.FileHeader {
+	t.Helper()
+	var result []*multipart.FileHeader
 
-			// Capture log output using discard
-			log.SetOutput(io.Discard)      // Discard logs to prevent clutter during testing
-			defer log.SetOutput(os.Stderr) // Restore log output
+	for _, f := range files {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile("file", f.name)
+		require.NoError(t, err)
+		_, err = part.Write(f.content)
+		require.NoError(t, err)
+		err = writer.Close()
+		require.NoError(t, err)
 
-			writeJSON(rr, tt.input)
+		reader := multipart.NewReader(body, writer.Boundary())
+		form, err := reader.ReadForm(1024 * 1024)
+		require.NoError(t, err)
 
-			// Check status code
-			assert.Equal(t, tt.status, rr.Code, "handler returned wrong status code")
-
-			// Check content type header
-			if tt.checkContentType {
-				assert.Equal(t, "application/json", rr.Header().Get("Content-Type"), "handler returned wrong content type")
+		for _, headers := range form.File {
+			for _, header := range headers {
+				if f.contentType != "" {
+					header.Header.Set("Content-Type", f.contentType)
+				}
+				result = append(result, header)
 			}
-
-			// Check response body
-			assert.Equal(t, tt.expected+"\n", rr.Body.String(), "handler returned unexpected body")
-
-		})
+		}
 	}
+	return result
+}
+
+type fileData struct {
+	name        string
+	content     []byte
+	contentType string
+}
+
+type MockMediaStorage struct {
+	readFunc func(filePath string) (io.ReadCloser, error)
+}
+
+func (m *MockMediaStorage) SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error) {
+	return "", nil
+}
+
+func (m *MockMediaStorage) Read(filePath string) (io.ReadCloser, error) {
+	if m.readFunc != nil {
+		return m.readFunc(filePath)
+	}
+	return nil, io.EOF
+}
+
+func (m *MockMediaStorage) DeleteFile(filePath string) error {
+	return nil
+}
+
+func (m *MockMediaStorage) DeleteThread(boardID, threadID string) error {
+	return nil
+}
+
+func (m *MockMediaStorage) DeleteBoard(boardID string) error {
+	return nil
+}
+
+var _ service.MediaStorage = (*MockMediaStorage)(nil)
+
+func TestWriteJSON(t *testing.T) {
+	t.Run("valid JSON", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		writeJSON(rr, map[string]string{"message": "hello"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+		assert.Equal(t, `{"message":"hello"}`+"\n", rr.Body.String())
+	})
+
+	t.Run("encoding error", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		log.SetOutput(io.Discard)
+		defer log.SetOutput(os.Stderr)
+
+		writeJSON(rr, make(chan int))
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Equal(t, "Internal error\n", rr.Body.String())
+	})
 }

@@ -2,10 +2,13 @@
 package fs
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/service"
 )
@@ -30,13 +33,23 @@ func New(rootPath string) (*Storage, error) {
 	return &Storage{rootPath: p}, nil
 }
 
-// Save writes a file to the configured storage path.
-func (s *Storage) Save(fileData io.Reader, boardID, threadID, messageID, originalExtension string) (string, error) {
-	// Step 1: Generate a safe, unique filename internally.
-	// We use the messageID and the original extension.
-	// We also clean the extension to prevent shenanigans like ".jpg/../../foo.txt".
-	cleanExtension := filepath.Clean(originalExtension)
-	filename := fmt.Sprintf("%s%s", messageID, cleanExtension)
+// SaveFile writes a file to the configured storage path with a unique generated filename.
+func (s *Storage) SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error) {
+	// Step 1: Generate a unique filename
+	// Format: {timestamp}_{random}_{sanitized_original_name}
+	ext := filepath.Ext(originalFilename)
+	baseName := originalFilename[:len(originalFilename)-len(ext)]
+
+	// Generate random bytes for uniqueness
+	randBytes := make([]byte, 8)
+	if _, err := rand.Read(randBytes); err != nil {
+		return "", fmt.Errorf("failed to generate random filename: %w", err)
+	}
+	randStr := hex.EncodeToString(randBytes)
+
+	// Create unique filename: timestamp_random_originalname.ext
+	timestamp := time.Now().Unix()
+	filename := fmt.Sprintf("%d_%s_%s%s", timestamp, randStr, filepath.Base(baseName), ext)
 
 	// Step 2: Construct the relative and full paths.
 	relativePath := filepath.Join(boardID, threadID, filename)
@@ -113,4 +126,49 @@ func (s *Storage) DeleteBoard(boardID string) error {
 		return fmt.Errorf("failed to delete board directory: %w", err)
 	}
 	return nil
+}
+
+// WalkFiles walks the entire storage directory and returns all file paths
+// relative to the root. This is used by the garbage collector.
+func (s *Storage) WalkFiles() ([]string, error) {
+	var files []string
+
+	err := filepath.Walk(s.rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			// If there's an error accessing this path, log but continue
+			return nil
+		}
+
+		// Skip directories, only collect files
+		if info.IsDir() {
+			return nil
+		}
+
+		// Get relative path from root
+		relPath, err := filepath.Rel(s.rootPath, path)
+		if err != nil {
+			// If we can't get relative path, skip this file
+			return nil
+		}
+
+		files = append(files, relPath)
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk filesystem: %w", err)
+	}
+
+	return files, nil
+}
+
+// GetFileModTime returns the modification time of a file.
+// Used by garbage collector to implement safety threshold.
+func (s *Storage) GetFileModTime(filePath string) (time.Time, error) {
+	fullPath := filepath.Join(s.rootPath, filePath)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to stat file: %w", err)
+	}
+	return info.ModTime(), nil
 }

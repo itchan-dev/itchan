@@ -20,10 +20,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		Error       template.HTML
 		User        *domain.User
 		CurrentPage int
-		Validation  struct {
-			ThreadTitleMaxLen int
-			MessageTextMaxLen int
-		}
+		Validation  ValidationData
 	}
 	templateData.User = mw.GetUserFromContext(r)
 	shortName := mux.Vars(r)["board"]
@@ -44,8 +41,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templateData.Board = RenderBoard(board)
-	templateData.Validation.ThreadTitleMaxLen = h.Public.ThreadTitleMaxLen
-	templateData.Validation.MessageTextMaxLen = h.Public.MessageTextMaxLen
+	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "board.html", templateData)
 }
@@ -55,37 +51,28 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	shortName := vars["board"]
 	errorTargetURL := "/" + shortName
 
-	if err := r.ParseForm(); err != nil {
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Invalid form data."})
+	// Validate request size and parse multipart form
+	if !h.parseAndValidateMultipartForm(w, r, errorTargetURL) {
 		return
 	}
 
 	text := r.FormValue("text")
-	processedText, replyTo, hasPayload := h.TextProcessor.ProcessMessage(domain.Message{
-		Text: text, MessageMetadata: domain.MessageMetadata{Board: shortName},
-	})
+	processedText, domainReplies, hasPayload := h.processMessageText(text, domain.MessageMetadata{Board: shortName})
 
 	if !hasPayload {
 		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Message has empty payload."})
 		return
 	}
 
-	var domainReplies domain.Replies
-	for _, rep := range replyTo {
-		if rep != nil {
-			domainReplies = append(domainReplies, &rep.Reply)
-		}
-	}
-
 	backendData := api.CreateThreadRequest{
 		Title: r.FormValue("title"),
 		OpMessage: api.CreateMessageRequest{
 			Text:    processedText,
-			ReplyTo: &domainReplies,
+			ReplyTo: domainReplies,
 		},
 	}
 
-	newThreadID, err := h.APIClient.CreateThread(r, shortName, backendData)
+	newThreadID, err := h.APIClient.CreateThread(r, shortName, backendData, r.MultipartForm)
 	if err != nil {
 		log.Printf("Error creating thread via API: %v", err)
 		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": err.Error()})

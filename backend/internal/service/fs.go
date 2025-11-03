@@ -3,10 +3,10 @@ package service
 import "io"
 
 type MediaStorage interface {
-	// Save stores a file's content for a given message.
-	// It takes the board and thread IDs to construct the path.
+	// SaveFile stores a file's content.
+	// It takes the board and thread IDs to construct the path and generates a unique filename.
 	// It returns the relative path where the file was stored.
-	Save(fileData io.Reader, boardID, threadID, messageID, originalExtension string) (string, error)
+	SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
 
 	// Read opens a file for reading given its relative path.
 	Read(filePath string) (io.ReadCloser, error)

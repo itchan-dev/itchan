@@ -20,7 +20,7 @@ func main() {
 	log.SetFlags(log.Lshortfile)
 
 	var configFolder string
-	flag.StringVar(&configFolder, "config_folder", "backend/config", "path to folder with configs")
+	flag.StringVar(&configFolder, "config_folder", "config", "path to folder with configs")
 	flag.Parse()
 
 	cfg := config.MustLoad(configFolder)

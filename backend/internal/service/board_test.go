@@ -81,6 +81,7 @@ func TestBoardCreate(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
 		mockValidator := &MockBoardValidator{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		storageCalled := false
 
 		mockStorage.createBoardFunc = func(creationData domain.BoardCreationData) error {
@@ -97,7 +98,7 @@ func TestBoardCreate(t *testing.T) {
 			return nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		err := service.Create(validCreationData)
@@ -111,6 +112,7 @@ func TestBoardCreate(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{} // Storage should not be called
 		mockValidator := &MockBoardValidator{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		validationError := errors.New("invalid name format")
 		invalidData := domain.BoardCreationData{Name: "Invalid Name!", ShortName: validShortName}
 
@@ -127,7 +129,7 @@ func TestBoardCreate(t *testing.T) {
 			return nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		err := service.Create(invalidData)
@@ -141,6 +143,7 @@ func TestBoardCreate(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{} // Storage should not be called
 		mockValidator := &MockBoardValidator{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		validationError := errors.New("invalid short name format")
 		invalidData := domain.BoardCreationData{Name: validName, ShortName: ""}
 
@@ -156,7 +159,7 @@ func TestBoardCreate(t *testing.T) {
 			return nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		err := service.Create(invalidData)
@@ -170,6 +173,7 @@ func TestBoardCreate(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
 		mockValidator := &MockBoardValidator{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		storageError := errors.New("database connection failed")
 		storageCalled := false
 
@@ -183,7 +187,7 @@ func TestBoardCreate(t *testing.T) {
 			return storageError
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		err := service.Create(validCreationData)
@@ -202,6 +206,7 @@ func TestBoardGet(t *testing.T) {
 	t.Run("Successful Get", func(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		mockValidator := &MockBoardValidator{}
 		storageCalled := false
 		requestedPage := 2
@@ -217,7 +222,7 @@ func TestBoardGet(t *testing.T) {
 			return expectedBoard, nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		board, err := service.Get(validShortName, requestedPage)
@@ -230,7 +235,8 @@ func TestBoardGet(t *testing.T) {
 
 	t.Run("Invalid Short Name", func(t *testing.T) {
 		// Arrange
-		mockStorage := &MockBoardStorage{} // Storage should not be called
+		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{} // Storage should not be called
 		mockValidator := &MockBoardValidator{}
 		validationError := errors.New("invalid short name format")
 		invalidShortName := domain.BoardShortName("")
@@ -243,7 +249,7 @@ func TestBoardGet(t *testing.T) {
 			return domain.Board{}, nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		_, err := service.Get(invalidShortName, 1)
@@ -256,6 +262,7 @@ func TestBoardGet(t *testing.T) {
 	t.Run("Storage Error (Board Not Found)", func(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		mockValidator := &MockBoardValidator{}
 		storageError := errors.New("board not found")
 		storageCalled := false
@@ -272,7 +279,7 @@ func TestBoardGet(t *testing.T) {
 			return domain.Board{}, storageError
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		_, err := service.Get(validShortName, requestedPage)
@@ -286,6 +293,7 @@ func TestBoardGet(t *testing.T) {
 	t.Run("Page Less Than One Corrected", func(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		mockValidator := &MockBoardValidator{}
 		storageCalled := false
 		requestedPage := 0 // Service should correct this to 1
@@ -302,7 +310,7 @@ func TestBoardGet(t *testing.T) {
 			return expectedBoard, nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		board, err := service.Get(validShortName, requestedPage)
@@ -324,6 +332,7 @@ func TestBoardGetAll(t *testing.T) {
 	t.Run("Successful GetAll", func(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		mockValidator := &MockBoardValidator{} // Validator not used in GetAll
 		storageCalled := false
 
@@ -333,7 +342,7 @@ func TestBoardGetAll(t *testing.T) {
 			return expectedBoards, nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		boards, err := service.GetAll(testUser)
@@ -347,6 +356,7 @@ func TestBoardGetAll(t *testing.T) {
 	t.Run("Storage Error on GetAll", func(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		mockValidator := &MockBoardValidator{}
 		storageError := errors.New("failed to retrieve boards")
 		storageCalled := false
@@ -357,7 +367,7 @@ func TestBoardGetAll(t *testing.T) {
 			return nil, storageError
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		_, err := service.GetAll(testUser)
@@ -375,6 +385,7 @@ func TestBoardDelete(t *testing.T) {
 	t.Run("Successful Deletion", func(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		mockValidator := &MockBoardValidator{}
 		storageCalled := false
 
@@ -388,7 +399,7 @@ func TestBoardDelete(t *testing.T) {
 			return nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		err := service.Delete(validShortName)
@@ -400,7 +411,8 @@ func TestBoardDelete(t *testing.T) {
 
 	t.Run("Invalid Short Name", func(t *testing.T) {
 		// Arrange
-		mockStorage := &MockBoardStorage{} // Storage should not be called
+		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{} // Storage should not be called
 		mockValidator := &MockBoardValidator{}
 		validationError := errors.New("invalid short name format")
 		invalidShortName := domain.BoardShortName("")
@@ -413,7 +425,7 @@ func TestBoardDelete(t *testing.T) {
 			return nil
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		err := service.Delete(invalidShortName)
@@ -426,6 +438,7 @@ func TestBoardDelete(t *testing.T) {
 	t.Run("Storage Error (Board Not Found)", func(t *testing.T) {
 		// Arrange
 		mockStorage := &MockBoardStorage{}
+		mockMediaStorage := &SharedMockMediaStorage{}
 		mockValidator := &MockBoardValidator{}
 		storageError := errors.New("board not found")
 		storageCalled := false
@@ -441,7 +454,7 @@ func TestBoardDelete(t *testing.T) {
 			return storageError
 		}
 
-		service := NewBoard(mockStorage, mockValidator)
+		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
 
 		// Act
 		err := service.Delete(nonExistentShortName)

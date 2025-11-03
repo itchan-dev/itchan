@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
-	"github.com/itchan-dev/itchan/shared/utils"
+	sharedstorage "github.com/itchan-dev/itchan/shared/storage/pg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -145,9 +145,9 @@ func TestBoardOperations(t *testing.T) {
 				ThreadId: threadID,
 			})
 
-			unquotedViewName := viewTableName(boardShortName)
-			unquotedMsgTableName := partitionName(boardShortName, "messages")
-			unquotedThreadsTableName := partitionName(boardShortName, "threads")
+			unquotedViewName := sharedstorage.ViewTableNameUnquoted(boardShortName)
+			unquotedMsgTableName := sharedstorage.PartitionNameUnquoted(boardShortName, "messages")
+			unquotedThreadsTableName := sharedstorage.PartitionNameUnquoted(boardShortName, "threads")
 
 			var exists bool
 			err := tx.QueryRow("SELECT EXISTS (SELECT FROM pg_matviews WHERE matviewname = $1)", unquotedViewName).Scan(&exists)
@@ -629,26 +629,6 @@ func TestBoardViewWorkflow(t *testing.T) {
 				CreatedAt: &timestamp,
 			}
 			if msg.hasAttach {
-				msgData.Attachments = &domain.Attachments{
-					&domain.Attachment{
-						File: &domain.File{
-							FilePath:         "file.txt",
-							OriginalFilename: "file.txt",
-							FileSizeBytes:    1024,
-							MimeType:         "text/plain",
-						},
-					},
-					&domain.Attachment{
-						File: &domain.File{
-							FilePath:         "file2.png",
-							OriginalFilename: "file2.png",
-							FileSizeBytes:    2048,
-							MimeType:         "image/png",
-							ImageWidth:       utils.IntPtr(800),
-							ImageHeight:      utils.IntPtr(600),
-						},
-					},
-				}
 			}
 			createTestMessage(t, tx, msgData)
 		}

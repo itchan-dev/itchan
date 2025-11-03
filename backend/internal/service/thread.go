@@ -1,66 +1,75 @@
 package service
 
-// TODO: что-то сделать с domain.Message в Create
-
 import (
-	"github.com/itchan-dev/itchan/shared/config"
+	"fmt"
+	"time"
+
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
 type ThreadService interface {
-	Create(creationData domain.ThreadCreationData) (domain.MsgId, error)
-	Get(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error)
-	Delete(board domain.BoardShortName, id domain.MsgId) error
+	Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
+	Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	Delete(board domain.BoardShortName, id domain.ThreadId) error
 }
 
 type Thread struct {
-	storage   ThreadStorage
-	validator ThreadValidator
-	config    config.Public
+	storage        ThreadStorage
+	validator      ThreadValidator
+	messageService MessageService
+	mediaStorage   MediaStorage
 }
 
 type ThreadStorage interface {
-	CreateThread(creationData domain.ThreadCreationData) (domain.MsgId, error)
+	CreateThread(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error)
 	GetThread(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
-	DeleteThread(board domain.BoardShortName, id domain.MsgId) error
+	DeleteThread(board domain.BoardShortName, id domain.ThreadId) error
 	ThreadCount(board domain.BoardShortName) (int, error)
-	LastThreadId(board domain.BoardShortName) (domain.MsgId, error)
+	LastThreadId(board domain.BoardShortName) (domain.ThreadId, error)
 }
 
 type ThreadValidator interface {
 	Title(title domain.ThreadTitle) error
 }
 
-func NewThread(storage ThreadStorage, validator ThreadValidator, config config.Public) ThreadService {
-	return &Thread{storage, validator, config}
+func NewThread(storage ThreadStorage, validator ThreadValidator, messageService MessageService, mediaStorage MediaStorage) ThreadService {
+	return &Thread{
+		storage:        storage,
+		validator:      validator,
+		messageService: messageService,
+		mediaStorage:   mediaStorage,
+	}
 }
 
-func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.MsgId, error) {
+func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+	// Validate title
 	err := b.validator.Title(creationData.Title)
 	if err != nil {
-		return -1, err
+		return -1, -1, err
 	}
-	threadId, err := b.storage.CreateThread(creationData)
+
+	// Step 1: Create the thread record (just metadata)
+	threadID, createdAt, err := b.storage.CreateThread(creationData)
 	if err != nil {
-		return -1, err
+		return -1, -1, err
 	}
-	if b.config.MaxThreadCount != nil {
-		threadCount, err := b.storage.ThreadCount(creationData.Board)
-		if err != nil {
-			return threadId, err
-		}
-		// maybe delete all above threshold?
-		if threadCount > *b.config.MaxThreadCount {
-			lastThreadId, err := b.storage.LastThreadId(creationData.Board)
-			if err != nil {
-				return threadId, err
-			}
-			if err := b.Delete(creationData.Board, lastThreadId); err != nil {
-				return threadId, err
-			}
-		}
+
+	// Step 2: Prepare OP message creation data
+	opMessageData := creationData.OpMessage
+	opMessageData.Board = creationData.Board
+	opMessageData.ThreadId = threadID
+	opMessageData.CreatedAt = &createdAt // Same timestamp as thread
+
+	// Step 3: Create OP message using Message service (handles files automatically)
+	opMessageID, err := b.messageService.Create(opMessageData)
+	if err != nil {
+		// Cleanup: delete the thread since OP message creation failed
+		b.storage.DeleteThread(creationData.Board, threadID)
+		return -1, -1, fmt.Errorf("failed to create OP message: %w", err)
 	}
-	return threadId, nil
+
+	// Thread cleanup is now handled by ThreadGarbageCollector in the background
+	return threadID, opMessageID, nil
 }
 
 func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
@@ -72,5 +81,18 @@ func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId) (domain.Th
 }
 
 func (b *Thread) Delete(board domain.BoardShortName, id domain.MsgId) error {
-	return b.storage.DeleteThread(board, id)
+	// Delete the thread from storage (DB will cascade delete all messages and attachments)
+	err := b.storage.DeleteThread(board, id)
+	if err != nil {
+		return err
+	}
+
+	// Delete all files for this thread from filesystem
+	// Best effort: log errors but don't fail the operation
+	if err := b.mediaStorage.DeleteThread(string(board), fmt.Sprintf("%d", id)); err != nil {
+		// In production, you might want to log this error
+		// For now, we continue as the DB records are already deleted
+	}
+
+	return nil
 }

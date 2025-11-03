@@ -1,18 +1,29 @@
 package domain
 
 import (
+	"io"
 	"time"
 )
 
+// PendingFile represents a file upload that hasn't been saved to storage yet
+type PendingFile struct {
+	Data             io.Reader
+	OriginalFilename string
+	Size             int64
+	MimeType         string
+	ImageWidth       *int
+	ImageHeight      *int
+}
+
 // to iterate thru layers: handler -> service -> storage
 type MessageCreationData struct {
-	Board       BoardShortName
-	ThreadId    MsgId
-	Author      User
-	Text        MsgText
-	CreatedAt   *time.Time
-	Attachments *Attachments
-	ReplyTo     *Replies
+	Board        BoardShortName
+	ThreadId     MsgId
+	Author       User
+	Text         MsgText
+	CreatedAt    *time.Time
+	PendingFiles []*PendingFile // Files to be saved after message creation
+	ReplyTo      *Replies
 }
 
 type MessageMetadata struct {
@@ -41,35 +52,3 @@ type Reply struct {
 	To           MsgId
 	CreatedAt    time.Time
 }
-
-// // Value Marshal
-// func (r Replies) Value() (driver.Value, error) {
-// 	var jsonData [][]byte
-// 	for _, r := range r {
-// 		data, err := json.Marshal(r) // Marshal each Reply to JSON bytes
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		jsonData = append(jsonData, data)
-// 	}
-// 	return pq.Array(jsonData), nil
-// }
-
-// // Scan Unmarshal
-// func (r *Replies) Scan(value interface{}) error {
-// 	b, ok := value.([][]byte)
-// 	if !ok {
-// 		return errors.New("type assertion to [][]byte failed")
-// 	}
-// 	var replies []Reply
-// 	for _, val := range b {
-// 		var reply Reply
-// 		if err := json.Unmarshal(val, &reply); err != nil {
-// 			return err
-// 		}
-// 		r = append(r, reply)
-// 	}
-// 	r(replies)
-
-// 	return json.Unmarshal(b, &r)
-// }

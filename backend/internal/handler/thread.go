@@ -1,59 +1,66 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
-
-	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
+	"github.com/itchan-dev/itchan/shared/validation"
 )
 
 func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
-	var body api.CreateThreadRequest
-	if err := utils.DecodeValidate(r.Body, &body); err != nil {
-		utils.WriteErrorAndStatusCode(w, err)
-		return
-	}
+	board := mux.Vars(r)["board"]
 	user := mw.GetUserFromContext(r)
 	if user == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	body, pendingFiles, cleanup, err := parseMultipartRequest[api.CreateThreadRequest](w, r, h)
+	if err != nil {
+		// Return 413 Payload Too Large for size errors, 400 for other errors
+		statusCode := http.StatusBadRequest
+		if errors.Is(err, validation.ErrPayloadTooLarge) {
+			statusCode = http.StatusRequestEntityTooLarge
+		}
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+	defer cleanup()
+
 	creation := domain.ThreadCreationData{
 		Title:    domain.ThreadTitle(body.Title),
-		Board:    domain.BoardShortName(mux.Vars(r)["board"]),
+		Board:    board,
 		IsSticky: body.IsSticky,
 		OpMessage: domain.MessageCreationData{
-			Author:      *user,
-			Text:        domain.MsgText(body.OpMessage.Text),
-			Attachments: body.OpMessage.Attachments,
-			ReplyTo:     body.OpMessage.ReplyTo,
+			Author:       *user,
+			Text:         domain.MsgText(body.OpMessage.Text),
+			PendingFiles: pendingFiles,
+			ReplyTo:      body.OpMessage.ReplyTo,
 		},
 	}
 
-	id, err := h.thread.Create(creation)
+	threadId, _, err := h.thread.Create(creation)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "%d", id)
+	fmt.Fprintf(w, "%d", threadId)
 }
 
 func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
-	threadId, err := strconv.Atoi(threadIdStr)
+	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
-		log.Println(err.Error())
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -69,10 +76,9 @@ func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
-	threadId, err := strconv.Atoi(threadIdStr)
+	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
-		log.Println(err.Error())
-		http.Error(w, "Bad request", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

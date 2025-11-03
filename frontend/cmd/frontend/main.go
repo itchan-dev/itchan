@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/itchan-dev/itchan/frontend/internal/router"
 	"github.com/itchan-dev/itchan/frontend/internal/setup"
+	"github.com/itchan-dev/itchan/shared/config"
 )
 
 const (
@@ -24,9 +26,20 @@ const (
 
 func main() {
 	log.SetFlags(log.Lshortfile)
-	deps := setup.SetupDependencies()
-	router := router.SetupRouter(deps)
 
+	var configFolder string
+	flag.StringVar(&configFolder, "config_folder", "config", "path to folder with configs")
+	flag.Parse()
+
+	cfg := config.MustLoad(configFolder)
+
+	deps, err := setup.SetupDependencies(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize dependencies: %v", err)
+	}
+	defer deps.Storage.Cleanup()
+
+	router := router.SetupRouter(deps)
 	server := configureServer(router)
 
 	// Channel to listen for interrupt or termination signals
@@ -44,6 +57,9 @@ func main() {
 	// Block until a signal is received
 	<-sigChan
 	log.Println("Shutdown signal received, initiating graceful shutdown...")
+
+	// Cancel the root context, triggering cleanup in dependencies
+	deps.CancelFunc()
 
 	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)

@@ -1,6 +1,8 @@
-backend/config/private.yaml
+config/private.yaml
 pgdata
 trash.txt
 *_mock.go
 fmtcoverage.html
 .*
+media
+*.exe

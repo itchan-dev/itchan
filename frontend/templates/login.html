@@ -16,7 +16,7 @@
             </tr>
             <tr>
                 <td class="form-label"><label for="password">Password:</label></td>
-                <td><input type="password" id="password" name="password" required size="30" minlength="{{.Validation.PasswordMinLen}}" maxlength="30" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" title="Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters"></td>
+                <td>{{template "password-input" dict "PasswordMinLen" .Validation.PasswordMinLen}}</td>
             </tr>
             <tr>
                 <td class="form-label"></td>

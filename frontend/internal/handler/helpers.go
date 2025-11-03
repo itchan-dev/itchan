@@ -1,11 +1,15 @@
 package handler
 
 import (
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/validation"
 )
 
 // redirectWithParams correctly redirects to a target URL after adding the given
@@ -70,4 +74,81 @@ func parseEmail(r *http.Request) string {
 		email = r.FormValue("email")
 	}
 	return email
+}
+
+// processMessageText processes user-submitted text and builds reply references.
+// Returns the processed text, domain replies, and whether the message has valid payload.
+func (h *Handler) processMessageText(text string, msgMetadata domain.MessageMetadata) (processedText string, replies *domain.Replies, hasPayload bool) {
+	processedText, replyTo, hasPayload := h.TextProcessor.ProcessMessage(domain.Message{
+		Text:            text,
+		MessageMetadata: msgMetadata,
+	})
+
+	var domainReplies domain.Replies
+	for _, rep := range replyTo {
+		if rep != nil {
+			domainReplies = append(domainReplies, &rep.Reply)
+		}
+	}
+
+	return processedText, &domainReplies, hasPayload
+}
+
+// parseAndValidateMultipartForm validates request size and parses the multipart form.
+// Returns true if successful, false if validation failed (and redirects with error message).
+// This centralizes the duplicate code from thread and board POST handlers.
+func (h *Handler) parseAndValidateMultipartForm(w http.ResponseWriter, r *http.Request, errorRedirectURL string) bool {
+	// Validate request size and parse multipart form using shared validation
+	maxRequestSize := validation.CalculateMaxRequestSize(h.Public.MaxTotalAttachmentSize, 1<<20)
+	if err := validation.ValidateAndParseMultipart(r, w, maxRequestSize); err != nil {
+		maxSizeMB := validation.FormatSizeMB(h.Public.MaxTotalAttachmentSize)
+		errorMsg := fmt.Sprintf("Total attachment size exceeds the limit of %.0f MB. Please reduce the number or size of files.", maxSizeMB)
+		redirectWithParams(w, r, errorRedirectURL, map[string]string{"error": errorMsg})
+		return false
+	}
+
+	return true
+}
+
+// ValidationData holds all validation constants needed by templates.
+// This provides a single source of truth for validation fields across all handlers.
+type ValidationData struct {
+	// Auth-related validation
+	PasswordMinLen      int
+	ConfirmationCodeLen int
+
+	// Board-related validation
+	BoardNameMaxLen      int
+	BoardShortNameMaxLen int
+
+	// Thread-related validation
+	ThreadTitleMaxLen int
+
+	// Message-related validation
+	MessageTextMaxLen int
+
+	// Attachment-related validation
+	MaxAttachmentsPerMessage int
+	MaxTotalAttachmentSize   int64
+	MaxAttachmentSizeBytes   int64
+	AllowedImageMimeTypes    []string
+	AllowedVideoMimeTypes    []string
+}
+
+// NewValidationData creates a ValidationData struct populated from the public config.
+// This eliminates the need to manually assign 10+ validation fields in each handler.
+func (h *Handler) NewValidationData() ValidationData {
+	return ValidationData{
+		PasswordMinLen:           h.Public.PasswordMinLen,
+		ConfirmationCodeLen:      h.Public.ConfirmationCodeLen,
+		BoardNameMaxLen:          h.Public.BoardNameMaxLen,
+		BoardShortNameMaxLen:     h.Public.BoardShortNameMaxLen,
+		ThreadTitleMaxLen:        h.Public.ThreadTitleMaxLen,
+		MessageTextMaxLen:        h.Public.MessageTextMaxLen,
+		MaxAttachmentsPerMessage: h.Public.MaxAttachmentsPerMessage,
+		MaxTotalAttachmentSize:   h.Public.MaxTotalAttachmentSize,
+		MaxAttachmentSizeBytes:   h.Public.MaxAttachmentSizeBytes,
+		AllowedImageMimeTypes:    h.Public.AllowedImageMimeTypes,
+		AllowedVideoMimeTypes:    h.Public.AllowedVideoMimeTypes,
+	}
 }

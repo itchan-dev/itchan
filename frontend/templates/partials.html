@@ -12,11 +12,34 @@
 {{end}}
 {{end}}
 
+{{/* File input with preview - used in forms */}}
+{{/* Expects: InputID (string), InputClass (string, optional), MaxCount (int, optional), MaxTotalSize (int64, optional), MaxFileSize (int64, optional), AllowedImages ([]string, optional), AllowedVideos ([]string, optional) */}}
+{{define "file-input"}}
+<input type="file" {{if .InputID}}id="{{.InputID}}"{{end}} {{if .InputClass}}class="{{.InputClass}}"{{end}} {{if .MaxCount}}data-max-files="{{.MaxCount}}"{{end}} {{if .MaxTotalSize}}data-max-total-size="{{.MaxTotalSize}}"{{end}} {{if .MaxFileSize}}data-max-file-size="{{.MaxFileSize}}"{{end}} name="attachments" multiple accept="image/*,video/*">
+<div class="file-hint">
+    Hold Ctrl/Cmd to select multiple files{{if .MaxCount}} (max {{.MaxCount}}){{end}}.
+    {{if .MaxFileSize}}Max per file: {{bytesToMB .MaxFileSize}}MB.{{end}}
+    {{if .MaxTotalSize}} Max total: {{bytesToMB .MaxTotalSize}}MB.{{end}}
+    {{if or .AllowedImages .AllowedVideos}} Allowed types: {{mimeTypeExtensions .AllowedImages}}{{if and .AllowedImages .AllowedVideos}}, {{end}}{{mimeTypeExtensions .AllowedVideos}}.{{end}}
+</div>
+<div class="file-preview-list"{{if .InputID}} data-for="{{.InputID}}"{{end}}></div>
+{{end}}
+
+{{/* Password input field - used in auth forms */}}
+{{/* Expects: PasswordMinLen (int), InputID (string, optional, defaults to "password") */}}
+{{define "password-input"}}
+{{$inputID := "password"}}
+{{if .InputID}}
+    {{$inputID = .InputID}}
+{{end}}
+<input type="password" id="{{$inputID}}" name="password" required size="30" minlength="{{.PasswordMinLen}}" maxlength="30" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" title="Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters">
+{{end}}
+
 {{define "popup-reply-form"}}
 <template id="popup-reply-template">
     <div class="popup-reply-container post-form-container">
         <button class="popup-close-btn" aria-label="Close">&times;</button>
-        <form method="post"> {{/* Action will be set by JS */}}
+        <form method="post" enctype="multipart/form-data"> {{/* Action will be set by JS */}}
             <input type="hidden" name="form_action" value="reply">
             <table class="form-table">
                 <tbody>
@@ -24,6 +47,9 @@
                         <td>
                             <textarea name="text" cols="48" rows="4" required maxlength="{{.Validation.MessageTextMaxLen}}"></textarea>
                         </td>
+                    </tr>
+                    <tr>
+                        <td>{{template "file-input" dict "InputClass" "popup-attachments" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
                     </tr>
                     <tr>
                         <td><button type="submit">Post</button></td>
@@ -64,9 +90,37 @@
 {{define "post-attachments"}}
 {{if .Attachments}}
 <div class="post-attachments">
-    File:
     {{range .Attachments}}
-        <a href="{{.}}" target="_blank">{{.}}</a>
+        {{if .File}}
+            {{$mediaUrl := printf "/media/%s" .File.FilePath}}
+            {{if hasPrefix .File.MimeType "image/"}}
+                <div class="attachment-item">
+                    <a href="{{$mediaUrl}}" target="_blank" class="attachment-link">
+                        <img src="{{$mediaUrl}}" alt="{{.File.OriginalFilename}}" loading="lazy" class="attachment-thumbnail">
+                    </a>
+                    <div class="attachment-info">
+                        <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
+                        ({{if .File.ImageWidth}}{{.File.ImageWidth}}x{{.File.ImageHeight}}, {{end}}{{.File.FileSizeBytes}} bytes)
+                    </div>
+                </div>
+            {{else if hasPrefix .File.MimeType "video/"}}
+                <div class="attachment-item">
+                    <video controls class="attachment-thumbnail">
+                        <source src="{{$mediaUrl}}" type="{{.File.MimeType}}">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="attachment-info">
+                        <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
+                        ({{.File.FileSizeBytes}} bytes)
+                    </div>
+                </div>
+            {{else}}
+                <div class="attachment-item">
+                    <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
+                    ({{.File.FileSizeBytes}} bytes)
+                </div>
+            {{end}}
+        {{end}}
     {{end}}
 </div>
 {{end}}
