@@ -150,12 +150,31 @@ func dict(values ...any) (map[string]interface{}, error) {
 	return m, nil
 }
 
+func derefStr(value *string) string {
+	return *value
+}
+
 func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	templates := make(map[string]*template.Template)
 	files, err := os.ReadDir(tmplPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Create a standalone partials template for API endpoints
+	templates["partials"] = template.Must(template.New("partials.html").Funcs(
+		template.FuncMap{
+			"sub":                sub,
+			"add":                add,
+			"dict":               dict,
+			"hasPrefix":          hasPrefix,
+			"bytesToMB":          bytesToMB,
+			"mimeTypeExtensions": mimeTypeExtensions,
+			"derefStr":           derefStr,
+		},
+	).ParseFiles(
+		path.Join(tmplPath, "partials.html"),
+	))
 
 	for _, f := range files {
 		if filepath.Ext(f.Name()) == ".html" && f.Name() != baseTemplate && f.Name() != "partials.html" {
@@ -167,6 +186,7 @@ func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 					"hasPrefix":          hasPrefix,
 					"bytesToMB":          bytesToMB,
 					"mimeTypeExtensions": mimeTypeExtensions,
+					"derefStr":           derefStr,
 				},
 			).ParseFiles(
 				path.Join(tmplPath, baseTemplate),

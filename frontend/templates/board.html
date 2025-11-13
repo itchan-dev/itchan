@@ -44,19 +44,19 @@
             <div class="thread-preview">
                 {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
                     {{ $opMessage := index $thread.Messages 0 }}
-                    {{template "post" dict 
-                        "IsOp" true
+                    {{template "post" dict
+                        "ExtraClasses" "op-post"
                         "Board" $thread.Board
                         "MessageID" $opMessage.Id
                         "ThreadID" $thread.Id
-                        "HeaderData" (dict 
+                        "HeaderData" (dict
                             "MessageID" $opMessage.Id
                             "Subject" $thread.Title
                             "CreatedAt" $opMessage.CreatedAt
                             "Link" (printf "/%s/%d#p%d" $thread.Board $thread.Id $opMessage.Id)
                             "Replies" $opMessage.Replies
                             "ShowDeleteButton" $.User.Admin
-                            "DeleteButtonData" (dict 
+                            "DeleteButtonData" (dict
                                 "Action" (printf "/%s/%d/delete" $thread.Board $thread.Id)
                                 "ConfirmMessage" (printf "Are you sure you want to delete thread No.%d? This cannot be undone." $thread.Id)
                                 "ButtonText" "Delete Thread"
@@ -70,12 +70,12 @@
                     {{/* Display Reply Previews (rest of the messages) */}}
                     {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
                     {{ range $replyIndex, $reply := $previewReplies }}
-                        {{template "post" dict 
-                            "IsOp" false
+                        {{template "post" dict
+                            "ExtraClasses" "reply-post"
                             "Board" $thread.Board
                             "MessageID" $reply.Id
                             "ThreadID" $thread.Id
-                            "HeaderData" (dict 
+                            "HeaderData" (dict
                                 "MessageID" $reply.Id
                                 "CreatedAt" $reply.CreatedAt
                                 "Link" (printf "/%s/%d#p%d" $thread.Board $thread.Id $reply.Id)
@@ -89,12 +89,8 @@
 
                     {{/* Calculate and Display Omitted Count Info */}}
                     {{ $numShownMessages := len $thread.Messages }}
-                    {{ $numShownReplies := 0 }}
-                    {{ if gt $numShownMessages 1 }}{{/* Only calculate if there's more than just the OP */}}
-                        {{ $numShownReplies = sub $numShownMessages 1 }}
-                    {{ end }}
                     {{/* Omitted = TotalReplies - ShownReplies */}}
-                    {{ $omittedReplies := sub $thread.MessageCount $numShownReplies }}
+                    {{ $omittedReplies := sub $thread.MessageCount $numShownMessages }}
 
                     {{ if gt $omittedReplies 0 }}
                          <div class="reply-summary">
@@ -147,5 +143,4 @@
     <!-- <form id="delete-form" action="/delete" method="post"> ... </form> -->
 
     {{template "popup-reply-form" .}}
-    {{template "message-preview-template"}}
 {{ end }}
