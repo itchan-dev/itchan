@@ -194,7 +194,7 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	attachRows, err := q.Query(`
         SELECT
 			a.id, a.board, a.message_id, a.file_id,
-            f.file_path, f.original_filename, f.file_size_bytes, f.mime_type, f.image_width, f.image_height
+            f.file_path, f.original_filename, f.file_size_bytes, f.mime_type, f.image_width, f.image_height, f.thumbnail_path
         FROM attachments a
         JOIN files f ON a.file_id = f.id
         JOIN messages m ON a.message_id = m.id AND a.board = m.board
@@ -211,7 +211,7 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		var file domain.File
 		if err := attachRows.Scan(
 			&attachment.Id, &attachment.Board, &attachment.MessageId, &attachment.FileId,
-			&file.FilePath, &file.OriginalFilename, &file.FileSizeBytes, &file.MimeType, &file.ImageWidth, &file.ImageHeight,
+			&file.FilePath, &file.OriginalFilename, &file.FileSizeBytes, &file.MimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan attachment row: %w", err)
 		}

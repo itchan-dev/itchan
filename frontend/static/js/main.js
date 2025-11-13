@@ -11,11 +11,6 @@ function addReplyLink(textarea, threadId, messageId) {
 // Message Preview System
 class MessagePreview {
     constructor() {
-        this.template = document.getElementById('message-preview-template');
-        if (!this.template) {
-            console.error('Message preview template not found!');
-        }
-
         this.cache = new Map();
         this.maxCacheSize = 500;
         this.hoverTimeout = null;
@@ -29,9 +24,7 @@ class MessagePreview {
     }
 
     init() {
-        if (this.template) {
-            this.setupEventListeners();
-        }
+        this.setupEventListeners();
     }
 
     setupEventListeners() {
@@ -205,14 +198,20 @@ class MessagePreview {
         }
     }
 
-    showPreview(linkElement, messageData) {
+    showPreview(linkElement, htmlContent) {
         const key = linkElement.dataset.key;
-        
-        const clone = this.template.content.cloneNode(true);
-        const preview = clone.querySelector('[data-js="preview-container"]');
-        preview.dataset.key = key;
 
-        this.renderPreviewContent(preview, messageData);
+        // Parse HTML string into DOM element
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        const preview = tempDiv.firstElementChild;
+
+        if (!preview) {
+            console.error('Failed to parse preview HTML');
+            return;
+        }
+
+        preview.dataset.key = key;
 
         // We need this to get element size inside positionPreviewNearSource
         preview.style.visibility = 'hidden';
@@ -223,44 +222,9 @@ class MessagePreview {
         this.positionPreviewNearSource(linkElement, preview);
 
         preview.style.visibility = 'visible';
-    
+
         this.previewHistory.push(preview);
         this.previewIndexes.set(key, this.previewHistory.length - 1);
-    }
-
-    renderPreviewContent(preview, messageData) {
-        preview.dataset.board = messageData.Board;
-        preview.dataset.messageId = messageData.Id;
-        preview.dataset.threadId = messageData.ThreadId;
-
-        // Find our placeholder elements using the data-js hooks
-        const dateEl = preview.querySelector('[data-js="post-date"]');
-        const linkEl = preview.querySelector('[data-js="post-link"]');
-        const replyLinkEl = preview.querySelector('[data-js="post-reply-link"]');
-        const repliesEl = preview.querySelector('[data-js="reply-links"]');
-        const bodyEl = preview.querySelector('[data-js="post-body"]');
-        const linkToMsg = `/${messageData.Board}/${messageData.ThreadId}#p${messageData.Id}`;
-
-        dateEl.textContent = new Date(messageData.CreatedAt).toUTCString();
-        linkEl.textContent = messageData.Id;
-        linkEl.href = linkToMsg;
-        replyLinkEl.href = linkToMsg;
-        bodyEl.innerHTML = messageData.Text; // Safe because backend has escaped it
-
-        repliesEl.innerHTML = '';
-        if (messageData.Replies && messageData.Replies.length > 0) {
-            messageData.Replies.forEach(reply => {
-                const link = document.createElement('a');
-                link.href = `/${messageData.Board}/${reply.FromThreadId}#p${reply.From}`;
-                link.className = 'message-link'; // For hover previews
-                link.dataset.board = messageData.Board;
-                link.dataset.messageId = reply.From;
-                link.dataset.threadId = reply.FromThreadId;
-                link.textContent = `>>${reply.FromThreadId}/${reply.From}`;
-                repliesEl.appendChild(link);
-                repliesEl.appendChild(document.createTextNode(' ')); // For spacing
-            });
-        }
     }
 
     positionPreviewNearSource(linkElement, preview) {
@@ -288,7 +252,7 @@ class MessagePreview {
 
     async fetchMessage(key) {
         const [board, threadId, messageId] = key.split('-');
-        const response = await fetch(`/api/v1/${board}/${threadId}/${messageId}`, {
+        const response = await fetch(`/api/v1/${board}/${threadId}/${messageId}/html`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -296,7 +260,7 @@ class MessagePreview {
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        return await response.json();
+        return await response.text();
     }
 
     cacheMessage(key, data) {
@@ -439,7 +403,7 @@ function setupPopupReplySystem() {
 
 
 // File Preview and Management System
-class FilePreviewManager {
+class UploadPreviewManager {
     // Constants for configuration attributes
     static ATTR_MAX_FILES = 'data-max-files';
     static ATTR_MAX_TOTAL_SIZE = 'data-max-total-size';
@@ -477,9 +441,9 @@ class FilePreviewManager {
 
     handleFileSelection(input, previewContainer) {
         const files = Array.from(input.files);
-        const maxFiles = parseInt(input.getAttribute(FilePreviewManager.ATTR_MAX_FILES)) || 0;
-        const maxTotalSize = parseInt(input.getAttribute(FilePreviewManager.ATTR_MAX_TOTAL_SIZE)) || 0;
-        const maxFileSize = parseInt(input.getAttribute(FilePreviewManager.ATTR_MAX_FILE_SIZE)) || 0;
+        const maxFiles = parseInt(input.getAttribute(UploadPreviewManager.ATTR_MAX_FILES)) || 0;
+        const maxTotalSize = parseInt(input.getAttribute(UploadPreviewManager.ATTR_MAX_TOTAL_SIZE)) || 0;
+        const maxFileSize = parseInt(input.getAttribute(UploadPreviewManager.ATTR_MAX_FILE_SIZE)) || 0;
 
         // Validate max files limit
         if (maxFiles > 0 && files.length > maxFiles) {
@@ -690,7 +654,7 @@ class FilePreviewManager {
         // Auto-hide after duration
         setTimeout(() => {
             this.clearValidationError(container);
-        }, FilePreviewManager.ERROR_DISPLAY_DURATION);
+        }, UploadPreviewManager.ERROR_DISPLAY_DURATION);
     }
 
     clearValidationError(container) {
@@ -725,6 +689,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Popup reply system initialized');
 
     // Initialize file preview manager
-    window.filePreviewManager = new FilePreviewManager();
-    console.log('File preview manager initialized');
+    window.uploadPreviewManager = new UploadPreviewManager();
+    console.log('Upload preview manager initialized');
 });

@@ -13,31 +13,30 @@
 
     <div class="posts-container">
         {{ range $index, $message := .Thread.Messages }}
-            {{/* Create variables for conditional values before the dict call */}}
+            {{/* Pre-compute conditional values once */}}
+            {{$extraClasses := "reply-post"}}
             {{$subject := ""}}
-            {{if and $message.Op $.Thread.Title}}
-                {{$subject = $.Thread.Title}}
-            {{end}}
-
             {{$buttonText := "Delete Post"}}
             {{if $message.Op}}
+                {{$extraClasses = "op-post"}}
+                {{$subject = $.Thread.Title}}
                 {{$buttonText = "Delete OP & Thread"}}
             {{end}}
 
-            {{/* Now, pass the variables into the dict */}}
-            {{template "post" dict 
-                "IsOp" $message.Op
+            {{/* Pass pre-computed values to template */}}
+            {{template "post" dict
+                "ExtraClasses" $extraClasses
                 "Board" $.Thread.Board
                 "MessageID" $message.Id
                 "ThreadID" $.Thread.Id
-                "HeaderData" (dict 
+                "HeaderData" (dict
                     "MessageID" $message.Id
                     "Subject" $subject
                     "CreatedAt" $message.CreatedAt
                     "Link" (printf "#p%d" $message.Id)
                     "Replies" $message.Replies
                     "ShowDeleteButton" $.User.Admin
-                    "DeleteButtonData" (dict 
+                    "DeleteButtonData" (dict
                         "Action" (printf "/%s/%d/%d/delete" $.Thread.Board $.Thread.Id $message.Id)
                         "ConfirmMessage" (printf "Are you sure you want to delete post No.%d? This cannot be undone." $message.Id)
                         "ButtonText" $buttonText
@@ -84,5 +83,4 @@
     <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
 
     {{template "popup-reply-form" .}}
-    {{template "message-preview-template"}}
 {{ end }}

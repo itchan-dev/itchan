@@ -96,7 +96,9 @@
             {{if hasPrefix .File.MimeType "image/"}}
                 {{$thumbnailUrl := $mediaUrl}}
                 {{if .File.ThumbnailPath}}
-                    {{$thumbnailUrl = printf "/media/%s" .File.ThumbnailPath}}
+                    {{/* Dereference pointer first, then use printf */}}
+                    {{$thumb := derefStr .File.ThumbnailPath}}
+                    {{$thumbnailUrl = printf "/media/%s" $thumb}}
                 {{end}}
                 <div class="attachment-item">
                     <a href="{{$mediaUrl}}" target="_blank" class="attachment-link">
@@ -139,16 +141,16 @@
 {{/*
     Renders a single post, used on board and thread pages.
     Expects a dict with the following top-level keys:
-    - IsOp: (bool) True if the post is the Original Post of a thread.
     - Board: (string) The short name of the board (e.g., "g").
     - MessageID: (int) The unique ID of the message.
     - ThreadID: (int) The ID of the parent thread.
+    - ExtraClasses: (string, optional) Additional CSS classes (e.g., "op-post", "reply-post", "message-preview").
     - HeaderData: (dict) Data for the "post-header" partial.
     - AttachmentData: (dict) Data for the "post-attachments" partial.
     - BodyData: (dict) Data for the "post-body" partial.
 */}}
 {{define "post"}}
-<div class="post {{if .IsOp}}op-post{{else}}reply-post{{end}}" data-board="{{.Board}}" data-message-id="{{.MessageID}}" data-thread-id="{{.ThreadID}}" id="p{{.MessageID}}">
+<div class="post{{if .ExtraClasses}} {{.ExtraClasses}}{{end}}" data-board="{{.Board}}" data-message-id="{{.MessageID}}" data-thread-id="{{.ThreadID}}" id="p{{.MessageID}}">
     {{template "post-header" .HeaderData}}
     {{template "post-attachments" .AttachmentData}}
     {{template "post-body" .BodyData}}
@@ -164,19 +166,3 @@
 </form>
 {{end}}
 
-{{/* ===== MESSAGE PREVIEW TEMPLATE ===== */}}
-
-{{define "message-preview-template"}}
-<template id="message-preview-template">
-    <div class="message-preview post" data-js="preview-container">
-        <div class="post-header">
-            <span class="post-author">Anonymous</span>
-            <span class="post-date" data-js="post-date"></span>
-            <span class="post-id" data-js="post-id">No.<a class="post-link" data-js="post-link"></a></span>
-            <span class="post-reply" data-js="post-reply"><a class="post-reply-link" data-js="post-reply-link">Reply</a></span>
-            <span class="reply-links" data-js="reply-links"></span>
-        </div>
-        <div class="post-body" data-js="post-body"></div>
-    </div>
-</template>
-{{end}}

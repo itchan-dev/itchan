@@ -49,3 +49,65 @@ func (h *Handler) MessagePreviewHandler(w http.ResponseWriter, r *http.Request) 
 		log.Printf("Error copying response body for message preview: %v", err)
 	}
 }
+
+// MessagePreviewHTMLHandler returns rendered HTML for message previews.
+func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	board := vars["board"]
+	threadId := vars["thread"]
+	messageId := vars["message"]
+
+	// Fetch message data from backend API
+	messageData, err := h.APIClient.GetMessageParsed(r, board, threadId, messageId)
+	if err != nil {
+		log.Printf("Error fetching message from API: %v", err)
+		http.Error(w, "Message not found", http.StatusNotFound)
+		return
+	}
+
+	// Convert to frontend domain types (adds HTMLLinkFrom method to Replies)
+	renderedMessage := RenderMessage(*messageData)
+
+	// Determine extra classes based on OP status
+	extraClasses := "reply-post message-preview"
+	if messageData.Op {
+		extraClasses = "op-post message-preview"
+	}
+	// Prepare template data - no delete button or reply button for previews
+	data := map[string]any{
+		"ExtraClasses": extraClasses,
+		"Board":        board,
+		"MessageID":    messageData.Id,
+		"ThreadID":     messageData.ThreadId,
+		"HeaderData": map[string]any{
+			"MessageID":        messageData.Id,
+			"CreatedAt":        messageData.CreatedAt,
+			"Link":             fmt.Sprintf("/%s/%s#p%d", board, threadId, messageData.Id),
+			"Replies":          renderedMessage.Replies, // Use frontend domain Replies
+			"ShowDeleteButton": false,
+			"ThreadLink":       fmt.Sprintf("/%s/%s", board, threadId),
+			"ShowReplyButton":  false,
+		},
+		"AttachmentData": map[string]any{
+			"Attachments": messageData.Attachments,
+		},
+		"BodyData": map[string]any{
+			"Text": renderedMessage.Text, // Use rendered HTML text
+		},
+	}
+
+	// Render the post template
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	tmpl := h.Templates["partials"]
+	if tmpl == nil {
+		log.Printf("Error: partials template not found in templates map")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tmpl.ExecuteTemplate(w, "post", data); err != nil {
+		log.Printf("Error rendering post template: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
