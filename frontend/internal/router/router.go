@@ -21,6 +21,7 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 
 	// Public routes
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
+	r.HandleFunc("/alino4ka", deps.Handler.ProposalHandler).Methods("GET")
 	r.HandleFunc("/login", deps.Handler.LoginGetHandler).Methods("GET")
 	r.HandleFunc("/login", deps.Handler.LoginPostHandler).Methods("POST")
 	r.HandleFunc("/register", deps.Handler.RegisterGetHandler).Methods("GET")
@@ -60,8 +61,10 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	// CreateMessage: 1 per second per user
 	authRouter.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.ThreadPostHandler))).Methods("POST")
 
-	// API proxy for message preview
+	// API proxy for message preview (JSON)
 	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler).Methods("GET")
+	// API endpoint for message preview (HTML)
+	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}/html", deps.Handler.MessagePreviewHTMLHandler).Methods("GET")
 
 	// Admin-only routes
 	adminRouter := r.NewRoute().Subrouter()
