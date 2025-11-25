@@ -66,22 +66,22 @@
 {{/* Post header with all standard elements */}}
 {{define "post-header"}}
 <div class="post-header">
-    <input type="checkbox" name="delete" value="{{.MessageID}}">
+    <input type="checkbox" name="delete" value="{{.Id}}">
     {{if .Subject}}<span class="post-subject">{{.Subject}}</span>{{end}}
     <span class="post-author">Anonymous</span>
     <time class="post-date" datetime="{{.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
-    <span class="post-id"><a href="{{.ThreadLink}}" class="thread-link">No.</a><a href="{{.Link}}" class="post-link">{{.MessageID}}</a></span>
+    <span class="post-id"><a href="{{printf "/%s/%d" .Board .ThreadId}}" class="thread-link">No.</a><a href="{{printf "/%s/%d#p%d" .Board .ThreadId .Id}}" class="post-link">{{.Id}}</a></span>
     {{if .ShowReplyButton}}
         <span class="post-reply"><a href="#text-reply-bottom" class="post-reply-link">[reply]</a></span>
     {{end}}
-    <span class="post-reply-popup"><a href="{{.Link}}" class="post-reply-popup-link">[popup-reply]</a></span>
+    <span class="post-reply-popup"><a href="{{printf "/%s/%d#p%d" .Board .ThreadId .Id}}" class="post-reply-popup-link">[popup-reply]</a></span>
     {{if .Replies}}
         {{range .Replies}}
             <span class="reply-link">{{.HTMLLinkFrom}}</span>
         {{end}}
     {{end}}
     {{if .ShowDeleteButton}}
-        {{template "delete-button" .DeleteButtonData}}
+        {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Board $.ThreadId $.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Id) "ButtonText" "delete"}}
     {{end}}
 </div>
 {{end}}
@@ -140,20 +140,16 @@
 {{/* Complete post structure */}}
 {{/*
     Renders a single post, used on board and thread pages.
-    Expects a dict with the following top-level keys:
-    - Board: (string) The short name of the board (e.g., "g").
-    - MessageID: (int) The unique ID of the message.
-    - ThreadID: (int) The ID of the parent thread.
-    - ExtraClasses: (string, optional) Additional CSS classes (e.g., "op-post", "reply-post", "message-preview").
-    - HeaderData: (dict) Data for the "post-header" partial.
-    - AttachmentData: (dict) Data for the "post-attachments" partial.
-    - BodyData: (dict) Data for the "post-body" partial.
+    Expects a MessageView struct that embeds Message with context fields:
+    - From Message: Board, Id, ThreadId, Text, Attachments, Replies, CreatedAt
+    - Context: ExtraClasses, ShowDeleteButton, ShowReplyButton, Subject
+    URLs are built in the template using printf.
 */}}
 {{define "post"}}
-<div class="post{{if .ExtraClasses}} {{.ExtraClasses}}{{end}}" data-board="{{.Board}}" data-message-id="{{.MessageID}}" data-thread-id="{{.ThreadID}}" id="p{{.MessageID}}">
-    {{template "post-header" .HeaderData}}
-    {{template "post-attachments" .AttachmentData}}
-    {{template "post-body" .BodyData}}
+<div class="post{{if .ExtraClasses}} {{.ExtraClasses}}{{end}}" data-board="{{.Board}}" data-message-id="{{.Id}}" data-thread-id="{{.ThreadId}}" id="p{{.Id}}">
+    {{template "post-header" .}}
+    {{template "post-attachments" .}}
+    {{template "post-body" .}}
 </div>
 {{end}}
 

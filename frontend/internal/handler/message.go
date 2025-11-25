@@ -73,28 +73,14 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 	if messageData.Op {
 		extraClasses = "op-post message-preview"
 	}
-	// Prepare template data - no delete button or reply button for previews
-	data := map[string]any{
-		"ExtraClasses": extraClasses,
-		"Board":        board,
-		"MessageID":    messageData.Id,
-		"ThreadID":     messageData.ThreadId,
-		"HeaderData": map[string]any{
-			"MessageID":        messageData.Id,
-			"CreatedAt":        messageData.CreatedAt,
-			"Link":             fmt.Sprintf("/%s/%s#p%d", board, threadId, messageData.Id),
-			"Replies":          renderedMessage.Replies, // Use frontend domain Replies
-			"ShowDeleteButton": false,
-			"ThreadLink":       fmt.Sprintf("/%s/%s", board, threadId),
-			"ShowReplyButton":  false,
-		},
-		"AttachmentData": map[string]any{
-			"Attachments": messageData.Attachments,
-		},
-		"BodyData": map[string]any{
-			"Text": renderedMessage.Text, // Use rendered HTML text
-		},
-	}
+
+	// Prepare view model - no delete button or reply button for previews
+	viewData := PrepareMessageView(renderedMessage, MessageViewContext{
+		ShowDeleteButton: false,
+		ShowReplyButton:  false,
+		ExtraClasses:     extraClasses,
+		Subject:          "", // Previews don't show subject
+	})
 
 	// Render the post template
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -105,7 +91,7 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := tmpl.ExecuteTemplate(w, "post", data); err != nil {
+	if err := tmpl.ExecuteTemplate(w, "post", viewData); err != nil {
 		log.Printf("Error rendering post template: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

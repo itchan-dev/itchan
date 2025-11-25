@@ -61,7 +61,7 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 		return 0, err
 	}
 
-	// Always create message metadata first (without files)
+	// Always create message metadata first (without files) to get msgId
 	creationDataWithoutFiles := creationData
 	creationDataWithoutFiles.PendingFiles = nil
 

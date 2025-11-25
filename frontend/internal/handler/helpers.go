@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/validation"
 )
@@ -150,5 +151,25 @@ func (h *Handler) NewValidationData() ValidationData {
 		MaxAttachmentSizeBytes:   h.Public.MaxAttachmentSizeBytes,
 		AllowedImageMimeTypes:    h.Public.AllowedImageMimeTypes,
 		AllowedVideoMimeTypes:    h.Public.AllowedVideoMimeTypes,
+	}
+}
+
+// MessageViewContext contains the rendering context for a message.
+type MessageViewContext struct {
+	ShowDeleteButton bool
+	ShowReplyButton  bool
+	ExtraClasses     string
+	Subject          string
+}
+
+// PrepareMessageView creates a MessageView with rendering context.
+// URL building is delegated to templates using printf.
+func PrepareMessageView(msg *frontend_domain.Message, ctx MessageViewContext) *frontend_domain.MessageView {
+	return &frontend_domain.MessageView{
+		Message:          msg,
+		ExtraClasses:     ctx.ExtraClasses,
+		ShowDeleteButton: ctx.ShowDeleteButton,
+		ShowReplyButton:  ctx.ShowReplyButton,
+		Subject:          ctx.Subject,
 	}
 }

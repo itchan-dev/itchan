@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS board_permissions (
     PRIMARY KEY (board_short_name, allowed_email_domain)
 );
 -- Index to quickly find all boards a user can access
-CREATE INDEX ON board_permissions (allowed_email_domain);
+CREATE INDEX IF NOT EXISTS ON board_permissions (allowed_email_domain);
 
 -- Represents a thread on a board
 -- metainfo in first thread message
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS threads (
     is_sticky        boolean NOT NULL default false,
     PRIMARY KEY (board, id)
 ) PARTITION BY LIST (board);
-CREATE INDEX threads_last_bumped_at_index ON threads (board, last_bumped_at DESC);
+CREATE INDEX IF NOT EXISTS threads_last_bumped_at_index ON threads (board, last_bumped_at DESC);
 
 -- Represents a single message within a thread
 CREATE TABLE IF NOT EXISTS messages (
@@ -63,9 +63,9 @@ CREATE TABLE IF NOT EXISTS messages (
     UNIQUE (board, thread_id, id)
 ) PARTITION BY LIST (board);
 -- Get all messages for certain thread
-CREATE INDEX messages_thread_id_index ON messages (board, thread_id);
+CREATE INDEX IF NOT EXISTS messages_thread_id_index ON messages (board, thread_id);
 -- Get all messages by a user (for moderation, user history, etc.)
-CREATE INDEX idx_messages_author ON messages (author_id);
+CREATE INDEX IF NOT EXISTS idx_messages_author ON messages (author_id);
 
 CREATE TABLE IF NOT EXISTS files (
     id                bigserial PRIMARY KEY,
@@ -78,6 +78,10 @@ CREATE TABLE IF NOT EXISTS files (
     thumbnail_path    text
     -- file_hash_sha256  bytea UNIQUE
 );
+-- Partial index - only indexes non-NULL thumbnails
+CREATE INDEX IF NOT EXISTS idx_files_thumbnail_path 
+ON files (thumbnail_path) 
+WHERE thumbnail_path IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS attachments (
     id                bigint NOT NULL,
@@ -89,7 +93,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     FOREIGN KEY (board, message_id) REFERENCES messages(board, id) ON DELETE CASCADE
 ) PARTITION BY LIST (board);
 -- Create an index to quickly find all attachments for a given message
-CREATE INDEX attachments_message_id_index ON attachments (board, message_id);
+CREATE INDEX IF NOT EXISTS attachments_message_id_index ON attachments (board, message_id);
 
 -- Stores the relationship between a message and a message it replies to
 CREATE TABLE IF NOT EXISTS message_replies (

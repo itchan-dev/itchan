@@ -34,3 +34,15 @@ type Message struct {
 	Replies Replies
 	// ReplyTo Replies       // messages this message replies to
 }
+
+// MessageView contains rendering context that isn't in the Message struct.
+// Templates can access Message fields directly and build URLs using printf.
+type MessageView struct {
+	*Message // Embed the base message data (includes Board, ThreadId, Id, Text, Attachments, Replies, etc.)
+
+	// Rendering context (not in Message)
+	ExtraClasses     string // CSS classes like "op-post", "reply-post", "message-preview"
+	ShowDeleteButton bool   // Whether to show delete button (depends on user permissions)
+	ShowReplyButton  bool   // Whether to show reply button (depends on page context)
+	Subject          string // Optional subject line (usually only for OP, from thread title)
+}
