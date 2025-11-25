@@ -154,6 +154,16 @@ func derefStr(value *string) string {
 	return *value
 }
 
+var functionMap template.FuncMap = template.FuncMap{
+	"sub":                sub,
+	"add":                add,
+	"dict":               dict,
+	"hasPrefix":          hasPrefix,
+	"bytesToMB":          bytesToMB,
+	"mimeTypeExtensions": mimeTypeExtensions,
+	"derefStr":           derefStr,
+}
+
 func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	templates := make(map[string]*template.Template)
 	files, err := os.ReadDir(tmplPath)
@@ -162,37 +172,24 @@ func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	}
 
 	// Create a standalone partials template for API endpoints
-	templates["partials"] = template.Must(template.New("partials.html").Funcs(
-		template.FuncMap{
-			"sub":                sub,
-			"add":                add,
-			"dict":               dict,
-			"hasPrefix":          hasPrefix,
-			"bytesToMB":          bytesToMB,
-			"mimeTypeExtensions": mimeTypeExtensions,
-			"derefStr":           derefStr,
-		},
-	).ParseFiles(
-		path.Join(tmplPath, "partials.html"),
-	))
+	templates["partials"] = template.Must(
+		template.New("partials.html").
+			Funcs(functionMap).
+			ParseFiles(
+				path.Join(tmplPath, "partials.html"),
+			),
+	)
 
 	for _, f := range files {
 		if filepath.Ext(f.Name()) == ".html" && f.Name() != baseTemplate && f.Name() != "partials.html" {
-			templates[f.Name()] = template.Must(template.New(baseTemplate).Funcs(
-				template.FuncMap{
-					"sub":                sub,
-					"add":                add,
-					"dict":               dict,
-					"hasPrefix":          hasPrefix,
-					"bytesToMB":          bytesToMB,
-					"mimeTypeExtensions": mimeTypeExtensions,
-					"derefStr":           derefStr,
-				},
-			).ParseFiles(
-				path.Join(tmplPath, baseTemplate),
-				path.Join(tmplPath, f.Name()),
-				path.Join(tmplPath, "partials.html"),
-			),
+			templates[f.Name()] = template.Must(
+				template.New(baseTemplate).
+					Funcs(functionMap).
+					ParseFiles(
+						path.Join(tmplPath, baseTemplate),
+						path.Join(tmplPath, f.Name()),
+						path.Join(tmplPath, "partials.html"),
+					),
 			)
 			// fmt.Printf("Template %s loaded successfully\n", f.Name())
 		}

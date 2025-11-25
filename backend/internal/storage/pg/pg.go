@@ -115,8 +115,13 @@ func ViewTableName(shortName domain.BoardShortName) string {
 
 // GetAllFilePaths returns all file paths stored in the database.
 // This is used by the garbage collector to identify orphaned files.
+// Returns both original file paths and thumbnail paths.
 func (s *Storage) GetAllFilePaths() ([]string, error) {
-	rows, err := s.db.Query(`SELECT file_path FROM files WHERE file_path IS NOT NULL`)
+	rows, err := s.db.Query(`
+		SELECT file_path FROM files WHERE file_path IS NOT NULL
+		UNION
+		SELECT thumbnail_path FROM files WHERE thumbnail_path IS NOT NULL
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query file paths: %w", err)
 	}

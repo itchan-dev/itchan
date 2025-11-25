@@ -21,7 +21,6 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 
 	// Public routes
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
-	r.HandleFunc("/alino4ka", deps.Handler.ProposalHandler).Methods("GET")
 	r.HandleFunc("/login", deps.Handler.LoginGetHandler).Methods("GET")
 	r.HandleFunc("/login", deps.Handler.LoginPostHandler).Methods("POST")
 	r.HandleFunc("/register", deps.Handler.RegisterGetHandler).Methods("GET")
