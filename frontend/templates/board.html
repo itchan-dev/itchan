@@ -44,47 +44,40 @@
             <div class="thread-preview">
                 {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
                     {{ $opMessage := index $thread.Messages 0 }}
-                    {{template "post" dict
+                    {{template "post" (dict
+                        "Message" $opMessage
+                        "Board" $opMessage.Board
+                        "ThreadId" $opMessage.ThreadId
+                        "Id" $opMessage.Id
+                        "Text" $opMessage.Text
+                        "Attachments" $opMessage.Attachments
+                        "Replies" $opMessage.Replies
+                        "CreatedAt" $opMessage.CreatedAt
+                        "Op" $opMessage.Op
                         "ExtraClasses" "op-post"
-                        "Board" $thread.Board
-                        "MessageID" $opMessage.Id
-                        "ThreadID" $thread.Id
-                        "HeaderData" (dict
-                            "MessageID" $opMessage.Id
-                            "Subject" $thread.Title
-                            "CreatedAt" $opMessage.CreatedAt
-                            "Link" (printf "/%s/%d#p%d" $thread.Board $thread.Id $opMessage.Id)
-                            "Replies" $opMessage.Replies
-                            "ShowDeleteButton" $.User.Admin
-                            "DeleteButtonData" (dict
-                                "Action" (printf "/%s/%d/delete" $thread.Board $thread.Id)
-                                "ConfirmMessage" (printf "Are you sure you want to delete thread No.%d? This cannot be undone." $thread.Id)
-                                "ButtonText" "Delete Thread"
-                            )
-                            "ThreadLink" (printf "/%s/%d" $thread.Board $thread.Id)
-                        )
-                        "AttachmentData" (dict "Attachments" $opMessage.Attachments)
-                        "BodyData" (dict "Text" $opMessage.Text)
-                    }}
+                        "Subject" $thread.Title
+                        "ShowDeleteButton" $.User.Admin
+                        "ShowReplyButton" false
+                    )}}
 
                     {{/* Display Reply Previews (rest of the messages) */}}
                     {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
                     {{ range $replyIndex, $reply := $previewReplies }}
-                        {{template "post" dict
+                        {{template "post" (dict
+                            "Message" $reply
+                            "Board" $reply.Board
+                            "ThreadId" $reply.ThreadId
+                            "Id" $reply.Id
+                            "Text" $reply.Text
+                            "Attachments" $reply.Attachments
+                            "Replies" $reply.Replies
+                            "CreatedAt" $reply.CreatedAt
+                            "Op" $reply.Op
                             "ExtraClasses" "reply-post"
-                            "Board" $thread.Board
-                            "MessageID" $reply.Id
-                            "ThreadID" $thread.Id
-                            "HeaderData" (dict
-                                "MessageID" $reply.Id
-                                "CreatedAt" $reply.CreatedAt
-                                "Link" (printf "/%s/%d#p%d" $thread.Board $thread.Id $reply.Id)
-                                "Replies" $reply.Replies
-                                "ThreadLink" (printf "/%s/%d" $thread.Board $thread.Id)
-                            )
-                            "AttachmentData" (dict "Attachments" $reply.Attachments)
-                            "BodyData" (dict "Text" $reply.Text)
-                        }}
+                            "Subject" ""
+                            "ShowDeleteButton" false
+                            "ShowReplyButton" false
+                        )}}
                     {{ end }}
 
                     {{/* Calculate and Display Omitted Count Info */}}
