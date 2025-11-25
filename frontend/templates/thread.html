@@ -16,37 +16,27 @@
             {{/* Pre-compute conditional values once */}}
             {{$extraClasses := "reply-post"}}
             {{$subject := ""}}
-            {{$buttonText := "Delete Post"}}
             {{if $message.Op}}
                 {{$extraClasses = "op-post"}}
                 {{$subject = $.Thread.Title}}
-                {{$buttonText = "Delete OP & Thread"}}
             {{end}}
 
-            {{/* Pass pre-computed values to template */}}
-            {{template "post" dict
+            {{/* Create a dict that matches MessageView structure - embed all Message fields plus context */}}
+            {{template "post" (dict
+                "Message" $message
+                "Board" $message.Board
+                "ThreadId" $message.ThreadId
+                "Id" $message.Id
+                "Text" $message.Text
+                "Attachments" $message.Attachments
+                "Replies" $message.Replies
+                "CreatedAt" $message.CreatedAt
+                "Op" $message.Op
                 "ExtraClasses" $extraClasses
-                "Board" $.Thread.Board
-                "MessageID" $message.Id
-                "ThreadID" $.Thread.Id
-                "HeaderData" (dict
-                    "MessageID" $message.Id
-                    "Subject" $subject
-                    "CreatedAt" $message.CreatedAt
-                    "Link" (printf "#p%d" $message.Id)
-                    "Replies" $message.Replies
-                    "ShowDeleteButton" $.User.Admin
-                    "DeleteButtonData" (dict
-                        "Action" (printf "/%s/%d/%d/delete" $.Thread.Board $.Thread.Id $message.Id)
-                        "ConfirmMessage" (printf "Are you sure you want to delete post No.%d? This cannot be undone." $message.Id)
-                        "ButtonText" $buttonText
-                    )
-                    "ThreadLink" (printf "/%s/%d" $.Thread.Board $.Thread.Id)
-                    "ShowReplyButton" true
-                )
-                "AttachmentData" (dict "Attachments" $message.Attachments)
-                "BodyData" (dict "Text" $message.Text)
-            }}
+                "Subject" $subject
+                "ShowDeleteButton" $.User.Admin
+                "ShowReplyButton" true
+            )}}
         {{ end }}
     </div><!-- End posts-container -->
     <br clear="left"> <!-- Clear floats/inline-blocks -->
