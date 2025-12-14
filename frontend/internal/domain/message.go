@@ -32,7 +32,6 @@ type Message struct {
 	domain.Message
 	Text    template.HTML // overwrite domain.Message.Text
 	Replies Replies
-	// ReplyTo Replies       // messages this message replies to
 }
 
 // MessageView contains rendering context that isn't in the Message struct.

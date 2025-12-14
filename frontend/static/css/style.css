@@ -413,6 +413,21 @@ blockquote {
     padding: 0;
 }
 
+/* ==========================================
+   User Message Highlighting
+   ========================================== */
+
+/* Messages written by current user */
+.post.my-message {
+    background-color: #d6daf0; /* Light blue tint (same as base, but distinct with border) */
+    border-left: 3px solid #34558b; /* Blue accent border */
+}
+
+/* Optional: Subtle hover effect */
+.post.my-message:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: box-shadow 0.2s ease-in-out;
+}
 
 /* ==========================================
    Board Page Specifics

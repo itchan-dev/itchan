@@ -146,7 +146,15 @@
     URLs are built in the template using printf.
 */}}
 {{define "post"}}
-<div class="post{{if .ExtraClasses}} {{.ExtraClasses}}{{end}}" data-board="{{.Board}}" data-message-id="{{.Id}}" data-thread-id="{{.ThreadId}}" id="p{{.Id}}">
+{{/* Compute final CSS classes including highlighting */}}
+{{$classes := .ExtraClasses}}
+{{if and .User .Message}}
+    {{if eq .Message.Author.Id .User.Id}}
+        {{$classes = printf "%s my-message" $classes}}
+    {{end}}
+{{end}}
+
+<div class="post{{if $classes}} {{$classes}}{{end}}" data-board="{{.Board}}" data-message-id="{{.Id}}" data-thread-id="{{.ThreadId}}" id="p{{.Id}}">
     {{template "post-header" .}}
     {{template "post-attachments" .}}
     {{template "post-body" .}}

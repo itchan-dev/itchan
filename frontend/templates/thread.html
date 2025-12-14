@@ -24,6 +24,7 @@
             {{/* Create a dict that matches MessageView structure - embed all Message fields plus context */}}
             {{template "post" (dict
                 "Message" $message
+                "User" $.User
                 "Board" $message.Board
                 "ThreadId" $message.ThreadId
                 "Id" $message.Id

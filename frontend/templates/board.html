@@ -46,6 +46,7 @@
                     {{ $opMessage := index $thread.Messages 0 }}
                     {{template "post" (dict
                         "Message" $opMessage
+                        "User" $.User
                         "Board" $opMessage.Board
                         "ThreadId" $opMessage.ThreadId
                         "Id" $opMessage.Id
@@ -65,6 +66,7 @@
                     {{ range $replyIndex, $reply := $previewReplies }}
                         {{template "post" (dict
                             "Message" $reply
+                            "User" $.User
                             "Board" $reply.Board
                             "ThreadId" $reply.ThreadId
                             "Id" $reply.Id
