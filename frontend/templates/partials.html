@@ -66,31 +66,31 @@
 {{/* Post header with all standard elements */}}
 {{define "post-header"}}
 <div class="post-header">
-    <input type="checkbox" name="delete" value="{{.Id}}">
+    <input type="checkbox" name="delete" value="{{.Message.Id}}">
     {{if .Subject}}<span class="post-subject">{{.Subject}}</span>{{end}}
     <span class="post-author">Anonymous</span>
-    <time class="post-date" datetime="{{.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
-    <span class="post-id"><a href="{{printf "/%s/%d" .Board .ThreadId}}" class="thread-link">No.</a><a href="{{printf "/%s/%d#p%d" .Board .ThreadId .Id}}" class="post-link">{{.Id}}</a></span>
+    <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
+    <span class="post-id"><a href="{{printf "/%s/%d" .Message.Board .Message.ThreadId}}" class="thread-link">No.</a><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-link">{{.Message.Id}}</a></span>
     {{if .ShowReplyButton}}
         <span class="post-reply"><a href="#text-reply-bottom" class="post-reply-link">[reply]</a></span>
     {{end}}
-    <span class="post-reply-popup"><a href="{{printf "/%s/%d#p%d" .Board .ThreadId .Id}}" class="post-reply-popup-link">[popup-reply]</a></span>
-    {{if .Replies}}
-        {{range .Replies}}
+    <span class="post-reply-popup"><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-reply-popup-link">[popup-reply]</a></span>
+    {{if .Message.Replies}}
+        {{range .Message.Replies}}
             <span class="reply-link">{{.HTMLLinkFrom}}</span>
         {{end}}
     {{end}}
     {{if .ShowDeleteButton}}
-        {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Board $.ThreadId $.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Id) "ButtonText" "delete"}}
+        {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete"}}
     {{end}}
 </div>
 {{end}}
 
 {{/* Post attachments section */}}
 {{define "post-attachments"}}
-{{if .Attachments}}
+{{if .Message.Attachments}}
 <div class="post-attachments">
-    {{range .Attachments}}
+    {{range .Message.Attachments}}
         {{if .File}}
             {{$mediaUrl := printf "/media/%s" .File.FilePath}}
             {{if hasPrefix .File.MimeType "image/"}}
@@ -134,7 +134,7 @@
 
 {{/* Post body content */}}
 {{define "post-body"}}
-<blockquote class="post-body">{{.Text}}</blockquote>
+<blockquote class="post-body">{{.Message.Text}}</blockquote>
 {{end}}
 
 {{/* Complete post structure */}}
@@ -154,7 +154,7 @@
     {{end}}
 {{end}}
 
-<div class="post{{if $classes}} {{$classes}}{{end}}" data-board="{{.Board}}" data-message-id="{{.Id}}" data-thread-id="{{.ThreadId}}" id="p{{.Id}}">
+<div class="post{{if $classes}} {{$classes}}{{end}}" data-board="{{.Message.Board}}" data-message-id="{{.Message.Id}}" data-thread-id="{{.Message.ThreadId}}" id="p{{.Message.Id}}">
     {{template "post-header" .}}
     {{template "post-attachments" .}}
     {{template "post-body" .}}
