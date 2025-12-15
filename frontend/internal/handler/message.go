@@ -74,13 +74,15 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 		extraClasses = "op-post message-preview"
 	}
 
-	// Prepare view model - no delete button or reply button for previews
-	viewData := PrepareMessageView(renderedMessage, MessageViewContext{
-		ShowDeleteButton: false,
-		ShowReplyButton:  false,
-		ExtraClasses:     extraClasses,
-		Subject:          "", // Previews don't show subject
-	})
+	// Create view data dict - consistent with template pattern
+	viewData := map[string]any{
+		"Message":          renderedMessage,
+		"User":             nil, // No user context for previews
+		"ExtraClasses":     extraClasses,
+		"Subject":          "", // Previews don't show subject
+		"ShowDeleteButton": false,
+		"ShowReplyButton":  false,
+	}
 
 	// Render the post template
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

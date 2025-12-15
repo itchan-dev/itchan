@@ -47,14 +47,6 @@
                     {{template "post" (dict
                         "Message" $opMessage
                         "User" $.User
-                        "Board" $opMessage.Board
-                        "ThreadId" $opMessage.ThreadId
-                        "Id" $opMessage.Id
-                        "Text" $opMessage.Text
-                        "Attachments" $opMessage.Attachments
-                        "Replies" $opMessage.Replies
-                        "CreatedAt" $opMessage.CreatedAt
-                        "Op" $opMessage.Op
                         "ExtraClasses" "op-post"
                         "Subject" $thread.Title
                         "ShowDeleteButton" $.User.Admin
@@ -67,14 +59,6 @@
                         {{template "post" (dict
                             "Message" $reply
                             "User" $.User
-                            "Board" $reply.Board
-                            "ThreadId" $reply.ThreadId
-                            "Id" $reply.Id
-                            "Text" $reply.Text
-                            "Attachments" $reply.Attachments
-                            "Replies" $reply.Replies
-                            "CreatedAt" $reply.CreatedAt
-                            "Op" $reply.Op
                             "ExtraClasses" "reply-post"
                             "Subject" ""
                             "ShowDeleteButton" false
