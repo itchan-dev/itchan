@@ -38,6 +38,13 @@ func RenderReply(reply domain.Reply) *frontend_domain.Reply {
 func RenderMessage(message domain.Message) *frontend_domain.Message {
 	renderedMessage := frontend_domain.Message{Message: message, Replies: make(frontend_domain.Replies, len(message.Replies))}
 	renderedMessage.Text = template.HTML(message.Text)
+
+	if renderedMessage.Op {
+		renderedMessage.Context.ExtraClasses = "op-post"
+	} else {
+		renderedMessage.Context.ExtraClasses = "reply-post"
+	}
+
 	for i, reply := range message.Replies {
 		renderedMessage.Replies[i] = RenderReply(*reply)
 	}
@@ -49,6 +56,11 @@ func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 	renderedThread := frontend_domain.Thread{Thread: thread, Messages: make([]*frontend_domain.Message, len(thread.Messages))}
 	for i, msg := range thread.Messages {
 		renderedThread.Messages[i] = RenderMessage(*msg)
+
+		// Enrich OP messages with thread-specific context
+		if msg.Op {
+			renderedThread.Messages[i].Context.Subject = thread.Title
+		}
 	}
 	return &renderedThread
 }

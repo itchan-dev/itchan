@@ -44,25 +44,19 @@
             <div class="thread-preview">
                 {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
                     {{ $opMessage := index $thread.Messages 0 }}
+                    {{/* Context already populated by RenderBoard -> RenderThread */}}
                     {{template "post" (dict
                         "Message" $opMessage
                         "User" $.User
-                        "ExtraClasses" "op-post"
-                        "Subject" $thread.Title
-                        "ShowDeleteButton" $.User.Admin
-                        "ShowReplyButton" false
                     )}}
 
                     {{/* Display Reply Previews (rest of the messages) */}}
                     {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
                     {{ range $replyIndex, $reply := $previewReplies }}
+                        {{/* Context already populated */}}
                         {{template "post" (dict
                             "Message" $reply
                             "User" $.User
-                            "ExtraClasses" "reply-post"
-                            "Subject" ""
-                            "ShowDeleteButton" false
-                            "ShowReplyButton" false
                         )}}
                     {{ end }}
 
