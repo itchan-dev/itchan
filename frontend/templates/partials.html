@@ -67,21 +67,21 @@
 {{define "post-header"}}
 <div class="post-header">
     <input type="checkbox" name="delete" value="{{.Message.Id}}">
-    {{if .Subject}}<span class="post-subject">{{.Subject}}</span>{{end}}
+    {{if .Message.Context.Subject}}<span class="post-subject">{{.Message.Context.Subject}}</span>{{end}}
     <span class="post-author">Anonymous</span>
     <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
     <span class="post-id"><a href="{{printf "/%s/%d" .Message.Board .Message.ThreadId}}" class="thread-link">No.</a><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-link">{{.Message.Id}}</a></span>
-    {{if .ShowReplyButton}}
-        <span class="post-reply"><a href="#text-reply-bottom" class="post-reply-link">[reply]</a></span>
-    {{end}}
+    <span class="post-reply"><a href="#text-reply-bottom" class="post-reply-link">[reply]</a></span>
     <span class="post-reply-popup"><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-reply-popup-link">[popup-reply]</a></span>
     {{if .Message.Replies}}
         {{range .Message.Replies}}
             <span class="reply-link">{{.HTMLLinkFrom}}</span>
         {{end}}
     {{end}}
-    {{if .ShowDeleteButton}}
-        {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete"}}
+    {{if .User}}
+        {{if .User.Admin}}
+            {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete"}}
+        {{end}}
     {{end}}
 </div>
 {{end}}
@@ -147,7 +147,7 @@
 */}}
 {{define "post"}}
 {{/* Compute final CSS classes including highlighting */}}
-{{$classes := .ExtraClasses}}
+{{$classes := .Message.Context.ExtraClasses}}
 {{if and .User .Message}}
     {{if eq .Message.Author.Id .User.Id}}
         {{$classes = printf "%s my-message" $classes}}

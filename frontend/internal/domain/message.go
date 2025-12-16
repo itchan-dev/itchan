@@ -28,8 +28,15 @@ func (r *Reply) HTMLLinkFrom() template.HTML {
 	return template.HTML(r.LinkFrom())
 }
 
+// RenderContext contains presentation-specific fields for rendering messages.
+type RenderContext struct {
+	ExtraClasses string // CSS classes: "op-post", "reply-post", "message-preview"
+	Subject      string // Subject line (thread title for OP messages)
+}
+
 type Message struct {
 	domain.Message
-	Text    template.HTML // overwrite domain.Message.Text
+	Text    template.HTML      // overwrite domain.Message.Text
 	Replies Replies
+	Context RenderContext // Rendering context with smart defaults
 }

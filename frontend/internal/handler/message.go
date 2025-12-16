@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
 
 func (h *Handler) MessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
@@ -68,20 +69,13 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 	// Convert to frontend domain types (adds HTMLLinkFrom method to Replies)
 	renderedMessage := RenderMessage(*messageData)
 
-	// Determine extra classes based on OP status
-	extraClasses := "reply-post message-preview"
-	if messageData.Op {
-		extraClasses = "op-post message-preview"
-	}
+	// Add message-preview class
+	renderedMessage.Context.ExtraClasses += " message-preview"
 
 	// Create view data dict - consistent with template pattern
 	viewData := map[string]any{
-		"Message":          renderedMessage,
-		"User":             nil, // No user context for previews
-		"ExtraClasses":     extraClasses,
-		"Subject":          "", // Previews don't show subject
-		"ShowDeleteButton": false,
-		"ShowReplyButton":  false,
+		"Message": renderedMessage,
+		"User":    mw.GetUserFromContext(r),
 	}
 
 	// Render the post template

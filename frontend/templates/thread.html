@@ -13,22 +13,10 @@
 
     <div class="posts-container">
         {{ range $index, $message := .Thread.Messages }}
-            {{/* Pre-compute conditional values once */}}
-            {{$extraClasses := "reply-post"}}
-            {{$subject := ""}}
-            {{if $message.Op}}
-                {{$extraClasses = "op-post"}}
-                {{$subject = $.Thread.Title}}
-            {{end}}
-
-            {{/* Pass Message with context - Message fields accessed via .Message.* */}}
+            {{/* Context already populated by RenderThread - just pass Message + User! */}}
             {{template "post" (dict
                 "Message" $message
                 "User" $.User
-                "ExtraClasses" $extraClasses
-                "Subject" $subject
-                "ShowDeleteButton" $.User.Admin
-                "ShowReplyButton" true
             )}}
         {{ end }}
     </div><!-- End posts-container -->
