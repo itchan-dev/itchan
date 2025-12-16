@@ -380,6 +380,7 @@ function setupPopupReplySystem() {
         // Logic to close the popup
         // If the click was on the close button...
         if (e.target.closest('.popup-close-btn')) {
+            e.stopPropagation(); // Prevent event from bubbling to MessagePreview handler
             removeCurrentPopup();
             return;
         }
@@ -570,7 +571,8 @@ class UploadPreviewManager {
         removeBtn.className = 'file-preview-remove';
         removeBtn.textContent = '×';
         removeBtn.title = 'Remove this file';
-        removeBtn.addEventListener('click', () => {
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event from bubbling to body listener
             this.removeFile(input, previewContainer, fileId);
         });
         fileItem.appendChild(removeBtn);
