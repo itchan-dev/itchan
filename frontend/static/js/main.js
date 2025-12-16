@@ -4,7 +4,7 @@ function addReplyLink(textarea, threadId, messageId) {
         const replyText = '>>' + threadId + '/' + messageId + '\n';
         textarea.value = textarea.value + replyText;
         textarea.focus();
-        textarea.setSelectionRange(replyText.length, replyText.length);
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     }
 }
 
@@ -388,16 +388,6 @@ function setupPopupReplySystem() {
         if (currentPopup && !e.target.closest('.popup-reply-container')) {
             removeCurrentPopup();
         }
-
-        if (e.target.closest('.post-reply-link')) {
-            const postElement = e.target.closest('.post');
-            if (!postElement) return;
-            const threadId = postElement.dataset.threadId;
-            const messageId = postElement.dataset.messageId;
-
-            const textarea = document.getElementById('text-reply-bottom');
-            addReplyLink(textarea, threadId, messageId);
-        }
     });
 }
 
@@ -680,7 +670,33 @@ class UploadPreviewManager {
     }
 }
 
+// Handle reply hash for both page load and hash changes
+function handleReplyHash() {
+    const hash = window.location.hash;
+    const replyMatch = hash.match(/^#reply-(\d+)$/);
+
+    if (replyMatch) {
+        const messageId = replyMatch[1];
+        const textarea = document.getElementById('text-reply-bottom');
+
+        if (textarea) {
+            // Extract threadId from first post element
+            const firstPost = document.querySelector('.post');
+            if (firstPost) {
+                const threadId = firstPost.dataset.threadId;
+                addReplyLink(textarea, threadId, messageId);
+
+                // Clean up URL: replace hash with textarea anchor
+                history.replaceState(null, '', `${window.location.pathname}#text-reply-bottom`);
+            }
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Handle reply hash first (for board → thread redirects)
+    handleReplyHash();
+
     window.messagePreview = new MessagePreview();
     console.log('Message preview system initialized');
 
@@ -692,3 +708,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.uploadPreviewManager = new UploadPreviewManager();
     console.log('Upload preview manager initialized');
 });
+
+// Handle hash changes on same page (thread page clicks)
+window.addEventListener('hashchange', handleReplyHash);

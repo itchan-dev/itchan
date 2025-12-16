@@ -71,7 +71,7 @@
     <span class="post-author">Anonymous</span>
     <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
     <span class="post-id"><a href="{{printf "/%s/%d" .Message.Board .Message.ThreadId}}" class="thread-link">No.</a><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-link">{{.Message.Id}}</a></span>
-    <span class="post-reply"><a href="#text-reply-bottom" class="post-reply-link">[reply]</a></span>
+    <span class="post-reply"><a href="{{printf "/%s/%d#reply-%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-reply-link">[reply]</a></span>
     <span class="post-reply-popup"><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-reply-popup-link">[popup-reply]</a></span>
     {{if .Message.Replies}}
         {{range .Message.Replies}}
