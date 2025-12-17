@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/frontend/internal/handler"
+	frontend_mw "github.com/itchan-dev/itchan/frontend/internal/middleware"
 	"github.com/itchan-dev/itchan/frontend/internal/setup"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	rl "github.com/itchan-dev/itchan/shared/middleware/ratelimiter"
@@ -35,7 +36,7 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 
 	// Authenticated routes
 	authRouter := r.NewRoute().Subrouter()
-	authRouter.Use(mw.NeedAuth(deps.Jwt))
+	authRouter.Use(frontend_mw.NeedAuth(deps.Jwt))
 	authRouter.Use(mw.RestrictBoardAccess(deps.AccessData))           // Enforce board access restrictions
 	authRouter.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
 
@@ -67,7 +68,7 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 
 	// Admin-only routes
 	adminRouter := r.NewRoute().Subrouter()
-	adminRouter.Use(mw.AdminOnly(deps.Jwt))
+	adminRouter.Use(frontend_mw.AdminOnly(deps.Jwt))
 	adminRouter.HandleFunc("/{board}/delete", deps.Handler.BoardDeleteHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/{thread}/{message}/delete", deps.Handler.MessageDeleteHandler).Methods("POST")
