@@ -1,4 +1,4 @@
-jwt_ttl: 2629800000000000
+jwt_ttl: 168h
 threads_per_page: 50
 n_last_msg: 3
 bump_limit: 500
