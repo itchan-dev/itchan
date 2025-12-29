@@ -34,6 +34,14 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
 	)
 
+	// Admin-only routes (register before generic path patterns to avoid conflicts)
+	adminRouter := r.NewRoute().Subrouter()
+	adminRouter.Use(frontend_mw.AdminOnly(deps.Jwt))
+	adminRouter.HandleFunc("/blacklist/user", deps.Handler.BlacklistUserHandler).Methods("POST")
+	adminRouter.HandleFunc("/{board}/delete", deps.Handler.BoardDeleteHandler).Methods("POST")
+	adminRouter.HandleFunc("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler).Methods("POST")
+	adminRouter.HandleFunc("/{board}/{thread}/{message}/delete", deps.Handler.MessageDeleteHandler).Methods("POST")
+
 	// Authenticated routes
 	authRouter := r.NewRoute().Subrouter()
 	authRouter.Use(frontend_mw.NeedAuth(deps.Jwt))
@@ -65,13 +73,6 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler).Methods("GET")
 	// API endpoint for message preview (HTML)
 	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}/html", deps.Handler.MessagePreviewHTMLHandler).Methods("GET")
-
-	// Admin-only routes
-	adminRouter := r.NewRoute().Subrouter()
-	adminRouter.Use(frontend_mw.AdminOnly(deps.Jwt))
-	adminRouter.HandleFunc("/{board}/delete", deps.Handler.BoardDeleteHandler).Methods("POST")
-	adminRouter.HandleFunc("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler).Methods("POST")
-	adminRouter.HandleFunc("/{board}/{thread}/{message}/delete", deps.Handler.MessageDeleteHandler).Methods("POST")
 
 	return r
 }

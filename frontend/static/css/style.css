@@ -149,6 +149,30 @@ blockquote {
     color: #ff0000;
 }
 
+/* Blacklist button */
+.blacklist-form {
+    display: inline;
+    margin: 0;
+    padding: 0;
+}
+
+.blacklist-button {
+    background: none;
+    border: none;
+    color: #d00;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    font-size: 10pt;
+    font-family: inherit;
+}
+
+.blacklist-button:hover {
+    color: #f00;
+    text-decoration: underline;
+}
+
 /* ==========================================
    General Form Styles (Tables)
    ========================================== */
