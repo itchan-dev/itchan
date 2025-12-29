@@ -16,9 +16,13 @@ import (
 )
 
 type MockAuthService struct {
-	MockRegister              func(creds domain.Credentials) error
-	MockCheckConfirmationCode func(email domain.Email, confirmationCode string) error
-	MockLogin                 func(creds domain.Credentials) (string, error)
+	MockRegister                       func(creds domain.Credentials) error
+	MockCheckConfirmationCode          func(email domain.Email, confirmationCode string) error
+	MockLogin                          func(creds domain.Credentials) (string, error)
+	MockBlacklistUser                  func(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
+	MockUnblacklistUser                func(userId domain.UserId) error
+	MockGetBlacklistedUsersWithDetails func() ([]domain.BlacklistEntry, error)
+	MockRefreshBlacklistCache          func() error
 }
 
 func (m *MockAuthService) Register(creds domain.Credentials) error {
@@ -40,6 +44,34 @@ func (m *MockAuthService) Login(creds domain.Credentials) (string, error) {
 		return m.MockLogin(creds)
 	}
 	return "", nil
+}
+
+func (m *MockAuthService) BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error {
+	if m.MockBlacklistUser != nil {
+		return m.MockBlacklistUser(userId, reason, blacklistedBy)
+	}
+	return nil
+}
+
+func (m *MockAuthService) UnblacklistUser(userId domain.UserId) error {
+	if m.MockUnblacklistUser != nil {
+		return m.MockUnblacklistUser(userId)
+	}
+	return nil
+}
+
+func (m *MockAuthService) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
+	if m.MockGetBlacklistedUsersWithDetails != nil {
+		return m.MockGetBlacklistedUsersWithDetails()
+	}
+	return nil, nil
+}
+
+func (m *MockAuthService) RefreshBlacklistCache() error {
+	if m.MockRefreshBlacklistCache != nil {
+		return m.MockRefreshBlacklistCache()
+	}
+	return nil
 }
 
 func setupAuthTestHandler(authService service.AuthService, cfg *config.Config) (*Handler, *mux.Router) {

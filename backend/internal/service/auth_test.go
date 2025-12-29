@@ -18,13 +18,17 @@ import (
 // --- Mocks ---
 
 type MockAuthStorage struct {
-	SaveUserFunc               func(user domain.User) (domain.UserId, error)
-	UserFunc                   func(email domain.Email) (domain.User, error)
-	DeleteUserFunc             func(email domain.Email) error
-	UpdatePasswordFunc         func(creds domain.Credentials) error
-	SaveConfirmationDataFunc   func(data domain.ConfirmationData) error
-	ConfirmationDataFunc       func(email domain.Email) (domain.ConfirmationData, error)
-	DeleteConfirmationDataFunc func(email domain.Email) error
+	SaveUserFunc                       func(user domain.User) (domain.UserId, error)
+	UserFunc                           func(email domain.Email) (domain.User, error)
+	DeleteUserFunc                     func(email domain.Email) error
+	UpdatePasswordFunc                 func(creds domain.Credentials) error
+	SaveConfirmationDataFunc           func(data domain.ConfirmationData) error
+	ConfirmationDataFunc               func(email domain.Email) (domain.ConfirmationData, error)
+	DeleteConfirmationDataFunc         func(email domain.Email) error
+	IsUserBlacklistedFunc              func(userId domain.UserId) (bool, error)
+	BlacklistUserFunc                  func(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
+	UnblacklistUserFunc                func(userId domain.UserId) error
+	GetBlacklistedUsersWithDetailsFunc func() ([]domain.BlacklistEntry, error)
 }
 
 func (m *MockAuthStorage) SaveUser(user domain.User) (domain.UserId, error) {
@@ -82,6 +86,35 @@ func (m *MockAuthStorage) DeleteConfirmationData(email domain.Email) error {
 	return nil
 }
 
+func (m *MockAuthStorage) IsUserBlacklisted(userId domain.UserId) (bool, error) {
+	if m.IsUserBlacklistedFunc != nil {
+		return m.IsUserBlacklistedFunc(userId)
+	}
+	// Default: Not blacklisted
+	return false, nil
+}
+
+func (m *MockAuthStorage) BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error {
+	if m.BlacklistUserFunc != nil {
+		return m.BlacklistUserFunc(userId, reason, blacklistedBy)
+	}
+	return nil
+}
+
+func (m *MockAuthStorage) UnblacklistUser(userId domain.UserId) error {
+	if m.UnblacklistUserFunc != nil {
+		return m.UnblacklistUserFunc(userId)
+	}
+	return nil
+}
+
+func (m *MockAuthStorage) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
+	if m.GetBlacklistedUsersWithDetailsFunc != nil {
+		return m.GetBlacklistedUsersWithDetailsFunc()
+	}
+	return nil, nil
+}
+
 type MockEmail struct {
 	SendFunc      func(recipientEmail, subject, body string) error
 	IsCorrectFunc func(email domain.Email) error
@@ -122,7 +155,7 @@ func TestRegister(t *testing.T) {
 	storage := &MockAuthStorage{}
 	email := &MockEmail{}
 	jwt := &MockJwt{} // Not used in Register, but needed for constructor
-	service := NewAuth(storage, email, jwt, &config.Public{ConfirmationCodeLen: 8})
+	service := NewAuth(storage, email, jwt, &config.Public{ConfirmationCodeLen: 8}, nil)
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 	lowerCaseEmail := strings.ToLower(creds.Email)
@@ -349,7 +382,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{} // Renamed to avoid conflict with package name
 	jwt := &MockJwt{}         // Not used in CheckConfirmationCode, but needed for constructor
-	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8})
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil)
 
 	testEmail := "test@example.com"
 	lowerCaseEmail := strings.ToLower(testEmail)
@@ -645,7 +678,7 @@ func TestLogin(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{} // Renamed to avoid conflict
 	jwt := &MockJwt{}
-	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8})
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil)
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 	lowerCaseEmail := strings.ToLower(creds.Email)
@@ -776,6 +809,55 @@ func TestLogin(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, mockError)) // Propagates the JWT error
+		assert.Empty(t, token)
+	})
+
+	t.Run("Blacklisted user", func(t *testing.T) {
+		// Arrange
+		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+			return correctUser, nil
+		}
+		storage.IsUserBlacklistedFunc = func(userId domain.UserId) (bool, error) {
+			assert.Equal(t, correctUser.Id, userId)
+			return true, nil // User is blacklisted
+		}
+		defer func() {
+			storage.UserFunc = nil
+			storage.IsUserBlacklistedFunc = nil
+		}()
+
+		// Act
+		token, err := service.Login(creds)
+
+		// Assert
+		require.Error(t, err)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusForbidden, errWithStatus.StatusCode)
+		assert.Equal(t, "Account suspended", errWithStatus.Message)
+		assert.Empty(t, token)
+	})
+
+	t.Run("IsUserBlacklisted error", func(t *testing.T) {
+		// Arrange
+		mockError := errors.New("mock IsUserBlacklistedFunc error")
+		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+			return correctUser, nil
+		}
+		storage.IsUserBlacklistedFunc = func(userId domain.UserId) (bool, error) {
+			return false, mockError
+		}
+		defer func() {
+			storage.UserFunc = nil
+			storage.IsUserBlacklistedFunc = nil
+		}()
+
+		// Act
+		token, err := service.Login(creds)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
 		assert.Empty(t, token)
 	})
 }

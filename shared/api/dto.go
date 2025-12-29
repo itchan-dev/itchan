@@ -21,3 +21,11 @@ type CreateBoardRequest struct {
 	ShortName     string         `json:"short_name" validate:"required"`
 	AllowedEmails *domain.Emails `json:"allowed_emails,omitempty"`
 }
+
+type BlacklistUserRequest struct {
+	Reason string `json:"reason"`
+}
+
+type BlacklistResponse struct {
+	Users []domain.BlacklistEntry `json:"users"`
+}

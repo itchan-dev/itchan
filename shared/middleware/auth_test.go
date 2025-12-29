@@ -71,7 +71,7 @@ func TestAuth(t *testing.T) {
 				req.AddCookie(tt.cookie)
 			}
 			rr := httptest.NewRecorder()
-			handler := Auth(jwtService, tt.adminOnly)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := Auth(jwtService, nil, false, tt.adminOnly)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				user := GetUserFromContext(r)
 				require.NotNil(t, user, "Auth should always propagate user thru context")
 				assert.Equal(t, tt.expectedUser, user)
@@ -101,4 +101,95 @@ func TestGetUserFromContext(t *testing.T) {
 
 		assert.Equal(t, user, GetUserFromContext(req))
 	})
+}
+
+// Mock blacklist cache for testing
+type mockBlacklistCache struct {
+	blacklistedUsers map[domain.UserId]bool
+}
+
+func (m *mockBlacklistCache) IsBlacklisted(userId domain.UserId) bool {
+	if m == nil || m.blacklistedUsers == nil {
+		return false
+	}
+	return m.blacklistedUsers[userId]
+}
+
+func TestAuthWithBlacklist(t *testing.T) {
+	jwtService := jwt_internal.New("test_secret", time.Hour)
+	user := &domain.User{Id: 1, Email: "test@example.com", Admin: false}
+	blacklistedUser := &domain.User{Id: 2, Email: "banned@example.com", Admin: false}
+
+	token, _ := jwtService.NewToken(*user)
+	blacklistedToken, _ := jwtService.NewToken(*blacklistedUser)
+
+	tests := []struct {
+		name           string
+		cookie         *http.Cookie
+		blacklist      *mockBlacklistCache
+		expectedStatus int
+		shouldSetUser  bool
+	}{
+		{
+			name:   "Non-blacklisted user with valid token",
+			cookie: &http.Cookie{Name: "accessToken", Value: token},
+			blacklist: &mockBlacklistCache{
+				blacklistedUsers: map[domain.UserId]bool{},
+			},
+			expectedStatus: http.StatusOK,
+			shouldSetUser:  true,
+		},
+		{
+			name:   "Blacklisted user with valid token",
+			cookie: &http.Cookie{Name: "accessToken", Value: blacklistedToken},
+			blacklist: &mockBlacklistCache{
+				blacklistedUsers: map[domain.UserId]bool{2: true},
+			},
+			expectedStatus: http.StatusForbidden,
+			shouldSetUser:  false,
+		},
+		{
+			name:   "User with valid token and nil blacklist cache",
+			cookie: &http.Cookie{Name: "accessToken", Value: token},
+			blacklist: nil,
+			expectedStatus: http.StatusOK,
+			shouldSetUser:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "http://example.com", nil)
+			if tt.cookie != nil {
+				req.AddCookie(tt.cookie)
+			}
+			rr := httptest.NewRecorder()
+
+			handler := Auth(jwtService, tt.blacklist, false, false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				user := GetUserFromContext(r)
+				if tt.shouldSetUser {
+					require.NotNil(t, user, "User should be set in context")
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+
+			handler.ServeHTTP(rr, req)
+			assert.Equal(t, tt.expectedStatus, rr.Code, "handler returned wrong status code")
+
+			// Check if cookie was cleared for blacklisted users
+			if tt.expectedStatus == http.StatusForbidden {
+				cookies := rr.Result().Cookies()
+				var accessTokenCookie *http.Cookie
+				for _, c := range cookies {
+					if c.Name == "accessToken" {
+						accessTokenCookie = c
+						break
+					}
+				}
+				require.NotNil(t, accessTokenCookie, "Access token cookie should be set")
+				assert.Equal(t, "", accessTokenCookie.Value, "Cookie value should be cleared")
+				assert.Equal(t, -1, accessTokenCookie.MaxAge, "Cookie should be expired")
+			}
+		})
+	}
 }
