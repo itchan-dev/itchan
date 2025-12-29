@@ -81,6 +81,7 @@
     {{if .User}}
         {{if .User.Admin}}
             {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete"}}
+            {{template "blacklist-button" dict "UserId" .Message.Author.Id "Referer" (printf "/%s/%d" $.Message.Board $.Message.ThreadId)}}
         {{end}}
     {{end}}
 </div>
@@ -167,6 +168,16 @@
 {{define "delete-button"}}
 <form method="POST" action="{{.Action}}" class="delete-form" onsubmit="return confirm('{{.ConfirmMessage}}');">
     [<button type="submit" class="delete-button">{{.ButtonText}}</button>]
+</form>
+{{end}}
+
+{{/* Blacklist button form */}}
+{{define "blacklist-button"}}
+<form method="POST" action="/blacklist/user" class="blacklist-form" onsubmit="return promptBlacklistReason(event);">
+    <input type="hidden" name="userId" value="{{.UserId}}">
+    <input type="hidden" name="reason" value="">
+    <input type="hidden" name="referer" value="{{.Referer}}">
+    [<button type="submit" class="blacklist-button">blacklist</button>]
 </form>
 {{end}}
 

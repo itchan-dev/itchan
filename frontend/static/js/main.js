@@ -713,3 +713,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Handle hash changes on same page (thread page clicks)
 window.addEventListener('hashchange', handleReplyHash);
+
+// Blacklist prompt handler
+function promptBlacklistReason(event) {
+    const reason = prompt("Enter reason for blacklist (optional):");
+    if (reason === null) {
+        // User clicked Cancel
+        return false;
+    }
+
+    // Set the reason value in the hidden input
+    const form = event.target;
+    const reasonInput = form.querySelector('input[name="reason"]');
+    if (reasonInput) {
+        reasonInput.value = reason || '';
+    }
+
+    return true; // Allow form submission
+}
