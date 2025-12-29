@@ -7,6 +7,19 @@ CREATE TABLE IF NOT EXISTS users (
     created_at             timestamp default (now() at time zone 'utc')
 );
 
+-- Stores blacklisted users
+CREATE TABLE IF NOT EXISTS user_blacklist (
+    user_id        int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blacklisted_at timestamp NOT NULL DEFAULT (now() at time zone 'utc'),
+    reason         text,
+    blacklisted_by int REFERENCES users(id),
+    PRIMARY KEY (user_id)
+);
+
+-- Index for efficient cache queries (fetch users blacklisted within JWT TTL)
+CREATE INDEX IF NOT EXISTS idx_user_blacklist_time
+    ON user_blacklist (blacklisted_at DESC);
+
 -- Used for account confirmation or password resets
 CREATE TABLE IF NOT EXISTS confirmation_data (
     email                  varchar(254) PRIMARY KEY,
@@ -30,7 +43,7 @@ CREATE TABLE IF NOT EXISTS board_permissions (
     PRIMARY KEY (board_short_name, allowed_email_domain)
 );
 -- Index to quickly find all boards a user can access
-CREATE INDEX IF NOT EXISTS ON board_permissions (allowed_email_domain);
+CREATE INDEX IF NOT EXISTS idx_board_permissions_email ON board_permissions (allowed_email_domain);
 
 -- Represents a thread on a board
 -- metainfo in first thread message

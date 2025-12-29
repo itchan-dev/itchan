@@ -11,12 +11,17 @@ import (
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
+// BlacklistCache interface defines methods needed by auth middleware
+type BlacklistCache interface {
+	IsBlacklisted(userId domain.UserId) bool
+}
+
 // Key to store the user claims in the request context
 type key int
 
 const UserClaimsKey key = 0
 
-func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler) http.Handler {
+func Auth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool, adminOnly bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			accessCookie, err := r.Cookie("accessToken")
@@ -76,6 +81,23 @@ func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler)
 				Admin: isAdmin,
 			}
 
+			// Check if user is blacklisted
+			if blacklistCache != nil && blacklistCache.IsBlacklisted(user.Id) {
+				// Clear JWT cookie to force re-login
+				cookie := &http.Cookie{
+					Path:     "/",
+					Name:     "accessToken",
+					Value:    "",
+					MaxAge:   -1,
+					HttpOnly: true,
+					Secure:   secureCookies,
+					SameSite: http.SameSiteLaxMode,
+				}
+				http.SetCookie(w, cookie)
+				http.Error(w, "Account suspended", http.StatusForbidden)
+				return
+			}
+
 			// Store the user in the request context
 			ctx := context.WithValue(r.Context(), UserClaimsKey, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -84,12 +106,12 @@ func Auth(jwtService jwt_internal.JwtService, adminOnly bool) func(http.Handler)
 }
 
 // Helper functions for admin and regular auth
-func AdminOnly(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
-	return Auth(jwtService, true)
+func AdminOnly(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool) func(http.Handler) http.Handler {
+	return Auth(jwtService, blacklistCache, secureCookies, true)
 }
 
-func NeedAuth(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
-	return Auth(jwtService, false)
+func NeedAuth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool) func(http.Handler) http.Handler {
+	return Auth(jwtService, blacklistCache, secureCookies, false)
 }
 
 // Function to retrieve the user from the context

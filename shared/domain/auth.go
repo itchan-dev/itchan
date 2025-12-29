@@ -20,3 +20,11 @@ type ConfirmationData struct {
 	ConfirmationCodeHash string
 	Expires              time.Time
 }
+
+type BlacklistEntry struct {
+	UserId        UserId
+	Email         Email
+	BlacklistedAt time.Time
+	Reason        string
+	BlacklistedBy UserId
+}

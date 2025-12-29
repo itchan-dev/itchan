@@ -2,6 +2,7 @@ package setup
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/handler"
@@ -17,12 +18,14 @@ import (
 
 // Dependencies struct to hold all initialized dependencies.
 type Dependencies struct {
-	Storage      *pg.Storage
-	MediaStorage *fs.Storage
-	Handler      *handler.Handler
-	AccessData   *board_access.BoardAccess
-	Jwt          jwt.JwtService
-	CancelFunc   context.CancelFunc
+	Storage        *pg.Storage
+	MediaStorage   *fs.Storage
+	Handler        *handler.Handler
+	AccessData     *board_access.BoardAccess
+	Jwt            jwt.JwtService
+	BlacklistCache *service.BlacklistCache
+	Config         *config.Config
+	CancelFunc     context.CancelFunc
 }
 
 // SetupDependencies initializes all dependencies required for the application.
@@ -53,7 +56,21 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	email := email.New(&cfg.Private.Email)
 	jwt := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
 
-	auth := service.NewAuth(storage, email, jwt, &cfg.Public)
+	// Initialize blacklist cache
+	blacklistCache := service.NewBlacklistCache(storage, cfg.JwtTTL())
+
+	// Load initial cache synchronously before starting HTTP server
+	log.Println("Initializing blacklist cache...")
+	if err := blacklistCache.Update(); err != nil {
+		cancel()
+		return nil, err
+	}
+
+	// Start background cache updates
+	interval := time.Duration(cfg.Public.BlacklistCacheInterval) * time.Second
+	blacklistCache.StartBackgroundUpdate(ctx, interval)
+
+	auth := service.NewAuth(storage, email, jwt, &cfg.Public, blacklistCache)
 	board := service.NewBoard(storage, utils.New(&cfg.Public), mediaStorage)
 	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public}, mediaStorage, &cfg.Public)
 	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, message, mediaStorage)
@@ -66,11 +83,13 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	h := handler.New(auth, board, thread, message, mediaStorage, cfg)
 
 	return &Dependencies{
-		Storage:      storage,
-		MediaStorage: mediaStorage,
-		Handler:      h,
-		AccessData:   accessData,
-		Jwt:          jwt,
-		CancelFunc:   cancel,
+		Storage:        storage,
+		MediaStorage:   mediaStorage,
+		Handler:        h,
+		AccessData:     accessData,
+		Jwt:            jwt,
+		BlacklistCache: blacklistCache,
+		Config:         cfg,
+		CancelFunc:     cancel,
 	}, nil
 }

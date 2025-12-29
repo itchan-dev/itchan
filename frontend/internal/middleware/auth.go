@@ -66,11 +66,13 @@ func wrapWithRedirect(authMiddleware func(http.Handler) http.Handler) func(http.
 }
 
 // NeedAuth wraps shared auth middleware with redirect behavior
+// Frontend doesn't use blacklist cache (server-side only), so pass nil
 func NeedAuth(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
-	return wrapWithRedirect(mw.NeedAuth(jwtService))
+	return wrapWithRedirect(mw.NeedAuth(jwtService, nil, false))
 }
 
 // AdminOnly wraps shared admin auth middleware with redirect behavior
+// Frontend doesn't use blacklist cache (server-side only), so pass nil
 func AdminOnly(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
-	return wrapWithRedirect(mw.AdminOnly(jwtService))
+	return wrapWithRedirect(mw.AdminOnly(jwtService, nil, false))
 }

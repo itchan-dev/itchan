@@ -21,6 +21,7 @@ type Public struct {
 	NLastMsg                    int           `yaml:"n_last_msg" validate:"required"` // number of last messages shown in board preview (materialized view)
 	BumpLimit                   int           `yaml:"bump_limit" validate:"required"` // if thread have more messages it will not get "bumped"
 	BoardPreviewRefreshInterval time.Duration `yaml:"board_preview_refresh_internval" validate:"required"`
+	BlacklistCacheInterval      int           `yaml:"blacklist_cache_interval" validate:"required"` // Interval in seconds to refresh blacklist cache
 
 	// Security settings
 	SecureCookies bool `yaml:"secure_cookies"` // Enable Secure flag on cookies (requires HTTPS)
