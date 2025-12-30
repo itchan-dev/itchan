@@ -33,9 +33,7 @@ func New(deps *setup.Dependencies) *mux.Router {
 	})
 
 	h := deps.Handler
-	jwt := deps.Jwt
-	blacklistCache := deps.BlacklistCache
-	secureCookies := deps.Config.Public.SecureCookies
+	authMw := deps.AuthMiddleware
 
 	v1 := r.PathPrefix("/v1").Subrouter()
 	// Public config endpoint
@@ -43,7 +41,7 @@ func New(deps *setup.Dependencies) *mux.Router {
 
 	// Admin routes
 	admin := v1.PathPrefix("/admin").Subrouter()
-	admin.Use(mw.AdminOnly(jwt, blacklistCache, secureCookies))
+	admin.Use(authMw.AdminOnly())
 	admin.HandleFunc("/boards", h.CreateBoard).Methods("POST")
 	admin.HandleFunc("/{board}", h.DeleteBoard).Methods("DELETE")
 	admin.HandleFunc("/{board}/{thread}", h.DeleteThread).Methods("DELETE")
@@ -77,7 +75,7 @@ func New(deps *setup.Dependencies) *mux.Router {
 
 	// Logged-in user routes
 	loggedIn := v1.NewRoute().Subrouter()
-	loggedIn.Use(mw.NeedAuth(jwt, blacklistCache, secureCookies))   // Enforce JWT authentication with blacklist check
+	loggedIn.Use(authMw.NeedAuth())                                 // Enforce JWT authentication with blacklist check
 	loggedIn.Use(mw.RestrictBoardAccess(deps.AccessData))           // Restrict access based on board and email domain
 	loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
 

@@ -1,4 +1,4 @@
-package service
+package blacklist
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Mock storage for testing
+// Mock storage for testing - implements minimal BlacklistCacheStorage interface
 type mockBlacklistStorage struct {
 	blacklistedUsers []domain.UserId
 	err              error
@@ -23,45 +23,21 @@ func (m *mockBlacklistStorage) GetRecentlyBlacklistedUsers(since time.Time) ([]d
 	return m.blacklistedUsers, nil
 }
 
-func (m *mockBlacklistStorage) BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error {
-	return m.err
-}
-
-func (m *mockBlacklistStorage) UnblacklistUser(userId domain.UserId) error {
-	return m.err
-}
-
-func (m *mockBlacklistStorage) IsUserBlacklisted(userId domain.UserId) (bool, error) {
-	if m.err != nil {
-		return false, m.err
-	}
-	for _, id := range m.blacklistedUsers {
-		if id == userId {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (m *mockBlacklistStorage) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
-	return nil, m.err
-}
-
-func TestNewBlacklistCache(t *testing.T) {
+func TestNewCache(t *testing.T) {
 	storage := &mockBlacklistStorage{}
-	cache := NewBlacklistCache(storage, time.Hour)
+	cache := NewCache(storage, time.Hour)
 
 	assert.NotNil(t, cache)
 	assert.NotNil(t, cache.cache)
 	assert.Equal(t, time.Hour, cache.jwtTTL)
 }
 
-func TestBlacklistCache_Update(t *testing.T) {
+func TestCache_Update(t *testing.T) {
 	t.Run("successful update", func(t *testing.T) {
 		storage := &mockBlacklistStorage{
 			blacklistedUsers: []domain.UserId{1, 2, 3},
 		}
-		cache := NewBlacklistCache(storage, time.Hour)
+		cache := NewCache(storage, time.Hour)
 
 		err := cache.Update()
 		require.NoError(t, err)
@@ -77,7 +53,7 @@ func TestBlacklistCache_Update(t *testing.T) {
 		storage := &mockBlacklistStorage{
 			err: assert.AnError,
 		}
-		cache := NewBlacklistCache(storage, time.Hour)
+		cache := NewCache(storage, time.Hour)
 
 		err := cache.Update()
 		assert.Error(t, err)
@@ -87,7 +63,7 @@ func TestBlacklistCache_Update(t *testing.T) {
 		storage := &mockBlacklistStorage{
 			blacklistedUsers: []domain.UserId{1, 2},
 		}
-		cache := NewBlacklistCache(storage, time.Hour)
+		cache := NewCache(storage, time.Hour)
 
 		// First update
 		err := cache.Update()
@@ -108,11 +84,11 @@ func TestBlacklistCache_Update(t *testing.T) {
 	})
 }
 
-func TestBlacklistCache_IsBlacklisted(t *testing.T) {
+func TestCache_IsBlacklisted(t *testing.T) {
 	storage := &mockBlacklistStorage{
 		blacklistedUsers: []domain.UserId{1, 2, 3},
 	}
-	cache := NewBlacklistCache(storage, time.Hour)
+	cache := NewCache(storage, time.Hour)
 	cache.Update()
 
 	tests := []struct {
@@ -135,18 +111,18 @@ func TestBlacklistCache_IsBlacklisted(t *testing.T) {
 	}
 }
 
-func TestBlacklistCache_ConcurrentAccess(t *testing.T) {
+func TestCache_ConcurrentAccess(t *testing.T) {
 	storage := &mockBlacklistStorage{
 		blacklistedUsers: []domain.UserId{1, 2, 3},
 	}
-	cache := NewBlacklistCache(storage, time.Hour)
+	cache := NewCache(storage, time.Hour)
 	cache.Update()
 
 	// Simulate concurrent reads and writes
 	done := make(chan bool)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
-			for j := 0; j < 100; j++ {
+			for range 100 {
 				cache.IsBlacklisted(1)
 			}
 			done <- true
@@ -154,7 +130,7 @@ func TestBlacklistCache_ConcurrentAccess(t *testing.T) {
 	}
 
 	go func() {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			storage.blacklistedUsers = []domain.UserId{4, 5, 6}
 			cache.Update()
 			time.Sleep(1 * time.Millisecond)
@@ -162,18 +138,18 @@ func TestBlacklistCache_ConcurrentAccess(t *testing.T) {
 	}()
 
 	// Wait for all goroutines to complete
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 
 	// No assertion needed - test passes if no race condition detected
 }
 
-func TestBlacklistCache_BackgroundUpdate(t *testing.T) {
+func TestCache_BackgroundUpdate(t *testing.T) {
 	storage := &mockBlacklistStorage{
 		blacklistedUsers: []domain.UserId{1},
 	}
-	cache := NewBlacklistCache(storage, time.Hour)
+	cache := NewCache(storage, time.Hour)
 
 	// Start background updates with short interval
 	ctx, cancel := context.WithCancel(context.Background())

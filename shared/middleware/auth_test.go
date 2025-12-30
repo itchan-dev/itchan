@@ -71,7 +71,14 @@ func TestAuth(t *testing.T) {
 				req.AddCookie(tt.cookie)
 			}
 			rr := httptest.NewRecorder()
-			handler := Auth(jwtService, nil, false, tt.adminOnly)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authMw := NewAuth(jwtService, nil, false)
+			var middleware func(http.Handler) http.Handler
+			if tt.adminOnly {
+				middleware = authMw.AdminOnly()
+			} else {
+				middleware = authMw.NeedAuth()
+			}
+			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				user := GetUserFromContext(r)
 				require.NotNil(t, user, "Auth should always propagate user thru context")
 				assert.Equal(t, tt.expectedUser, user)
@@ -165,7 +172,8 @@ func TestAuthWithBlacklist(t *testing.T) {
 			}
 			rr := httptest.NewRecorder()
 
-			handler := Auth(jwtService, tt.blacklist, false, false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authMw := NewAuth(jwtService, tt.blacklist, false)
+			handler := authMw.NeedAuth()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				user := GetUserFromContext(r)
 				if tt.shouldSetUser {
 					require.NotNil(t, user, "User should be set in context")

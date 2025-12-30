@@ -12,7 +12,7 @@ import (
 )
 
 // =========================================================================
-// Public Methods (satisfy the service.BlacklistStorage interface)
+// Public Methods (blacklist operations for admin functionality)
 // =========================================================================
 
 // GetRecentlyBlacklistedUsers fetches all user IDs that were blacklisted

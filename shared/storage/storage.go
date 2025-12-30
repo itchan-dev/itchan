@@ -3,8 +3,12 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
+	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/middleware/board_access"
 	"github.com/itchan-dev/itchan/shared/storage/pg"
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
@@ -16,6 +20,10 @@ import (
 type Storage struct {
 	db *sql.DB
 }
+
+// Interface satisfaction checks - compile-time verification
+var _ blacklist.BlacklistCacheStorage = (*Storage)(nil)
+var _ board_access.Storage = (*Storage)(nil)
 
 // New creates a new storage instance with database connection.
 // Uses lightweight connection pool settings suitable for frontend/worker services.
@@ -55,6 +63,37 @@ func (s *Storage) GetBoardsWithPermissions() (map[string][]string, error) {
 	}
 
 	return permissions, nil
+}
+
+// GetRecentlyBlacklistedUsers fetches all user IDs that were blacklisted
+// after the specified time. This is used by the blacklist cache.
+func (s *Storage) GetRecentlyBlacklistedUsers(since time.Time) ([]domain.UserId, error) {
+	rows, err := s.db.Query(`
+		SELECT user_id
+		FROM user_blacklist
+		WHERE blacklisted_at >= $1
+		ORDER BY blacklisted_at DESC`,
+		since,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query recently blacklisted users: %w", err)
+	}
+	defer rows.Close()
+
+	var userIds []domain.UserId
+	for rows.Next() {
+		var userId domain.UserId
+		if err := rows.Scan(&userId); err != nil {
+			return nil, fmt.Errorf("failed to scan blacklisted user ID: %w", err)
+		}
+		userIds = append(userIds, userId)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating blacklisted users: %w", err)
+	}
+
+	return userIds, nil
 }
 
 // Cleanup closes the database connection pool.
