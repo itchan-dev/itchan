@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +12,7 @@ import (
 	"github.com/itchan-dev/itchan/frontend/internal/router"
 	"github.com/itchan-dev/itchan/frontend/internal/setup"
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 const (
@@ -25,17 +25,20 @@ const (
 )
 
 func main() {
-	log.SetFlags(log.Lshortfile)
-
 	var configFolder string
 	flag.StringVar(&configFolder, "config_folder", "config", "path to folder with configs")
 	flag.Parse()
 
 	cfg := config.MustLoad(configFolder)
 
+	// Initialize logger with config settings
+	useJSON := cfg.Public.LogFormat == "json"
+	logger.Initialize(cfg.Public.LogLevel, useJSON)
+
 	deps, err := setup.SetupDependencies(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize dependencies: %v", err)
+		logger.Log.Error("failed to initialize dependencies", "error", err)
+		os.Exit(1)
 	}
 	defer deps.Storage.Cleanup()
 
@@ -48,15 +51,16 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Starting frontend on :%s", server.Addr)
+		logger.Log.Info("starting frontend", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			logger.Log.Error("server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	// Block until a signal is received
 	<-sigChan
-	log.Println("Shutdown signal received, initiating graceful shutdown...")
+	logger.Log.Info("shutdown signal received, initiating graceful shutdown")
 
 	// Cancel the root context, triggering cleanup in dependencies
 	deps.CancelFunc()
@@ -67,9 +71,9 @@ func main() {
 
 	// Attempt graceful shutdown
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Frontend server shutdown error: %v", err)
+		logger.Log.Error("frontend server shutdown error", "error", err)
 	} else {
-		log.Println("Frontend server gracefully stopped")
+		logger.Log.Info("frontend server gracefully stopped")
 	}
 }
 

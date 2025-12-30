@@ -1,8 +1,9 @@
 package handler
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"html/template"
-	"log"
+
 	"net/http"
 	"strconv"
 
@@ -74,7 +75,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	newThreadID, err := h.APIClient.CreateThread(r, shortName, backendData, r.MultipartForm)
 	if err != nil {
-		log.Printf("Error creating thread via API: %v", err)
+		logger.Log.Error("creating thread via API", "error", err)
 		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": err.Error()})
 		return
 	}
@@ -89,7 +90,7 @@ func (h *Handler) BoardDeleteHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := h.APIClient.DeleteBoard(r, shortName)
 	if err != nil {
-		log.Printf("Error deleting board via API: %v", err)
+		logger.Log.Error("deleting board via API", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
 		return
 	}

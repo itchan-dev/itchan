@@ -3,15 +3,16 @@ package domain
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 func (u *User) EmailDomain() (string, error) {
 	emailParts := strings.Split(u.Email, "@")
 	if len(emailParts) != 2 {
-		log.Printf("Cant split user email: %s", u.Email)
+		logger.Log.Error("failed to split user email", "email", u.Email)
 		return "", errors.New("Cant get user domain")
 	}
 	return emailParts[1], nil

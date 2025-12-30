@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 // ThreadGarbageCollector handles cleanup of old threads to maintain MaxThreadCount per board.
@@ -61,13 +61,16 @@ func NewThreadGarbageCollector(
 func (gc *ThreadGarbageCollector) StartBackgroundCleanup(ctx context.Context, interval time.Duration) {
 	// If maxThreadCount is not configured, don't start cleanup
 	if gc.maxThreadCount == nil {
-		log.Printf("ThreadGC: maxThreadCount not configured, background cleanup disabled")
+		logger.Log.Warn("max thread count not configured, background cleanup disabled",
+			"component", "thread_gc")
 		return
 	}
 
 	ticker := time.NewTicker(interval)
-	log.Printf("ThreadGC: Started background cleanup (interval: %v, max threads per board: %d)",
-		interval, *gc.maxThreadCount)
+	logger.Log.Info("started thread garbage collector",
+		"component", "thread_gc",
+		"interval", interval,
+		"max_threads_per_board", *gc.maxThreadCount)
 
 	go func() {
 		defer ticker.Stop()
@@ -75,19 +78,22 @@ func (gc *ThreadGarbageCollector) StartBackgroundCleanup(ctx context.Context, in
 			select {
 			case <-ticker.C:
 				if err := gc.RunCleanup(); err != nil {
-					log.Printf("ThreadGC: cleanup error: %v", err)
+					logger.Log.Error("thread gc cleanup failed",
+						"component", "thread_gc",
+						"error", err)
 				} else {
 					stats := gc.GetLastCleanupStats()
-					log.Printf("ThreadGC: completed - boards scanned: %d, boards cleaned: %d, threads deleted: %d, duration: %dms, errors: %d",
-						stats.BoardsScanned,
-						stats.BoardsCleaned,
-						stats.ThreadsDeleted,
-						stats.DurationMs,
-						len(stats.Errors),
-					)
+					logger.Log.Info("thread gc completed",
+						"component", "thread_gc",
+						"boards_scanned", stats.BoardsScanned,
+						"boards_cleaned", stats.BoardsCleaned,
+						"threads_deleted", stats.ThreadsDeleted,
+						"duration_ms", stats.DurationMs,
+						"errors", len(stats.Errors))
 				}
 			case <-ctx.Done():
-				log.Printf("ThreadGC: shutting down gracefully")
+				logger.Log.Info("thread gc shutting down gracefully",
+					"component", "thread_gc")
 				return
 			}
 		}

@@ -1,10 +1,11 @@
 package setup
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"context"
 	"fmt"
 	"html/template"
-	"log"
+
 	"os"
 	"path"
 	"path/filepath"
@@ -79,7 +80,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	blacklistCache := blacklist.NewCache(store, cfg.JwtTTL())
 
 	// Load initial cache synchronously
-	log.Println("Initializing blacklist cache...")
+	logger.Log.Info("Initializing blacklist cache...")
 	if err := blacklistCache.Update(); err != nil {
 		cancel()
 		store.Cleanup()
@@ -193,7 +194,7 @@ func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	templates := make(map[string]*template.Template)
 	files, err := os.ReadDir(tmplPath)
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error("fatal error", "error", err)
 	}
 
 	// Create a standalone partials template for API endpoints

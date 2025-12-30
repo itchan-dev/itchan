@@ -1,13 +1,12 @@
 package handler
 
 import (
-	"net/http"
-
 	"encoding/json"
-	"log"
+	"net/http"
 
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 type Handler struct {
@@ -39,7 +38,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(v)
 	if err != nil {
-		log.Print(err.Error())
+		logger.Log.Error("failed to encode json response", "error", err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}

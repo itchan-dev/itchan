@@ -3,13 +3,13 @@ package jwt
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 type JwtService interface {
@@ -36,7 +36,7 @@ func (j *Jwt) NewToken(user domain.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(j.secretKey))
 	if err != nil {
-		log.Print(err.Error())
+		logger.Log.Error("failed to sign jwt token", "error", err)
 		return "", errors.New("Can't create token")
 	}
 
@@ -52,7 +52,7 @@ func (j *Jwt) DecodeToken(jwtStr string) (*jwt.Token, error) {
 		return []byte(j.secretKey), nil
 	})
 	if err != nil {
-		log.Println(err)
+		logger.Log.Error("failed to parse jwt token", "error", err)
 		return nil, &internal_errors.ErrorWithStatusCode{Message: "Invalid token signature", StatusCode: http.StatusUnauthorized}
 	}
 

@@ -1,8 +1,9 @@
 package handler
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"html/template"
-	"log"
+
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/api"
@@ -57,7 +58,7 @@ func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := h.APIClient.CreateBoard(r, backendData)
 	if err != nil {
-		log.Printf("Error creating board via API: %v", err)
+		logger.Log.Error("creating board via API", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
 		return
 	}

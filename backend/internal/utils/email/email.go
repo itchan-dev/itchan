@@ -2,12 +2,12 @@ package email
 
 import (
 	"fmt"
-	"log"
 	"net/mail"
 	"net/smtp"
 
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/errors"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 type Email struct {
@@ -37,7 +37,8 @@ func (e *Email) Send(recipientEmail, subject, body string) error {
 	address := fmt.Sprintf("%s:%d", e.config.SMTPServer, e.config.SMTPPort)
 	err := smtp.SendMail(address, e.auth, e.config.SenderName, []string{recipientEmail}, msg)
 	if err != nil {
-		log.Fatal("Error sending email:", err)
+		logger.Log.Error("failed to send email", "recipient", recipientEmail, "error", err)
+		return err
 	}
 
 	return nil

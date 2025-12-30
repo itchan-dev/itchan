@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"fmt"
 	"html/template"
-	"log"
+
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,7 +21,7 @@ func redirectWithParams(w http.ResponseWriter, r *http.Request, targetURL string
 	if err != nil {
 		// If parsing fails, it's a server-side programming error.
 		// Log it and fall back to a simple redirect to a safe URL.
-		log.Printf("ERROR: Failed to parse redirect URL '%s': %v", targetURL, err)
+		logger.Log.Error(": Failed to parse redirect URL '%s': %v", targetURL, err)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}

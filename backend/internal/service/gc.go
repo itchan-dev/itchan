@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
-	"log"
 	"path/filepath"
 	"time"
+
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 // MediaGarbageCollector handles cleanup of orphaned media files.
@@ -58,8 +59,10 @@ func NewMediaGarbageCollector(
 // It follows the same pattern as board_access.StartBackgroundUpdate.
 func (gc *MediaGarbageCollector) StartBackgroundCleanup(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
-	log.Printf("Started MediaGarbageCollector background cleanup (interval: %v, safety threshold: %v)",
-		interval, gc.safetyThreshold)
+	logger.Log.Info("started media garbage collector",
+		"component", "media_gc",
+		"interval", interval,
+		"safety_threshold", gc.safetyThreshold)
 
 	go func() {
 		defer ticker.Stop()
@@ -67,20 +70,23 @@ func (gc *MediaGarbageCollector) StartBackgroundCleanup(ctx context.Context, int
 			select {
 			case <-ticker.C:
 				if err := gc.RunCleanup(); err != nil {
-					log.Printf("MediaGC: cleanup error: %v", err)
+					logger.Log.Error("media gc cleanup failed",
+						"component", "media_gc",
+						"error", err)
 				} else {
 					stats := gc.GetLastCleanupStats()
-					log.Printf("MediaGC: completed - scanned: %d, orphans: %d, deleted: %d, bytes reclaimed: %d, duration: %dms, errors: %d",
-						stats.FilesScanned,
-						stats.OrphanedFiles,
-						stats.FilesDeleted,
-						stats.BytesReclaimed,
-						stats.DurationMs,
-						len(stats.Errors),
-					)
+					logger.Log.Info("media gc completed",
+						"component", "media_gc",
+						"scanned", stats.FilesScanned,
+						"orphans", stats.OrphanedFiles,
+						"deleted", stats.FilesDeleted,
+						"bytes_reclaimed", stats.BytesReclaimed,
+						"duration_ms", stats.DurationMs,
+						"errors", len(stats.Errors))
 				}
 			case <-ctx.Done():
-				log.Printf("MediaGC: shutting down gracefully")
+				logger.Log.Info("media gc shutting down gracefully",
+					"component", "media_gc")
 				return
 			}
 		}

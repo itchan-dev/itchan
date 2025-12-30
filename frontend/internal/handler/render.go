@@ -1,10 +1,11 @@
 package handler
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"bytes"
 	"fmt"
 	"html/template"
-	"log"
+
 	"net/http"
 
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
@@ -21,7 +22,7 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, name string, data interf
 
 	buf := new(bytes.Buffer)
 	if err := tmpl.Execute(buf, data); err != nil {
-		log.Printf("Error executing template %s: %v", name, err)
+		logger.Log.Error("executing template %s", "error", name, err)
 		http.Error(w, "Internal Server Error rendering template", http.StatusInternalServerError)
 		return
 	}

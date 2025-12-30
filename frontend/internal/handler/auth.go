@@ -1,10 +1,11 @@
 package handler
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"fmt"
 	"html/template"
 	"io"
-	"log"
+
 	"net/http"
 	"net/url"
 
@@ -34,7 +35,7 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.APIClient.Register(email, password)
 	if err != nil {
-		log.Printf("Error during registration API call: %v", err)
+		logger.Log.Error("during registration API call", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": "Internal error: backend unavailable."})
 		return
 	}
@@ -90,7 +91,7 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 
 	err := h.APIClient.ConfirmEmail(email, code)
 	if err != nil {
-		log.Printf("Error confirming email via API: %v", err)
+		logger.Log.Error("confirming email via API", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
 		return
 	}
@@ -124,7 +125,7 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.APIClient.Login(email, password)
 	if err != nil {
-		log.Printf("Error during login API call: %v", err)
+		logger.Log.Error("during login API call", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": "Internal error: backend unavailable."})
 		return
 	}

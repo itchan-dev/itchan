@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,20 +13,24 @@ import (
 	"github.com/itchan-dev/itchan/backend/internal/router"
 	"github.com/itchan-dev/itchan/backend/internal/setup"
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 func main() {
-	log.SetFlags(log.Lshortfile)
-
 	var configFolder string
 	flag.StringVar(&configFolder, "config_folder", "config", "path to folder with configs")
 	flag.Parse()
 
 	cfg := config.MustLoad(configFolder)
 
+	// Initialize logger with config settings
+	useJSON := cfg.Public.LogFormat == "json"
+	logger.Initialize(cfg.Public.LogLevel, useJSON)
+
 	deps, err := setup.SetupDependencies(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize dependencies: %v", err)
+		logger.Log.Error("failed to initialize dependencies", "error", err)
+		os.Exit(1)
 	}
 	defer deps.Storage.Cleanup()
 
@@ -49,15 +52,16 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Printf("Server starting on port %s", httpPort)
+		logger.Log.Info("server starting", "port", httpPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			logger.Log.Error("server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	// Block until a signal is received
 	<-sigChan
-	log.Println("Shutdown signal received, initiating graceful shutdown...")
+	logger.Log.Info("shutdown signal received, initiating graceful shutdown")
 
 	// Cancel the root context, triggering cleanup in dependencies
 	deps.CancelFunc()
@@ -68,8 +72,8 @@ func main() {
 
 	// Attempt graceful shutdown
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+		logger.Log.Error("http server shutdown error", "error", err)
 	} else {
-		log.Println("HTTP server gracefully stopped")
+		logger.Log.Info("http server gracefully stopped")
 	}
 }

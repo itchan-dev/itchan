@@ -2,7 +2,6 @@ package setup
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/handler"
@@ -14,6 +13,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/jwt"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/middleware/board_access"
 )
@@ -63,7 +63,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	blacklistCache := blacklist.NewCache(storage, cfg.JwtTTL())
 
 	// Load initial cache synchronously before starting HTTP server
-	log.Println("Initializing blacklist cache...")
+	logger.Log.Info("initializing blacklist cache")
 	if err := blacklistCache.Update(); err != nil {
 		cancel()
 		return nil, err

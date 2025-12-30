@@ -1,8 +1,9 @@
 package markdown
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"bytes"
-	"log"
+
 	"regexp"
 	"strconv"
 	"strings"
@@ -67,7 +68,7 @@ func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, fronten
 	// Render md and escape html
 	message.Text, err = tp.renderText(message.Text)
 	if err != nil {
-		log.Printf("Error rendering text: %v", err)
+		logger.Log.Error("rendering text", "error", err)
 	}
 	// Parse links
 	processedText, matches := tp.processMessageLinks(message)
@@ -76,7 +77,7 @@ func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, fronten
 	// Check if message actually has payload
 	hasPayload, err := tp.hasPayload(sanitizedText)
 	if err != nil {
-		log.Printf("Error checking payload: %v", err)
+		logger.Log.Error("checking payload", "error", err)
 	}
 
 	return sanitizedText, matches, hasPayload
