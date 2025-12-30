@@ -34,9 +34,12 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
 	)
 
+	// Create frontend auth middleware wrapper
+	authMw := frontend_mw.NewAuth(deps.AuthMiddleware)
+
 	// Admin-only routes (register before generic path patterns to avoid conflicts)
 	adminRouter := r.NewRoute().Subrouter()
-	adminRouter.Use(frontend_mw.AdminOnly(deps.Jwt))
+	adminRouter.Use(authMw.AdminOnly())
 	adminRouter.HandleFunc("/blacklist/user", deps.Handler.BlacklistUserHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/delete", deps.Handler.BoardDeleteHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler).Methods("POST")
@@ -44,7 +47,7 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 
 	// Authenticated routes
 	authRouter := r.NewRoute().Subrouter()
-	authRouter.Use(frontend_mw.NeedAuth(deps.Jwt))
+	authRouter.Use(authMw.NeedAuth())
 	authRouter.Use(mw.RestrictBoardAccess(deps.AccessData))           // Enforce board access restrictions
 	authRouter.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
 

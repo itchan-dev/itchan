@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/utils"
+	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/errors"
@@ -31,7 +32,7 @@ type Auth struct {
 	email          Email
 	jwt            Jwt
 	cfg            *config.Public
-	blacklistCache *BlacklistCache
+	blacklistCache *blacklist.Cache
 }
 
 type AuthStorage interface {
@@ -59,7 +60,7 @@ type Jwt interface {
 	NewToken(user domain.User) (string, error)
 }
 
-func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *BlacklistCache) *Auth {
+func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache) *Auth {
 	return &Auth{
 		storage:        storage,
 		email:          email,

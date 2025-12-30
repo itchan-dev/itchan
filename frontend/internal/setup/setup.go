@@ -13,8 +13,10 @@ import (
 	"github.com/itchan-dev/itchan/frontend/internal/apiclient"
 	"github.com/itchan-dev/itchan/frontend/internal/handler"
 	"github.com/itchan-dev/itchan/frontend/internal/markdown"
+	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/jwt"
+	"github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/middleware/board_access"
 	"github.com/itchan-dev/itchan/shared/storage"
 )
@@ -26,17 +28,19 @@ const (
 )
 
 type Dependencies struct {
-	Handler    *handler.Handler
-	Jwt        jwt.JwtService
-	Public     config.Public
-	Storage    *storage.Storage
-	AccessData *board_access.BoardAccess
-	CancelFunc context.CancelFunc
+	Handler        *handler.Handler
+	Jwt            jwt.JwtService
+	Public         config.Public
+	Storage        *storage.Storage
+	AccessData     *board_access.BoardAccess
+	BlacklistCache *blacklist.Cache
+	AuthMiddleware *middleware.Auth
+	CancelFunc     context.CancelFunc
 }
 
 func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	// Create cancellable context for background tasks
-	_, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Initialize database connection
 	store, err := storage.New(cfg)
@@ -71,13 +75,34 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	}
 	jwtSvc := jwt.New(jwtSecret, 2629800000000000) // 1 month expiration
 
+	// Initialize blacklist cache
+	blacklistCache := blacklist.NewCache(store, cfg.JwtTTL())
+
+	// Load initial cache synchronously
+	log.Println("Initializing blacklist cache...")
+	if err := blacklistCache.Update(); err != nil {
+		cancel()
+		store.Cleanup()
+		return nil, fmt.Errorf("failed to initialize blacklist cache: %w", err)
+	}
+
+	// Start background updates
+	interval := time.Duration(cfg.Public.BlacklistCacheInterval) * time.Second
+	blacklistCache.StartBackgroundUpdate(ctx, interval)
+
+	// Create auth middleware
+	secureCookies := cfg.Public.SecureCookies
+	authMiddleware := middleware.NewAuth(jwtSvc, blacklistCache, secureCookies)
+
 	return &Dependencies{
-		Handler:    h,
-		Jwt:        jwtSvc,
-		Public:     cfg.Public,
-		Storage:    store,
-		AccessData: accessData,
-		CancelFunc: cancel,
+		Handler:        h,
+		Jwt:            jwtSvc,
+		Public:         cfg.Public,
+		Storage:        store,
+		AccessData:     accessData,
+		BlacklistCache: blacklistCache,
+		AuthMiddleware: authMiddleware,
+		CancelFunc:     cancel,
 	}, nil
 }
 

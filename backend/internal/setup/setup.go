@@ -11,8 +11,10 @@ import (
 	"github.com/itchan-dev/itchan/backend/internal/storage/pg"
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/backend/internal/utils/email"
+	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/jwt"
+	"github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/middleware/board_access"
 )
 
@@ -23,7 +25,8 @@ type Dependencies struct {
 	Handler        *handler.Handler
 	AccessData     *board_access.BoardAccess
 	Jwt            jwt.JwtService
-	BlacklistCache *service.BlacklistCache
+	BlacklistCache *blacklist.Cache
+	AuthMiddleware *middleware.Auth
 	Config         *config.Config
 	CancelFunc     context.CancelFunc
 }
@@ -54,10 +57,10 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	mediaGC.StartBackgroundCleanup(ctx, 24*time.Hour)
 
 	email := email.New(&cfg.Private.Email)
-	jwt := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
+	jwtService := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
 
 	// Initialize blacklist cache
-	blacklistCache := service.NewBlacklistCache(storage, cfg.JwtTTL())
+	blacklistCache := blacklist.NewCache(storage, cfg.JwtTTL())
 
 	// Load initial cache synchronously before starting HTTP server
 	log.Println("Initializing blacklist cache...")
@@ -70,7 +73,11 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	interval := time.Duration(cfg.Public.BlacklistCacheInterval) * time.Second
 	blacklistCache.StartBackgroundUpdate(ctx, interval)
 
-	auth := service.NewAuth(storage, email, jwt, &cfg.Public, blacklistCache)
+	// Create auth middleware
+	secureCookies := cfg.Public.SecureCookies
+	authMiddleware := middleware.NewAuth(jwtService, blacklistCache, secureCookies)
+
+	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache)
 	board := service.NewBoard(storage, utils.New(&cfg.Public), mediaStorage)
 	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public}, mediaStorage, &cfg.Public)
 	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, message, mediaStorage)
@@ -87,8 +94,9 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 		MediaStorage:   mediaStorage,
 		Handler:        h,
 		AccessData:     accessData,
-		Jwt:            jwt,
+		Jwt:            jwtService,
 		BlacklistCache: blacklistCache,
+		AuthMiddleware: authMiddleware,
 		Config:         cfg,
 		CancelFunc:     cancel,
 	}, nil

@@ -39,7 +39,6 @@ var _ service.AuthStorage = (*Storage)(nil)
 var _ service.BoardStorage = (*Storage)(nil)
 var _ service.ThreadStorage = (*Storage)(nil)
 var _ service.MessageStorage = (*Storage)(nil)
-var _ service.BlacklistStorage = (*Storage)(nil)
 
 // Storage is the central struct for the PostgreSQL persistence layer.
 // It holds the database connection pool and application configuration, and acts

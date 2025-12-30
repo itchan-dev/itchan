@@ -1,4 +1,4 @@
-package service
+package blacklist
 
 import (
 	"context"
@@ -9,29 +9,27 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-// BlacklistStorage defines the database operations needed for blacklist management.
-type BlacklistStorage interface {
+// BlacklistCacheStorage defines the minimal database operations needed for cache updates.
+// This is intentionally minimal - only read operations needed for cache population.
+// Admin operations (blacklist/unblacklist) belong in backend-specific storage.
+type BlacklistCacheStorage interface {
 	GetRecentlyBlacklistedUsers(since time.Time) ([]domain.UserId, error)
-	BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
-	UnblacklistUser(userId domain.UserId) error
-	IsUserBlacklisted(userId domain.UserId) (bool, error)
-	GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error)
 }
 
-// BlacklistCache maintains an in-memory cache of recently blacklisted users
+// Cache maintains an in-memory cache of recently blacklisted users
 // to avoid database queries on every authentication request.
-type BlacklistCache struct {
-	storage        BlacklistStorage
+type Cache struct {
+	storage        BlacklistCacheStorage
 	cache          map[domain.UserId]bool
 	mu             sync.RWMutex
 	jwtTTL         time.Duration
 	lastUpdateTime time.Time
 }
 
-// NewBlacklistCache creates a new blacklist cache instance.
+// NewCache creates a new blacklist cache instance.
 // jwtTTL is used to determine how far back to query for blacklisted users.
-func NewBlacklistCache(storage BlacklistStorage, jwtTTL time.Duration) *BlacklistCache {
-	return &BlacklistCache{
+func NewCache(storage BlacklistCacheStorage, jwtTTL time.Duration) *Cache {
+	return &Cache{
 		storage: storage,
 		cache:   make(map[domain.UserId]bool),
 		jwtTTL:  jwtTTL,
@@ -40,7 +38,7 @@ func NewBlacklistCache(storage BlacklistStorage, jwtTTL time.Duration) *Blacklis
 
 // Update fetches recently blacklisted users from the database and updates the cache.
 // It queries for users blacklisted within (JWT TTL + 10% buffer) to handle clock skew.
-func (bc *BlacklistCache) Update() error {
+func (bc *Cache) Update() error {
 	// Calculate cutoff time with 10% buffer
 	bufferMultiplier := 1.1
 	since := time.Now().Add(-time.Duration(float64(bc.jwtTTL) * bufferMultiplier))
@@ -69,7 +67,7 @@ func (bc *BlacklistCache) Update() error {
 
 // IsBlacklisted checks if a user ID is in the blacklist cache.
 // This is a thread-safe, high-performance read operation.
-func (bc *BlacklistCache) IsBlacklisted(userId domain.UserId) bool {
+func (bc *Cache) IsBlacklisted(userId domain.UserId) bool {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 	return bc.cache[userId]
@@ -77,7 +75,7 @@ func (bc *BlacklistCache) IsBlacklisted(userId domain.UserId) bool {
 
 // StartBackgroundUpdate starts a background goroutine that periodically refreshes
 // the blacklist cache. It follows the same pattern as MediaGarbageCollector.
-func (bc *BlacklistCache) StartBackgroundUpdate(ctx context.Context, interval time.Duration) {
+func (bc *Cache) StartBackgroundUpdate(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	log.Printf("Started BlacklistCache background updates (interval: %v, JWT TTL: %v)", interval, bc.jwtTTL)
 

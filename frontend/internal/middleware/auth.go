@@ -4,9 +4,28 @@ import (
 	"net/http"
 	"net/url"
 
-	jwt_internal "github.com/itchan-dev/itchan/shared/jwt"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
+
+// Auth wraps shared auth middleware with redirect behavior for frontend
+type Auth struct {
+	sharedAuth *mw.Auth
+}
+
+// NewAuth creates a frontend auth middleware wrapper
+func NewAuth(sharedAuth *mw.Auth) *Auth {
+	return &Auth{sharedAuth: sharedAuth}
+}
+
+// NeedAuth returns middleware with redirect behavior
+func (a *Auth) NeedAuth() func(http.Handler) http.Handler {
+	return wrapWithRedirect(a.sharedAuth.NeedAuth())
+}
+
+// AdminOnly returns admin middleware with redirect behavior
+func (a *Auth) AdminOnly() func(http.Handler) http.Handler {
+	return wrapWithRedirect(a.sharedAuth.AdminOnly())
+}
 
 // authRedirectWriter intercepts 401/403 errors and redirects to login
 type authRedirectWriter struct {
@@ -63,16 +82,4 @@ func wrapWithRedirect(authMiddleware func(http.Handler) http.Handler) func(http.
 			authMiddleware(next).ServeHTTP(wrapper, r)
 		})
 	}
-}
-
-// NeedAuth wraps shared auth middleware with redirect behavior
-// Frontend doesn't use blacklist cache (server-side only), so pass nil
-func NeedAuth(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
-	return wrapWithRedirect(mw.NeedAuth(jwtService, nil, false))
-}
-
-// AdminOnly wraps shared admin auth middleware with redirect behavior
-// Frontend doesn't use blacklist cache (server-side only), so pass nil
-func AdminOnly(jwtService jwt_internal.JwtService) func(http.Handler) http.Handler {
-	return wrapWithRedirect(mw.AdminOnly(jwtService, nil, false))
 }

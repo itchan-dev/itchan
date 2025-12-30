@@ -21,7 +21,34 @@ type key int
 
 const UserClaimsKey key = 0
 
-func Auth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool, adminOnly bool) func(http.Handler) http.Handler {
+// Auth holds dependencies for authentication middleware
+type Auth struct {
+	jwtService     jwt_internal.JwtService
+	blacklistCache BlacklistCache
+	secureCookies  bool
+}
+
+// NewAuth creates a new Auth middleware instance
+func NewAuth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool) *Auth {
+	return &Auth{
+		jwtService:     jwtService,
+		blacklistCache: blacklistCache,
+		secureCookies:  secureCookies,
+	}
+}
+
+// NeedAuth returns middleware that requires authentication
+func (a *Auth) NeedAuth() func(http.Handler) http.Handler {
+	return a.auth(false)
+}
+
+// AdminOnly returns middleware that requires admin authentication
+func (a *Auth) AdminOnly() func(http.Handler) http.Handler {
+	return a.auth(true)
+}
+
+// auth is the internal method that implements the authentication logic
+func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			accessCookie, err := r.Cookie("accessToken")
@@ -34,7 +61,7 @@ func Auth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, sec
 				http.Error(w, "Invalid cookie", http.StatusInternalServerError)
 				return
 			}
-			token, err := jwtService.DecodeToken(accessCookie.Value)
+			token, err := a.jwtService.DecodeToken(accessCookie.Value)
 			if err != nil {
 				utils.WriteErrorAndStatusCode(w, err)
 				return
@@ -82,7 +109,7 @@ func Auth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, sec
 			}
 
 			// Check if user is blacklisted
-			if blacklistCache != nil && blacklistCache.IsBlacklisted(user.Id) {
+			if a.blacklistCache != nil && a.blacklistCache.IsBlacklisted(user.Id) {
 				// Clear JWT cookie to force re-login
 				cookie := &http.Cookie{
 					Path:     "/",
@@ -90,7 +117,7 @@ func Auth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, sec
 					Value:    "",
 					MaxAge:   -1,
 					HttpOnly: true,
-					Secure:   secureCookies,
+					Secure:   a.secureCookies,
 					SameSite: http.SameSiteLaxMode,
 				}
 				http.SetCookie(w, cookie)
@@ -105,16 +132,7 @@ func Auth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, sec
 	}
 }
 
-// Helper functions for admin and regular auth
-func AdminOnly(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool) func(http.Handler) http.Handler {
-	return Auth(jwtService, blacklistCache, secureCookies, true)
-}
-
-func NeedAuth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool) func(http.Handler) http.Handler {
-	return Auth(jwtService, blacklistCache, secureCookies, false)
-}
-
-// Function to retrieve the user from the context
+// GetUserFromContext retrieves the user from the context
 func GetUserFromContext(r *http.Request) *domain.User {
 	user, ok := r.Context().Value(UserClaimsKey).(*domain.User)
 	if !ok {
