@@ -26,6 +26,10 @@ type Public struct {
 	// Security settings
 	SecureCookies bool `yaml:"secure_cookies"` // Enable Secure flag on cookies (requires HTTPS)
 
+	// Logging settings
+	LogLevel  string `yaml:"log_level"`  // Log level: debug, info, warn, error (default: info)
+	LogFormat string `yaml:"log_format"` // Log format: text or json (default: text)
+
 	// Validation constants (optional; sensible defaults are used when zero)
 	BoardNameMaxLen      int `yaml:"board_name_max_len"`
 	BoardShortNameMaxLen int `yaml:"board_short_name_max_len"`
@@ -118,6 +122,14 @@ func MustLoad(configFolder string) *Config {
 
 // applyValidationDefaults sets default values for validation constants if they are zero
 func applyValidationDefaults(public *Public) {
+	// Logging defaults
+	if public.LogLevel == "" {
+		public.LogLevel = "info"
+	}
+	if public.LogFormat == "" {
+		public.LogFormat = "text"
+	}
+
 	if public.BoardNameMaxLen == 0 {
 		public.BoardNameMaxLen = 10
 	}

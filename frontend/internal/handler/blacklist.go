@@ -1,7 +1,8 @@
 package handler
 
 import (
-	"log"
+	"github.com/itchan-dev/itchan/shared/logger"
+
 	"net/http"
 )
 
@@ -9,7 +10,7 @@ import (
 func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse form to get userId and reason
 	if err := r.ParseForm(); err != nil {
-		log.Printf("Error parsing form: %v", err)
+		logger.Log.Error("parsing form", "error", err)
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
 		return
 	}
@@ -32,7 +33,7 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 	// Call API client
 	err := h.APIClient.BlacklistUser(r, userID, reason)
 	if err != nil {
-		log.Printf("Error blacklisting user via API: %v", err)
+		logger.Log.Error("blacklisting user via API", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
 		return
 	}

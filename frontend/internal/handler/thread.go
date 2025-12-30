@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"fmt"
 	"html/template"
-	"log"
+
 	"net/http"
 	"strconv"
 
@@ -78,7 +79,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	err = h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)
 	if err != nil {
-		log.Printf("Error posting reply via API: %v", err)
+		logger.Log.Error("posting reply via API", "error", err)
 		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": err.Error()})
 		return
 	}
@@ -95,7 +96,7 @@ func (h *Handler) ThreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := h.APIClient.DeleteThread(r, boardShortName, threadId)
 	if err != nil {
-		log.Printf("Error deleting thread via API: %v", err)
+		logger.Log.Error("deleting thread via API", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
 		return
 	}

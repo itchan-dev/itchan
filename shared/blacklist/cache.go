@@ -2,11 +2,11 @@ package blacklist
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 // BlacklistCacheStorage defines the minimal database operations needed for cache updates.
@@ -61,7 +61,10 @@ func (bc *Cache) Update() error {
 	bc.lastUpdateTime = time.Now()
 	bc.mu.Unlock()
 
-	log.Printf("BlacklistCache: updated cache with %d entries (since: %v)", len(newCache), since.Format(time.RFC3339))
+	logger.Log.Info("blacklist cache updated",
+		"component", "blacklist_cache",
+		"entries", len(newCache),
+		"since", since.Format(time.RFC3339))
 	return nil
 }
 
@@ -77,7 +80,10 @@ func (bc *Cache) IsBlacklisted(userId domain.UserId) bool {
 // the blacklist cache. It follows the same pattern as MediaGarbageCollector.
 func (bc *Cache) StartBackgroundUpdate(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
-	log.Printf("Started BlacklistCache background updates (interval: %v, JWT TTL: %v)", interval, bc.jwtTTL)
+	logger.Log.Info("started blacklist cache background updates",
+		"component", "blacklist_cache",
+		"interval", interval,
+		"jwt_ttl", bc.jwtTTL)
 
 	go func() {
 		defer ticker.Stop()
@@ -85,10 +91,13 @@ func (bc *Cache) StartBackgroundUpdate(ctx context.Context, interval time.Durati
 			select {
 			case <-ticker.C:
 				if err := bc.Update(); err != nil {
-					log.Printf("BlacklistCache: update error: %v", err)
+					logger.Log.Error("blacklist cache update failed",
+						"component", "blacklist_cache",
+						"error", err)
 				}
 			case <-ctx.Done():
-				log.Printf("BlacklistCache: shutting down gracefully")
+				logger.Log.Info("blacklist cache shutting down gracefully",
+					"component", "blacklist_cache")
 				return
 			}
 		}

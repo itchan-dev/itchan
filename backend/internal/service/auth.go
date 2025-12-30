@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/errors"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -100,12 +100,12 @@ func (a *Auth) Register(creds domain.Credentials) error {
 	confirmationCode := utils.GenerateConfirmationCode(a.cfg.ConfirmationCodeLen)
 	passHash, err := bcrypt.GenerateFromPassword([]byte(creds.Password), bcrypt.DefaultCost)
 	if err != nil {
-		log.Print(err.Error())
+		logger.Log.Error("failed to hash password", "error", err)
 		return err
 	}
 	confirmationCodeHash, err := bcrypt.GenerateFromPassword([]byte(confirmationCode), bcrypt.DefaultCost)
 	if err != nil {
-		log.Print(err.Error())
+		logger.Log.Error("failed to hash confirmation code", "error", err)
 		return err
 	}
 	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, PasswordHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(5 * time.Minute)})
@@ -146,7 +146,7 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		return &errors.ErrorWithStatusCode{Message: "Confirmation time expired", StatusCode: http.StatusBadRequest}
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(data.ConfirmationCodeHash), []byte(confirmationCode)); err != nil {
-		log.Print(err.Error())
+		logger.Log.Error("confirmation code verification failed", "error", err)
 		return &errors.ErrorWithStatusCode{Message: "Wrong confirmation code", StatusCode: http.StatusBadRequest}
 	}
 	// if not exists - create
@@ -198,14 +198,14 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PassHash), []byte(password))
 	if err != nil {
-		log.Print(err.Error())
+		logger.Log.Error("password verification failed", "error", err)
 		return "", &errors.ErrorWithStatusCode{Message: "Invalid credentials", StatusCode: http.StatusUnauthorized}
 	}
 
 	// Check if user is blacklisted (direct DB check for accuracy)
 	isBlacklisted, err := a.storage.IsUserBlacklisted(user.Id)
 	if err != nil {
-		log.Printf("Error checking blacklist: %v", err)
+		logger.Log.Error("failed to check blacklist status", "user_id", user.Id, "error", err)
 		return "", err
 	}
 	if isBlacklisted {
@@ -217,7 +217,7 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 
 	token, err := a.jwt.NewToken(user)
 	if err != nil {
-		log.Print(err.Error())
+		logger.Log.Error("failed to create jwt token", "user_id", user.Id, "error", err)
 		return "", err
 	}
 
@@ -233,7 +233,9 @@ func (a *Auth) BlacklistUser(userId domain.UserId, reason string, blacklistedBy 
 
 	// Trigger immediate cache update for instant effect
 	if err := a.blacklistCache.Update(); err != nil {
-		log.Printf("Warning: User blacklisted but cache update failed: %v", err)
+		logger.Log.Warn("user blacklisted but cache update failed",
+			"user_id", userId,
+			"error", err)
 		// Don't fail the request - cache will update on next background tick
 	}
 
@@ -249,7 +251,9 @@ func (a *Auth) UnblacklistUser(userId domain.UserId) error {
 
 	// Trigger immediate cache update for instant effect
 	if err := a.blacklistCache.Update(); err != nil {
-		log.Printf("Warning: User unblacklisted but cache update failed: %v", err)
+		logger.Log.Warn("user unblacklisted but cache update failed",
+			"user_id", userId,
+			"error", err)
 		// Don't fail the request - cache will update on next background tick
 	}
 

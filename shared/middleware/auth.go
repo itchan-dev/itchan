@@ -2,12 +2,12 @@ package middleware
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/itchan-dev/itchan/shared/domain"
 	jwt_internal "github.com/itchan-dev/itchan/shared/jwt"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
@@ -56,8 +56,7 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 				http.Error(w, "Please sign-in", http.StatusUnauthorized)
 				return
 			} else if err != nil {
-				log.Print(err)
-				// this error shouldnt happen
+				logger.Log.Error("cookie read error", "error", err)
 				http.Error(w, "Invalid cookie", http.StatusInternalServerError)
 				return
 			}
@@ -69,7 +68,7 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok {
-				log.Print("Invalid JWT claims format")
+				logger.Log.Error("invalid jwt claims format")
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
@@ -77,21 +76,21 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 			// Extract and validate required claims
 			uidFloat, ok := claims["uid"].(float64)
 			if !ok {
-				log.Print("Missing or invalid uid claim in JWT")
+				logger.Log.Error("missing or invalid uid claim in jwt")
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
 
 			email, ok := claims["email"].(string)
 			if !ok {
-				log.Print("Missing or invalid email claim in JWT")
+				logger.Log.Error("missing or invalid email claim in jwt")
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
 
 			isAdmin, ok := claims["admin"].(bool)
 			if !ok {
-				log.Print("Missing or invalid admin claim in JWT")
+				logger.Log.Error("missing or invalid admin claim in jwt")
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}

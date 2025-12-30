@@ -4,11 +4,11 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 // StartPeriodicViewRefresh initiates a background goroutine that periodically refreshes
@@ -30,7 +30,7 @@ func (s *Storage) StartPeriodicViewRefresh(ctx context.Context, interval time.Du
 			case <-ticker.C:
 				boards, err := s.GetActiveBoards(interval)
 				if err != nil {
-					log.Printf("Error fetching active boards: %v", err)
+					logger.Log.Error("failed to fetch active boards", "error", err)
 					continue
 				}
 				var wg sync.WaitGroup
@@ -39,7 +39,9 @@ func (s *Storage) StartPeriodicViewRefresh(ctx context.Context, interval time.Du
 					go func(b domain.Board) {
 						defer wg.Done()
 						if err := s.refreshMaterializedViewConcurrent(b.ShortName, interval); err != nil {
-							log.Printf("Refresh failed for %s: %v", b.ShortName, err)
+							logger.Log.Error("materialized view refresh failed",
+								"board", b.ShortName,
+								"error", err)
 						}
 					}(board)
 				}

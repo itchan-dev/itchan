@@ -1,9 +1,10 @@
 package board_access
 
 import (
-	"log"
 	"sync"
 	"time"
+
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 type Storage interface {
@@ -45,11 +46,15 @@ func (b *BoardAccess) AllowedDomains(board string) []string {
 
 func (b *BoardAccess) StartBackgroundUpdate(interval time.Duration, s Storage) {
 	ticker := time.NewTicker(interval)
-	log.Printf("Started BoardAccess background update")
+	logger.Log.Info("started board access background update",
+		"component", "board_access",
+		"interval", interval)
 	go func() {
 		for range ticker.C {
 			if err := b.Update(s); err != nil {
-				log.Printf("Error updating board access rules: %v", err)
+				logger.Log.Error("failed to update board access rules",
+					"component", "board_access",
+					"error", err)
 			}
 		}
 	}()

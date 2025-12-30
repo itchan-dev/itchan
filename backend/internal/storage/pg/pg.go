@@ -16,12 +16,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/logger"
 	sharedstorage "github.com/itchan-dev/itchan/shared/storage/pg"
 )
 
@@ -53,12 +53,12 @@ type Storage struct {
 // background processes, such as the materialized view refresher.
 // This function is the main entry point for initializing the persistence layer.
 func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
-	log.Print("Connecting to database...")
+	logger.Log.Info("connecting to database")
 	db, err := sharedstorage.Connect(cfg, sharedstorage.DefaultConnectionConfig())
 	if err != nil {
 		return nil, err
 	}
-	log.Print("Successfully connected to database.")
+	logger.Log.Info("successfully connected to database")
 
 	storage := &Storage{db, cfg}
 	storage.StartPeriodicViewRefresh(ctx, cfg.Public.BoardPreviewRefreshInterval*time.Second)

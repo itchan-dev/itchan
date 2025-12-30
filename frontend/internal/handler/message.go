@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"github.com/itchan-dev/itchan/shared/logger"
 	"fmt"
 	"io"
-	"log"
+
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -19,7 +20,7 @@ func (h *Handler) MessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := h.APIClient.DeleteMessage(r, boardShortName, threadId, messageId)
 	if err != nil {
-		log.Printf("Error deleting message via API: %v", err)
+		logger.Log.Error("deleting message via API", "error", err)
 		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
 		return
 	}
@@ -47,7 +48,7 @@ func (h *Handler) MessagePreviewHandler(w http.ResponseWriter, r *http.Request) 
 
 	// Copy the response body directly to the client.
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		log.Printf("Error copying response body for message preview: %v", err)
+		logger.Log.Error("copying response body for message preview", "error", err)
 	}
 }
 
@@ -61,7 +62,7 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 	// Fetch message data from backend API
 	messageData, err := h.APIClient.GetMessageParsed(r, board, threadId, messageId)
 	if err != nil {
-		log.Printf("Error fetching message from API: %v", err)
+		logger.Log.Error("fetching message from API", "error", err)
 		http.Error(w, "Message not found", http.StatusNotFound)
 		return
 	}
@@ -82,13 +83,13 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	tmpl := h.Templates["partials"]
 	if tmpl == nil {
-		log.Printf("Error: partials template not found in templates map")
+		logger.Log.Error(": partials template not found in templates map")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	if err := tmpl.ExecuteTemplate(w, "post", viewData); err != nil {
-		log.Printf("Error rendering post template: %v", err)
+		logger.Log.Error("rendering post template", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

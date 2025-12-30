@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"slices"
 
 	"github.com/gorilla/mux"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 type BoardAccess interface {
@@ -56,7 +56,10 @@ func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 			}
 
 			// Log and deny access
-			log.Printf("Restricted access: user=%d, board=%s, domain=%s", user.Id, board, emailDomain)
+			logger.Log.Warn("board access restricted",
+				"user_id", user.Id,
+				"board", board,
+				"domain", emailDomain)
 			http.Error(w, "Access restricted", http.StatusForbidden)
 		})
 	}
