@@ -226,7 +226,8 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	rows, err := q.Query(
 		fmt.Sprintf(`
             SELECT thread_title, message_count, last_bumped_at, thread_id,
-                   msg_id, author_id, text, created_at, is_op, ordinal
+                   msg_id, author_id, author_email, author_is_admin,
+                   text, created_at, is_op, ordinal
             FROM %s
             WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
             ORDER BY thread_order, ordinal -- at first, order by thread then by message inside thread
@@ -243,16 +244,18 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 
 	// Temporary structure to hold flat row data from the view
 	type rowData struct {
-		ThreadTitle domain.ThreadTitle
-		NMessages   int
-		LastBumpTs  time.Time
-		ThreadID    domain.ThreadId
-		MsgID       domain.MsgId
-		AuthorID    domain.UserId
-		Text        domain.MsgText
-		CreatedAt   time.Time
-		IsOp        bool
-		Ordinal     int
+		ThreadTitle   domain.ThreadTitle
+		NMessages     int
+		LastBumpTs    time.Time
+		ThreadID      domain.ThreadId
+		MsgID         domain.MsgId
+		AuthorID      domain.UserId
+		AuthorEmail   domain.Email
+		AuthorIsAdmin bool
+		Text          domain.MsgText
+		CreatedAt     time.Time
+		IsOp          bool
+		Ordinal       int
 	}
 
 	idToMessage := make(map[domain.MsgId]*domain.Message) // Map for efficient message lookup when attaching replies and attachments
@@ -265,7 +268,8 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		var row rowData
 		if err := rows.Scan(
 			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.MsgID,
-			&row.AuthorID, &row.Text, &row.CreatedAt, &row.IsOp, &row.Ordinal,
+			&row.AuthorID, &row.AuthorEmail, &row.AuthorIsAdmin,
+			&row.Text, &row.CreatedAt, &row.IsOp, &row.Ordinal,
 		); err != nil {
 			return domain.Board{}, fmt.Errorf("failed to scan thread/message row: %w", err)
 		}
@@ -294,8 +298,12 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		}
 		msg := &domain.Message{
 			MessageMetadata: domain.MessageMetadata{
-				Id:        row.MsgID,
-				Author:    domain.User{Id: row.AuthorID},
+				Id: row.MsgID,
+				Author: domain.User{
+					Id:    row.AuthorID,
+					Email: row.AuthorEmail,
+					Admin: row.AuthorIsAdmin,
+				},
 				CreatedAt: row.CreatedAt,
 				ThreadId:  row.ThreadID,
 				Op:        row.IsOp,

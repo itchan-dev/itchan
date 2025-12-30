@@ -138,10 +138,13 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	// Fetch all messages for the thread.
 	msgRows, err := q.Query(`
 		SELECT
-			id, author_id, text, created_at, thread_id, ordinal, updated_at, is_op, board
-		FROM messages
-		WHERE board = $1 AND thread_id = $2
-		ORDER BY created_at`,
+			m.id, m.author_id, m.text, m.created_at, m.thread_id, m.ordinal,
+			m.updated_at, m.is_op, m.board,
+			u.email, u.is_admin
+		FROM messages m
+		JOIN users u ON m.author_id = u.id
+		WHERE m.board = $1 AND m.thread_id = $2
+		ORDER BY m.created_at`,
 		board, id,
 	)
 	if err != nil {
@@ -156,6 +159,7 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		if err := msgRows.Scan(
 			&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt,
 			&msg.ThreadId, &msg.Ordinal, &msg.ModifiedAt, &msg.Op, &msg.Board,
+			&msg.Author.Email, &msg.Author.Admin,
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)
 		}

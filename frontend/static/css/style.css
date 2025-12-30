@@ -324,6 +324,12 @@ blockquote {
     margin-right: 8px;
 }
 
+.post-author .admin-badge {
+    color: #af0a0f; /* Dark red to highlight admin status */
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
 .post-date {
     margin-right: 8px;
 }

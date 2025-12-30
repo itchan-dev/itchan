@@ -68,7 +68,7 @@
 <div class="post-header">
     <input type="checkbox" name="delete" value="{{.Message.Id}}">
     {{if .Message.Context.Subject}}<span class="post-subject">{{.Message.Context.Subject}}</span>{{end}}
-    <span class="post-author">Anonymous</span>
+    <span class="post-author">{{if and .User .User.Admin}}{{.Message.Author.Email}}{{if .Message.Author.Admin}} <span class="admin-badge">[admin]</span>{{end}}{{else}}Anonymous{{end}}</span>
     <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
     <span class="post-id"><a href="{{printf "/%s/%d" .Message.Board .Message.ThreadId}}" class="thread-link">No.</a><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-link">{{.Message.Id}}</a></span>
     <span class="post-reply"><a href="{{printf "/%s/%d#reply-%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-reply-link">[reply]</a></span>
