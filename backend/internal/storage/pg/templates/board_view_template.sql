@@ -10,6 +10,8 @@ CREATE MATERIALIZED VIEW %[1]s AS
 			t.id as thread_id,
 			m.id as msg_id,
 			m.author_id as author_id,
+			u.email as author_email,
+			u.is_admin as author_is_admin,
 			m.text as text,
 			m.created_at as created_at,
 			m.is_op as is_op,
@@ -18,7 +20,8 @@ CREATE MATERIALIZED VIEW %[1]s AS
 		JOIN messages as m
 			ON t.id = m.thread_id
 			AND t.board = m.board
-		WHERE 
+		JOIN users u ON m.author_id = u.id
+		WHERE
 		(m.is_op OR ((t.message_count - m.ordinal) < %[2]d)) -- op msg and last messages should be presented
 		AND t.board = %[3]s
 	)
