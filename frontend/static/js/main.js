@@ -709,6 +709,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize file preview manager
     window.uploadPreviewManager = new UploadPreviewManager();
     console.log('Upload preview manager initialized');
+
+    // Add form validation for message posting (text OR attachments required)
+    document.addEventListener('submit', (e) => {
+        const form = e.target;
+
+        // Check if this is a message posting form
+        if (form.querySelector('textarea[name="text"]')) {
+            if (!validateMessageForm(form)) {
+                e.preventDefault();
+                return false;
+            }
+        }
+    });
 });
 
 // Handle hash changes on same page (thread page clicks)
@@ -730,4 +743,24 @@ function promptBlacklistReason(event) {
     }
 
     return true; // Allow form submission
+}
+
+// Validation: Ensure message forms have either text OR attachments
+function validateMessageForm(form) {
+    const textField = form.querySelector('textarea[name="text"]');
+    const fileInput = form.querySelector('input[type="file"][name="attachments"]');
+
+    if (!textField && !fileInput) {
+        return true; // Not a message form, allow submission
+    }
+
+    const hasText = textField && textField.value.trim().length > 0;
+    const hasFiles = fileInput && fileInput.files && fileInput.files.length > 0;
+
+    if (!hasText && !hasFiles) {
+        alert('Please provide either text or attachments (or both) for your message.');
+        return false;
+    }
+
+    return true;
 }

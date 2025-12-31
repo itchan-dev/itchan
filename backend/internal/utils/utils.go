@@ -59,13 +59,17 @@ func (e *ThreadTitleValidator) Title(name string) error {
 
 type MessageValidator struct{ Сfg *config.Public }
 
-func (e *MessageValidator) Text(name string) error {
-	if utf8.RuneCountInString(name) > e.Сfg.MessageTextMaxLen {
+func (e *MessageValidator) Text(text string) error {
+	runeCount := utf8.RuneCountInString(text)
+
+	if runeCount > e.Сfg.MessageTextMaxLen {
 		return &errors.ErrorWithStatusCode{Message: "Text is too long", StatusCode: 400}
 	}
-	if len(name) <= e.Сfg.MessageTextMinLen {
+
+	if runeCount < e.Сfg.MessageTextMinLen {
 		return &errors.ErrorWithStatusCode{Message: "Text is too short", StatusCode: 400}
 	}
+
 	return nil
 }
 
