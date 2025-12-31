@@ -12,6 +12,7 @@ import (
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/errors"
 	_ "golang.org/x/image/webp"
 )
 
@@ -50,15 +51,30 @@ func NewMessage(storage MessageStorage, validator MessageValidator, mediaStorage
 }
 
 func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
-	// Validate text
-	err := b.validator.Text(creationData.Text)
-	if err != nil {
-		return 0, err
+	// Determine what content we have
+	hasFiles := len(creationData.PendingFiles) > 0
+	hasText := len(strings.TrimSpace(string(creationData.Text))) > 0
+
+	// Business rule: must have EITHER text OR files
+	if !hasText && !hasFiles {
+		return 0, &errors.ErrorWithStatusCode{
+			Message:    "message must contain either text or attachments",
+			StatusCode: 400,
+		}
 	}
 
-	// Validate pending files if present
-	if err := b.validator.PendingFiles(creationData.PendingFiles); err != nil {
-		return 0, err
+	// Validate text only if text is provided
+	if hasText {
+		if err := b.validator.Text(creationData.Text); err != nil {
+			return 0, err
+		}
+	}
+
+	// Validate files only if files are provided
+	if hasFiles {
+		if err := b.validator.PendingFiles(creationData.PendingFiles); err != nil {
+			return 0, err
+		}
 	}
 
 	// Always create message metadata first (without files) to get msgId

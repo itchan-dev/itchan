@@ -5,7 +5,7 @@ import "github.com/itchan-dev/itchan/shared/domain"
 // Request DTOs shared by backend and frontend handlers
 
 type CreateMessageRequest struct {
-	Text        string              `json:"text" validate:"required"`
+	Text        string              `json:"text,omitempty"`
 	Attachments *domain.Attachments `json:"attachments,omitempty"`
 	ReplyTo     *domain.Replies     `json:"reply_to,omitempty"`
 }
@@ -13,7 +13,7 @@ type CreateMessageRequest struct {
 type CreateThreadRequest struct {
 	Title     string               `json:"title" validate:"required"`
 	IsSticky  bool                 `json:"is_sticky,omitempty"`
-	OpMessage CreateMessageRequest `json:"op_message" validate:"required"`
+	OpMessage CreateMessageRequest `json:"op_message,omitempty"`
 }
 
 type CreateBoardRequest struct {

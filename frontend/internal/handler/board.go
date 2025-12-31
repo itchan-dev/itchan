@@ -60,8 +60,10 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	text := r.FormValue("text")
 	processedText, domainReplies, hasPayload := h.processMessageText(text, domain.MessageMetadata{Board: shortName})
 
-	if !hasPayload {
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Message has empty payload."})
+	// Check if message has either text OR attachments (align with backend validation)
+	hasAttachments := r.MultipartForm != nil && r.MultipartForm.File != nil && len(r.MultipartForm.File["attachments"]) > 0
+	if !hasPayload && !hasAttachments {
+		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Message must contain either text or attachments."})
 		return
 	}
 

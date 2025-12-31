@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"errors"
 	"sync" // Used for tracking calls in mocks safely in parallel tests
 	"testing"
@@ -375,5 +376,205 @@ func TestMessageDelete(t *testing.T) {
 		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called")
 		assert.True(t, storage.getMessageCalled, "GetMessage should have been called")
 		storage.mu.Unlock()
+	})
+}
+
+func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
+	t.Run("empty text and no files - should fail", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		testCreationData := domain.MessageCreationData{
+			Board:        "tst",
+			ThreadId:     1,
+			Author:       domain.User{Id: 1},
+			Text:         "",
+			PendingFiles: nil,
+		}
+
+		// Act
+		_, err := service.Create(testCreationData)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "message must contain either text or attachments")
+	})
+
+	t.Run("whitespace-only text and no files - should fail", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		testCreationData := domain.MessageCreationData{
+			Board:        "tst",
+			ThreadId:     1,
+			Author:       domain.User{Id: 1},
+			Text:         "   \t\n  ",
+			PendingFiles: nil,
+		}
+
+		// Act
+		_, err := service.Create(testCreationData)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "message must contain either text or attachments")
+	})
+
+	t.Run("valid text only - should succeed", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		testCreationData := domain.MessageCreationData{
+			Board:        "tst",
+			ThreadId:     1,
+			Author:       domain.User{Id: 1},
+			Text:         "Valid message text",
+			PendingFiles: nil,
+		}
+
+		// Act
+		msgId, err := service.Create(testCreationData)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotZero(t, msgId)
+	})
+
+	t.Run("valid files only - should succeed", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		testCreationData := domain.MessageCreationData{
+			Board:    "tst",
+			ThreadId: 1,
+			Author:   domain.User{Id: 1},
+			Text:     "", // Empty text
+			PendingFiles: []*domain.PendingFile{
+				{
+					Data:             bytes.NewReader([]byte("fake image data")),
+					OriginalFilename: "test.jpg",
+					Size:             15,
+					MimeType:         "image/jpeg",
+				},
+			},
+		}
+
+		// Act
+		msgId, err := service.Create(testCreationData)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotZero(t, msgId)
+	})
+
+	t.Run("both text and files - should succeed", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		testCreationData := domain.MessageCreationData{
+			Board:    "tst",
+			ThreadId: 1,
+			Author:   domain.User{Id: 1},
+			Text:     "Message with attachment",
+			PendingFiles: []*domain.PendingFile{
+				{
+					Data:             bytes.NewReader([]byte("fake image data")),
+					OriginalFilename: "test.jpg",
+					Size:             15,
+					MimeType:         "image/jpeg",
+				},
+			},
+		}
+
+		// Act
+		msgId, err := service.Create(testCreationData)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotZero(t, msgId)
+	})
+
+	t.Run("invalid text and no files - should fail with text error", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		testCreationData := domain.MessageCreationData{
+			Board:        "tst",
+			ThreadId:     1,
+			Author:       domain.User{Id: 1},
+			Text:         "x", // Assume this is too short based on validator
+			PendingFiles: nil,
+		}
+
+		// Mock validator to reject short text
+		validator.textFunc = func(text domain.MsgText) error {
+			return &internal_errors.ErrorWithStatusCode{
+				Message:    "Text is too short",
+				StatusCode: 400,
+			}
+		}
+
+		// Act
+		_, err := service.Create(testCreationData)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Text is too short")
+	})
+
+	t.Run("invalid files and no text - should fail with file error", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		testCreationData := domain.MessageCreationData{
+			Board:    "tst",
+			ThreadId: 1,
+			Author:   domain.User{Id: 1},
+			Text:     "",
+			PendingFiles: []*domain.PendingFile{
+				{
+					Data:             bytes.NewReader([]byte("fake data")),
+					OriginalFilename: "test.exe",
+					Size:             9,
+					MimeType:         "application/x-executable", // Invalid MIME type
+				},
+			},
+		}
+
+		// Mock validator to reject invalid file
+		validator.pendingFilesFunc = func(files []*domain.PendingFile) error {
+			return &internal_errors.ErrorWithStatusCode{
+				Message:    "unsupported file type",
+				StatusCode: 400,
+			}
+		}
+
+		// Act
+		_, err := service.Create(testCreationData)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported file type")
 	})
 }
