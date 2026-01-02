@@ -108,7 +108,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		logger.Log.Error("failed to hash confirmation code", "error", err)
 		return err
 	}
-	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, PasswordHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(5 * time.Minute)})
+	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, PasswordHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(10 * time.Minute)})
 	if err != nil {
 		return err
 	}
@@ -125,8 +125,10 @@ func (a *Auth) Register(creds domain.Credentials) error {
 
 	err = a.email.Send(email, "Please confirm your email address", emailBody)
 	if err != nil {
+		logger.Log.Error("failed to send confirmation email", "email", email, "error", err)
 		return err
 	}
+	logger.Log.Info("confirmation code sent", "email", email, "expires_at", time.Now().UTC().Add(10*time.Minute))
 	return nil
 }
 
@@ -146,7 +148,7 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		return &errors.ErrorWithStatusCode{Message: "Confirmation time expired", StatusCode: http.StatusBadRequest}
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(data.ConfirmationCodeHash), []byte(confirmationCode)); err != nil {
-		logger.Log.Error("confirmation code verification failed", "error", err)
+		logger.Log.Warn("failed confirmation code attempt", "email", email, "error", err)
 		return &errors.ErrorWithStatusCode{Message: "Wrong confirmation code", StatusCode: http.StatusBadRequest}
 	}
 	// if not exists - create
@@ -154,9 +156,11 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 	if err != nil {
 		e, ok := err.(*errors.ErrorWithStatusCode)
 		if ok && e.StatusCode == http.StatusNotFound {
-			if _, err := a.storage.SaveUser(domain.User{Email: email, PassHash: data.PasswordHash}); err != nil {
+			userId, err := a.storage.SaveUser(domain.User{Email: email, PassHash: data.PasswordHash})
+			if err != nil {
 				return err
 			}
+			logger.Log.Info("new user registered", "email", email, "user_id", userId)
 		} else {
 			return err
 		}
@@ -164,6 +168,7 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		if err := a.storage.UpdatePassword(domain.Credentials{Email: email, Password: data.PasswordHash}); err != nil {
 			return err
 		}
+		logger.Log.Info("password updated", "email", email)
 	}
 	if err := a.storage.DeleteConfirmationData(email); err != nil { // cleanup
 		return err
@@ -198,7 +203,7 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PassHash), []byte(password))
 	if err != nil {
-		logger.Log.Error("password verification failed", "error", err)
+		logger.Log.Warn("failed login attempt - invalid password", "email", email, "user_id", user.Id)
 		return "", &errors.ErrorWithStatusCode{Message: "Invalid credentials", StatusCode: http.StatusUnauthorized}
 	}
 
@@ -209,6 +214,7 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 		return "", err
 	}
 	if isBlacklisted {
+		logger.Log.Warn("login attempt by blacklisted user", "email", email, "user_id", user.Id)
 		return "", &errors.ErrorWithStatusCode{
 			Message:    "Account suspended",
 			StatusCode: http.StatusForbidden,
@@ -221,6 +227,7 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 		return "", err
 	}
 
+	logger.Log.Info("successful login", "email", email, "user_id", user.Id, "is_admin", user.Admin)
 	return token, nil
 }
 

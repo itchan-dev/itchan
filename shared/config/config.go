@@ -149,7 +149,7 @@ func applyValidationDefaults(public *Public) {
 		public.ConfirmationCodeLen = 6
 	}
 	if public.PasswordMinLen == 0 {
-		public.ConfirmationCodeLen = 8
+		public.PasswordMinLen = 8
 	}
 
 	// Attachment defaults

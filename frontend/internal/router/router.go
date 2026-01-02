@@ -29,15 +29,20 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 		"form-action 'self'"
 	r.Use(mw.SecurityHeadersWithCSP(deps.Public.SecureCookies, frontendCSP))
 
-	// Public routes
+	// Public routes (GET endpoints - no rate limiting needed)
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
 	r.HandleFunc("/login", deps.Handler.LoginGetHandler).Methods("GET")
-	r.HandleFunc("/login", deps.Handler.LoginPostHandler).Methods("POST")
 	r.HandleFunc("/register", deps.Handler.RegisterGetHandler).Methods("GET")
-	r.HandleFunc("/register", deps.Handler.RegisterPostHandler).Methods("POST")
-
 	r.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailGetHandler).Methods("GET")
-	r.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler).Methods("POST")
+
+	// Public POST routes (rate limited to prevent abuse)
+	publicPosts := r.NewRoute().Subrouter()
+	publicPosts.Use(mw.RateLimit(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetEmailFromForm)) // 5 attempts per minute by email
+	publicPosts.Use(mw.RateLimit(rl.New(10.0/60.0, 10, 1*time.Hour), mw.GetIP))          // 10 per minute by IP (backup)
+	publicPosts.Use(mw.GlobalRateLimit(rl.Rps100()))                                     // 100 global RPS
+	publicPosts.HandleFunc("/login", deps.Handler.LoginPostHandler).Methods("POST")
+	publicPosts.HandleFunc("/register", deps.Handler.RegisterPostHandler).Methods("POST")
+	publicPosts.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler).Methods("POST")
 
 	r.PathPrefix("/static/").Handler(
 		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
