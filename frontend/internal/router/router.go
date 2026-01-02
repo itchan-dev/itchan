@@ -20,6 +20,15 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	// Enable gzip compression for all responses (HTML, CSS, JS)
 	r.Use(handlers.CompressHandler)
 
+	// Add security headers
+	frontendCSP := "default-src 'self'; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"img-src 'self' data: blob:; " +
+		"frame-ancestors 'none'; " +
+		"base-uri 'self'; " +
+		"form-action 'self'"
+	r.Use(mw.SecurityHeadersWithCSP(deps.Public.SecureCookies, frontendCSP))
+
 	// Public routes
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
 	r.HandleFunc("/login", deps.Handler.LoginGetHandler).Methods("GET")
