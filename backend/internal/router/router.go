@@ -27,6 +27,11 @@ func New(deps *setup.Dependencies) *mux.Router {
 		handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
 	))
 
+	// Add security headers
+	// Backend CSP: strict policy (JSON API only, no scripts/styles needed)
+	backendCSP := "default-src 'none'; frame-ancestors 'none'"
+	r.Use(mw.SecurityHeadersWithCSP(deps.Config.Public.SecureCookies, backendCSP))
+
 	// Add a wildcard OPTIONS handler to avoid 404s for preflight requests
 	r.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
