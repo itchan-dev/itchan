@@ -108,7 +108,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		logger.Log.Error("failed to hash confirmation code", "error", err)
 		return err
 	}
-	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, PasswordHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(10 * time.Minute)})
+	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, PasswordHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(a.cfg.ConfirmationCodeTTL)})
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		logger.Log.Error("failed to send confirmation email", "email", email, "error", err)
 		return err
 	}
-	logger.Log.Info("confirmation code sent", "email", email, "expires_at", time.Now().UTC().Add(10*time.Minute))
+	logger.Log.Info("confirmation code sent", "email", email, "expires_at", time.Now().UTC().Add(a.cfg.ConfirmationCodeTTL))
 	return nil
 }
 

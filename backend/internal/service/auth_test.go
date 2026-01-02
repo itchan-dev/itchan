@@ -155,7 +155,10 @@ func TestRegister(t *testing.T) {
 	storage := &MockAuthStorage{}
 	email := &MockEmail{}
 	jwt := &MockJwt{} // Not used in Register, but needed for constructor
-	service := NewAuth(storage, email, jwt, &config.Public{ConfirmationCodeLen: 8}, nil)
+	service := NewAuth(storage, email, jwt, &config.Public{
+		ConfirmationCodeLen: 8,
+		ConfirmationCodeTTL: 10 * time.Minute,
+	}, nil)
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 	lowerCaseEmail := strings.ToLower(creds.Email)
@@ -176,7 +179,7 @@ func TestRegister(t *testing.T) {
 			assert.NotEmpty(t, data.PasswordHash)
 			assert.NotEmpty(t, data.ConfirmationCodeHash)
 			assert.True(t, data.Expires.After(time.Now().UTC().Add(-1*time.Minute))) // Allow for slight clock skew
-			assert.True(t, data.Expires.Before(time.Now().UTC().Add(6*time.Minute))) // Should be around 5 mins expiry
+			assert.True(t, data.Expires.Before(time.Now().UTC().Add(11*time.Minute))) // Should be around 10 mins expiry
 			// Check if password was hashed correctly
 			err := bcrypt.CompareHashAndPassword([]byte(data.PasswordHash), []byte(creds.Password))
 			assert.NoError(t, err)

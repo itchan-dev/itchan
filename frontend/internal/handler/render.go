@@ -22,7 +22,7 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, name string, data interf
 
 	buf := new(bytes.Buffer)
 	if err := tmpl.Execute(buf, data); err != nil {
-		logger.Log.Error("executing template %s", "error", name, err)
+		logger.Log.Error("error executing template", "template", name, "error", err)
 		http.Error(w, "Internal Server Error rendering template", http.StatusInternalServerError)
 		return
 	}
