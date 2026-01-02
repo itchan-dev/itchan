@@ -8,6 +8,12 @@ import (
 
 var Log *slog.Logger
 
+func init() {
+	// Auto-initialize with safe defaults for tests and development
+	// Production code can override by calling Initialize() explicitly
+	Initialize("info", false)
+}
+
 // Initialize sets up the global logger with the specified level and format
 func Initialize(level string, useJSON bool) {
 	var handler slog.Handler

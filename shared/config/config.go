@@ -16,6 +16,7 @@ type Config struct {
 
 type Public struct {
 	JwtTTL                      time.Duration `yaml:"jwt_ttl" validate:"required"`
+	ConfirmationCodeTTL         time.Duration `yaml:"confirmation_code_ttl"` // Time until confirmation code expires
 	ThreadsPerPage              int           `yaml:"threads_per_page" validate:"required"`
 	MaxThreadCount              *int          `yaml:"max_thread_count"`
 	NLastMsg                    int           `yaml:"n_last_msg" validate:"required"` // number of last messages shown in board preview (materialized view)
@@ -150,6 +151,9 @@ func applyValidationDefaults(public *Public) {
 	}
 	if public.PasswordMinLen == 0 {
 		public.PasswordMinLen = 8
+	}
+	if public.ConfirmationCodeTTL == 0 {
+		public.ConfirmationCodeTTL = 10 * time.Minute
 	}
 
 	// Attachment defaults
