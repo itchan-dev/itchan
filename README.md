@@ -1,3 +1,5 @@
+!! project still in development
+
 # Itchan Imageboard
 
 A modern, high-performance imageboard built with Go, featuring a clean three-layer architecture, advanced authentication, and comprehensive rate limiting. Designed for privacy-conscious communities with domain-based board access control.
