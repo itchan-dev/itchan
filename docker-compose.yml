@@ -37,7 +37,7 @@ services:
       - POSTGRES_PASSWORD=itchan
       - POSTGRES_DB=itchan
     ports:
-      - 5432:5432
+      - "127.0.0.1:5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data
       - ./backend/internal/storage/pg/migrations:/docker-entrypoint-initdb.d
