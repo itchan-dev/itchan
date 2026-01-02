@@ -62,18 +62,23 @@ func New(deps *setup.Dependencies) *mux.Router {
 	auth := v1.PathPrefix("/auth").Subrouter()
 	// Rate-limited email sending endpoints
 	authSendingEmail := auth.NewRoute().Subrouter()
-	// authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10, 1, 1*time.Hour), mw.GetEmailFromBody)) // per 10 sec by email
-	authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10.0, 1, 1*time.Hour), mw.GetIP)) // per 10 sec by IP
-	authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))                          // 100 global RPS
+	authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10, 1, 1*time.Hour), mw.GetEmailFromBody)) // 10 per sec by email
+	authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10.0, 1, 1*time.Hour), mw.GetIP))          // 10 per sec by IP
+	authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))                                   // 100 global RPS
 	authSendingEmail.HandleFunc("/register", h.Register).Methods("POST")
 
-	// Database lookup endpoints (higher limits)
-	authDbLookup := auth.NewRoute().Subrouter()
-	// authDbLookup.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetEmailFromBody)) // 1 per second by email
-	authDbLookup.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetIP)) // 1 per second by IP
-	authDbLookup.Use(mw.GlobalRateLimit(rl.Rps1000()))          // 1000 global RPS
-	authDbLookup.HandleFunc("/check_confirmation_code", h.CheckConfirmationCode).Methods("POST")
-	authDbLookup.HandleFunc("/login", h.Login).Methods("POST")
+	// Confirmation code verification (stricter limits to prevent brute force)
+	authConfirmation := auth.NewRoute().Subrouter()
+	authConfirmation.Use(mw.RateLimit(rl.New(5.0/600.0, 5, 1*time.Hour), mw.GetEmailFromBody)) // 5 attempts per 10 minutes by email
+	authConfirmation.Use(mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetIP))                    // 1 per second by IP (backup)
+	authConfirmation.Use(mw.GlobalRateLimit(rl.Rps100()))                                      // 100 global RPS
+	authConfirmation.HandleFunc("/check_confirmation_code", h.CheckConfirmationCode).Methods("POST")
+
+	// Login endpoint (separate rate limiting)
+	authLogin := auth.NewRoute().Subrouter()
+	authLogin.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetIP)) // 1 per second by IP
+	authLogin.Use(mw.GlobalRateLimit(rl.Rps1000()))          // 1000 global RPS
+	authLogin.HandleFunc("/login", h.Login).Methods("POST")
 
 	// Logout (no rate limits)
 	auth.HandleFunc("/logout", h.Logout).Methods("POST")

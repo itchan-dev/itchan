@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -181,17 +180,13 @@ func TestGetIP(t *testing.T) {
 		assert.Equal(t, "192.168.1.1", ip)
 	})
 
-	t.Run("returns hash when IP cannot be determined", func(t *testing.T) {
+	t.Run("returns error when RemoteAddr is invalid", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/", nil)
 		req.RemoteAddr = ""
 
-		ip, err := GetIP(req)
-		assert.NoError(t, err)
-
-		// Validate it's a SHA256 hash (64 hex chars)
-		assert.Len(t, ip, 64)
-		_, err = hex.DecodeString(ip)
-		assert.NoError(t, err, "Returned value should be a valid hex string")
+		_, err := GetIP(req)
+		assert.Error(t, err, "Should return error for empty RemoteAddr")
+		assert.Contains(t, err.Error(), "invalid IP address")
 	})
 }
 

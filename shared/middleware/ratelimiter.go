@@ -1,8 +1,12 @@
 package middleware
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/middleware/ratelimiter"
@@ -46,27 +50,63 @@ func GetEmailFromContext(r *http.Request) (string, error) {
 	return user.Email, nil
 }
 
+// GetIP extracts the real client IP from RemoteAddr
+// Does NOT trust X-Real-IP or X-Forwarded-For headers (no reverse proxy)
 func GetIP(r *http.Request) (string, error) {
-	ip, err := utils.GetIP(r)
+	// Only trust RemoteAddr - can't be spoofed (comes from TCP connection)
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		// Create consistent fingerprint from request characteristics
-		fingerprint := fmt.Sprintf("%s|%s|%s",
-			r.UserAgent(),
-			r.Header.Get("Accept-Language"),
-			r.Header.Get("Accept-Encoding"),
-		)
-		return utils.HashSHA256(fingerprint), nil
+		// Fallback: if RemoteAddr doesn't have port, use it directly
+		ip = r.RemoteAddr
 	}
+
+	// Validate it's a real IP
+	if net.ParseIP(ip) == nil {
+		return "", fmt.Errorf("invalid IP address: %s", ip)
+	}
+
 	return ip, nil
 }
 
-// func GetEmailFromBody(r *http.Request) (string, error) {
-// 	var creds struct {
-// 		Email    string `validate:"required" json:"email"`
-// 		Password string `json:"password"`
-// 	}
-// 	if err := utils.LoadAndValidateRequestBody(r, &creds); err != nil {
-// 		return "", err
-// 	}
-// 	return creds.Email, nil
-// }
+// GetEmailFromBody extracts email from JSON request body for rate limiting purposes
+// It reads the body and restores it so the handler can read it again
+// Used by backend API endpoints
+func GetEmailFromBody(r *http.Request) (string, error) {
+	// Read the body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return "", errors.New("failed to read request body")
+	}
+	// Restore the body so the handler can read it
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	// Parse JSON to extract email
+	var data struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return "", errors.New("invalid request body")
+	}
+
+	if data.Email == "" {
+		return "", errors.New("email field is required")
+	}
+
+	return data.Email, nil
+}
+
+// GetEmailFromForm extracts email from form data for rate limiting purposes
+// Used by frontend HTML form submissions
+func GetEmailFromForm(r *http.Request) (string, error) {
+	// Parse form if not already parsed
+	if err := r.ParseForm(); err != nil {
+		return "", errors.New("failed to parse form")
+	}
+
+	email := r.FormValue("email")
+	if email == "" {
+		return "", errors.New("email field is required")
+	}
+
+	return email, nil
+}

@@ -1,12 +1,13 @@
 package utils
 
 import (
+	"crypto/rand"
 	"fmt"
 	"image"
+	"math/big"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/errors"
@@ -145,9 +146,22 @@ func (e *MessageValidator) validateFileMeta(mimeType string, size int64, allowed
 	return nil
 }
 
-func GenerateConfirmationCode(len int) string {
-	code := uuid.NewString()
-	return code[:len]
+// GenerateConfirmationCode generates a cryptographically secure random confirmation code
+// using alphanumeric characters (excluding ambiguous ones like 0, O, I, 1)
+func GenerateConfirmationCode(length int) string {
+	// Charset excludes ambiguous characters: 0, O, I, 1
+	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+	b := make([]byte, length)
+	for i := range b {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			// Fallback to a simpler random if crypto/rand fails (should never happen)
+			panic(fmt.Sprintf("failed to generate random number: %v", err))
+		}
+		b[i] = charset[n.Int64()]
+	}
+	return string(b)
 }
 
 // GenerateThumbnail creates a thumbnail of the given image with a maximum size.
