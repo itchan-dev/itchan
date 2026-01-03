@@ -101,7 +101,7 @@ func (s *Storage) SaveThumbnail(thumbnail image.Image, originalRelativePath stri
 
 	// Encode thumbnail as JPEG to a buffer first
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, thumbnail, &jpeg.Options{Quality: 85}); err != nil {
+	if err := jpeg.Encode(&buf, thumbnail, &jpeg.Options{Quality: 75}); err != nil {
 		return "", fmt.Errorf("failed to encode thumbnail as JPEG: %w", err)
 	}
 
