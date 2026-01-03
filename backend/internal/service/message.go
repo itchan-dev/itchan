@@ -136,8 +136,8 @@ func (b *Message) saveAndAttachFiles(
 				// Decode the image
 				img, _, err := image.Decode(pendingFile.Data)
 				if err == nil {
-					// Generate thumbnail (200x200 max)
-					thumbnail := utils.GenerateThumbnail(img, 200)
+					// Generate thumbnail (100x100 max)
+					thumbnail := utils.GenerateThumbnail(img, 100)
 
 					// Save thumbnail
 					thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
