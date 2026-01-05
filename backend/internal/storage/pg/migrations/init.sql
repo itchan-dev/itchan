@@ -81,14 +81,15 @@ CREATE INDEX IF NOT EXISTS messages_thread_id_index ON messages (board, thread_i
 CREATE INDEX IF NOT EXISTS idx_messages_author ON messages (author_id);
 
 CREATE TABLE IF NOT EXISTS files (
-    id                bigserial PRIMARY KEY,
-    file_path         text NOT NULL UNIQUE,
-    original_filename text NOT NULL,
-    file_size_bytes   bigint NOT NULL,
-    mime_type         varchar(255) NOT NULL,
-    image_width       int,
-    image_height      int,
-    thumbnail_path    text
+    id                 bigserial PRIMARY KEY,
+    file_path          text NOT NULL UNIQUE,
+    original_filename  text NOT NULL,
+    file_size_bytes    bigint NOT NULL,
+    mime_type          varchar(255) NOT NULL,
+    original_mime_type varchar(255),
+    image_width        int,
+    image_height       int,
+    thumbnail_path     text
     -- file_hash_sha256  bytea UNIQUE
 );
 -- Partial index - only indexes non-NULL thumbnails

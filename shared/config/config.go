@@ -171,13 +171,13 @@ func applyValidationDefaults(public *Public) {
 			"image/jpeg",
 			"image/png",
 			"image/gif",
-			"image/webp",
 		}
 	}
 	if len(public.AllowedVideoMimeTypes) == 0 {
 		public.AllowedVideoMimeTypes = []string{
 			"video/mp4",
 			"video/webm",
+			"video/ogg",
 		}
 	}
 }
