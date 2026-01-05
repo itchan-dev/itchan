@@ -19,6 +19,9 @@ RUN go build -o itchan-api ./backend/cmd/itchan-api/
 # Use a minimal image for the final build
 FROM alpine:latest
 
+# Install ffmpeg for video metadata stripping
+RUN apk add --no-cache ffmpeg
+
 # Set working directory
 WORKDIR /root/
 

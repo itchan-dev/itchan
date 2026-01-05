@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/itchan-dev/itchan/shared/domain"
-	_ "golang.org/x/image/webp"
 )
 
 // ValidateAttachments validates uploaded files and prepares them for saving.

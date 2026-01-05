@@ -1,19 +1,18 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"io"
 	"strings"
 
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/errors"
-	_ "golang.org/x/image/webp"
 )
 
 type MessageService interface {
@@ -110,52 +109,55 @@ func (b *Message) saveAndAttachFiles(
 	savedFiles := make([]string, 0) // Track for cleanup on error
 
 	for _, pendingFile := range pendingFiles {
-		// Save file to storage
+		originalMimeType := pendingFile.MimeType
+
+		// Sanitize the file (handles both images and videos)
+		sanitizedData, newFilename, err := SanitizeFile(pendingFile)
+		if err != nil {
+			// Cleanup saved files
+			for _, p := range savedFiles {
+				b.mediaStorage.DeleteFile(p)
+			}
+			return err
+		}
+
+		// Save sanitized file
 		filePath, err := b.mediaStorage.SaveFile(
-			pendingFile.Data,
+			bytes.NewReader(sanitizedData),
 			string(board),
 			fmt.Sprintf("%d", threadID),
-			pendingFile.OriginalFilename,
+			newFilename,
 		)
 		if err != nil {
-			// Cleanup: delete already saved files
-			for _, savedPath := range savedFiles {
-				b.mediaStorage.DeleteFile(savedPath)
+			for _, p := range savedFiles {
+				b.mediaStorage.DeleteFile(p)
 			}
 			return fmt.Errorf("failed to save file: %w", err)
 		}
 		savedFiles = append(savedFiles, filePath)
 
-		// Generate and save thumbnail for images
+		// Generate thumbnail for images
 		var thumbnailPath *string
 		if strings.HasPrefix(pendingFile.MimeType, "image/") {
-			// Try to seek back to start if the reader supports it (it should, since it's a multipart.File)
-			if seeker, ok := pendingFile.Data.(io.Seeker); ok {
-				seeker.Seek(0, 0)
-
-				// Decode the image
-				img, _, err := image.Decode(pendingFile.Data)
+			img, _, err := image.Decode(bytes.NewReader(sanitizedData))
+			if err == nil {
+				thumbnail := utils.GenerateThumbnail(img, 125)
+				thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
 				if err == nil {
-					// Generate thumbnail (100x100 max)
-					thumbnail := utils.GenerateThumbnail(img, 100)
-
-					// Save thumbnail
-					thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
-					if err == nil {
-						thumbnailPath = &thumbPath
-						savedFiles = append(savedFiles, thumbPath) // Track for cleanup
-					}
-					// Note: We don't fail the upload if thumbnail generation fails
+					thumbnailPath = &thumbPath
+					savedFiles = append(savedFiles, thumbPath)
 				}
 			}
+			// Note: We don't fail the upload if thumbnail generation fails
 		}
 
-		// Create file metadata
+		// Create file metadata with original MIME type
 		fileData := &domain.File{
 			FilePath:         filePath,
-			OriginalFilename: pendingFile.OriginalFilename,
-			FileSizeBytes:    pendingFile.Size,
+			OriginalFilename: newFilename,
+			FileSizeBytes:    int64(len(sanitizedData)),
 			MimeType:         pendingFile.MimeType,
+			OriginalMimeType: &originalMimeType,
 			ImageWidth:       pendingFile.ImageWidth,
 			ImageHeight:      pendingFile.ImageHeight,
 			ThumbnailPath:    thumbnailPath,

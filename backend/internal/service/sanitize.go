@@ -1,0 +1,154 @@
+package service
+
+import (
+	"bytes"
+	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/itchan-dev/itchan/shared/domain"
+)
+
+// SanitizeImage re-encodes images to strip metadata
+// PNG → PNG (preserves transparency)
+// JPEG/GIF → JPEG 85
+// Returns: sanitized bytes, final MIME type, final extension, dimensions, error
+func SanitizeImage(data io.Reader, mimeType string) ([]byte, string, string, *int, *int, error) {
+	img, format, err := image.Decode(data)
+	if err != nil {
+		return nil, "", "", nil, nil, fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+
+	var buf bytes.Buffer
+	var finalMimeType, finalExt string
+
+	if format == "png" {
+		err = png.Encode(&buf, img)
+		finalMimeType = "image/png"
+		finalExt = ".png"
+	} else {
+		err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85})
+		finalMimeType = "image/jpeg"
+		finalExt = ".jpg"
+	}
+
+	if err != nil {
+		return nil, "", "", nil, nil, err
+	}
+
+	return buf.Bytes(), finalMimeType, finalExt, &width, &height, nil
+}
+
+// SanitizeVideo strips metadata using ffmpeg
+// Returns path to sanitized temp file (caller must clean up)
+func SanitizeVideo(inputPath string) (string, error) {
+	// Extract extension from input file so ffmpeg can determine output format
+	ext := filepath.Ext(inputPath)
+	tmpFile, err := os.CreateTemp("", "sanitized_video_*"+ext)
+	if err != nil {
+		return "", err
+	}
+	outputPath := tmpFile.Name()
+	tmpFile.Close()
+
+	// Build ffmpeg command to strip all metadata while preserving quality
+	cmd := exec.Command("ffmpeg",
+		"-i", inputPath,
+		"-map_metadata", "-1", // Remove all global metadata (title, artist, etc.)
+		"-map_metadata:s:v", "-1", // Remove video stream metadata (encoder, creation time, etc.)
+		"-map_metadata:s:a", "-1", // Remove audio stream metadata
+		"-c", "copy", // Copy streams without re-encoding (fast, no quality loss)
+		"-fflags", "+bitexact", // Remove encoder version info for reproducible output
+		"-y", // Overwrite output file without prompting
+		outputPath,
+	)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		os.Remove(outputPath)
+		return "", fmt.Errorf("ffmpeg failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	return outputPath, nil
+}
+
+// CheckFFmpegAvailable verifies ffmpeg is installed
+func CheckFFmpegAvailable() error {
+	cmd := exec.Command("ffmpeg", "-version")
+	return cmd.Run()
+}
+
+// SanitizeFile sanitizes a pending file (image or video), stripping metadata
+// Returns: sanitized bytes, new filename, error
+// Handles all temp file creation and cleanup internally
+func SanitizeFile(pendingFile *domain.PendingFile) ([]byte, string, error) {
+	originalMimeType := pendingFile.MimeType
+
+	if strings.HasPrefix(pendingFile.MimeType, "image/") {
+		// Sanitize image
+		sanitized, finalMime, finalExt, width, height, err := SanitizeImage(pendingFile.Data, pendingFile.MimeType)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to sanitize image: %w", err)
+		}
+
+		// Update PendingFile metadata
+		pendingFile.MimeType = finalMime
+		pendingFile.ImageWidth = width
+		pendingFile.ImageHeight = height
+
+		// Update filename extension
+		origExt := filepath.Ext(pendingFile.OriginalFilename)
+		baseName := strings.TrimSuffix(pendingFile.OriginalFilename, origExt)
+		newFilename := baseName + finalExt
+
+		return sanitized, newFilename, nil
+
+	} else if strings.HasPrefix(pendingFile.MimeType, "video/") {
+		// Create temp input file for ffmpeg
+		origExt := filepath.Ext(pendingFile.OriginalFilename)
+		tmpInput, err := os.CreateTemp("", "upload_video_*"+origExt)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to create temp input file: %w", err)
+		}
+		tmpInputPath := tmpInput.Name()
+
+		// Write uploaded data to temp file
+		_, copyErr := io.Copy(tmpInput, pendingFile.Data)
+		tmpInput.Close()
+		if copyErr != nil {
+			os.Remove(tmpInputPath)
+			return nil, "", fmt.Errorf("failed to write temp video: %w", copyErr)
+		}
+
+		// Sanitize with ffmpeg
+		tmpOutputPath, err := SanitizeVideo(tmpInputPath)
+		os.Remove(tmpInputPath) // Clean up input immediately
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to sanitize video: %w", err)
+		}
+		defer os.Remove(tmpOutputPath) // Clean up output when function returns
+
+		// Read sanitized data
+		sanitizedData, err := os.ReadFile(tmpOutputPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to read sanitized video: %w", err)
+		}
+
+		// Video keeps original filename and MIME type
+		return sanitizedData, pendingFile.OriginalFilename, nil
+	}
+
+	// Should never reach here if validation is correct
+	return nil, "", fmt.Errorf("unsupported file type: %s", originalMimeType)
+}

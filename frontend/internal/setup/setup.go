@@ -180,14 +180,22 @@ func derefStr(value *string) string {
 	return *value
 }
 
+func formatAcceptMimeTypes(images, videos []string) string {
+	var result []string
+	result = append(result, images...)
+	result = append(result, videos...)
+	return joinStrings(result, ",")
+}
+
 var functionMap template.FuncMap = template.FuncMap{
-	"sub":                sub,
-	"add":                add,
-	"dict":               dict,
-	"hasPrefix":          hasPrefix,
-	"bytesToMB":          bytesToMB,
-	"mimeTypeExtensions": mimeTypeExtensions,
-	"derefStr":           derefStr,
+	"sub":                   sub,
+	"add":                   add,
+	"dict":                  dict,
+	"hasPrefix":             hasPrefix,
+	"bytesToMB":             bytesToMB,
+	"mimeTypeExtensions":    mimeTypeExtensions,
+	"formatAcceptMimeTypes": formatAcceptMimeTypes,
+	"derefStr":              derefStr,
 }
 
 func mustLoadTemplates(tmplPath string) map[string]*template.Template {

@@ -7,6 +7,7 @@ type File struct {
 	OriginalFilename string  `json:"original_filename,omitempty"`
 	FileSizeBytes    int64   `json:"file_size_bytes,omitempty"`
 	MimeType         string  `json:"mime_type,omitempty"`
+	OriginalMimeType *string `json:"original_mime_type,omitempty"`
 	ImageWidth       *int    `json:"image_width,omitempty"`
 	ImageHeight      *int    `json:"image_height,omitempty"`
 	ThumbnailPath    *string `json:"thumbnail_path,omitempty"`
