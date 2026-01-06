@@ -83,6 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_author ON messages (author_id);
 CREATE TABLE IF NOT EXISTS files (
     id                 bigserial PRIMARY KEY,
     file_path          text NOT NULL UNIQUE,
+    filename           varchar(255) NOT NULL,
     original_filename  text NOT NULL,
     file_size_bytes    bigint NOT NULL,
     mime_type          varchar(255) NOT NULL,
@@ -92,6 +93,8 @@ CREATE TABLE IF NOT EXISTS files (
     thumbnail_path     text
     -- file_hash_sha256  bytea UNIQUE
 );
+COMMENT ON COLUMN files.filename IS 'Sanitized filename stored on disk (may differ from upload if sanitized, e.g., photo.gif -> photo.jpg)';
+COMMENT ON COLUMN files.original_filename IS 'Filename as uploaded by user (before any sanitization)';
 -- Partial index - only indexes non-NULL thumbnails
 CREATE INDEX IF NOT EXISTS idx_files_thumbnail_path 
 ON files (thumbnail_path) 

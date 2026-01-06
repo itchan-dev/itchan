@@ -210,7 +210,7 @@ func (s *Storage) getMessage(q Querier, board domain.BoardShortName, id domain.M
 func (s *Storage) getMessageAttachments(q Querier, board domain.BoardShortName, id domain.MsgId) (domain.Attachments, error) {
 	rows, err := q.Query(`
         SELECT a.id, a.board, a.message_id, a.file_id,
-               f.file_path, f.original_filename, f.file_size_bytes, f.mime_type, f.original_mime_type, f.image_width, f.image_height, f.thumbnail_path
+               f.file_path, f.filename, f.original_filename, f.file_size_bytes, f.mime_type, f.original_mime_type, f.image_width, f.image_height, f.thumbnail_path
         FROM attachments a
         JOIN files f ON a.file_id = f.id
         WHERE a.board = $1 AND a.message_id = $2
@@ -228,7 +228,7 @@ func (s *Storage) getMessageAttachments(q Querier, board domain.BoardShortName, 
 		var file domain.File
 		if err := rows.Scan(
 			&attachment.Id, &attachment.Board, &attachment.MessageId, &attachment.FileId,
-			&file.FilePath, &file.OriginalFilename, &file.FileSizeBytes, &file.MimeType, &file.OriginalMimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
+			&file.FilePath, &file.Filename, &file.OriginalFilename, &file.SizeBytes, &file.MimeType, &file.OriginalMimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan attachment row: %w", err)
 		}
@@ -305,9 +305,9 @@ func (s *Storage) addAttachments(q Querier, board domain.BoardShortName, message
 		// Insert file record
 		var fileId int64
 		err := q.QueryRow(`
-            INSERT INTO files (file_path, original_filename, file_size_bytes, mime_type, original_mime_type, image_width, image_height, thumbnail_path)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-			attachment.File.FilePath, attachment.File.OriginalFilename, attachment.File.FileSizeBytes,
+            INSERT INTO files (file_path, filename, original_filename, file_size_bytes, mime_type, original_mime_type, image_width, image_height, thumbnail_path)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+			attachment.File.FilePath, attachment.File.Filename, attachment.File.OriginalFilename, attachment.File.SizeBytes,
 			attachment.File.MimeType, attachment.File.OriginalMimeType, attachment.File.ImageWidth, attachment.File.ImageHeight, attachment.File.ThumbnailPath,
 		).Scan(&fileId)
 		if err != nil {

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -111,10 +110,12 @@ func (b *Message) saveAndAttachFiles(
 	savedFiles := make([]string, 0) // Track for cleanup on error
 
 	for _, pendingFile := range pendingFiles {
+		// Capture original metadata BEFORE sanitization
+		originalFilename := pendingFile.Filename
 		originalMimeType := pendingFile.MimeType
 
-		// Remove metadata
-		sanitizedData, newFilename, err := svcutils.SanitizeFile(pendingFile)
+		// Sanitize file (returns new PendingFile with sanitized data)
+		sanitizedFile, err := svcutils.SanitizeFile(pendingFile)
 		if err != nil {
 			// Cleanup saved files
 			for _, p := range savedFiles {
@@ -123,11 +124,12 @@ func (b *Message) saveAndAttachFiles(
 			return err
 		}
 
+		// Save sanitized file to disk
 		filePath, err := b.mediaStorage.SaveFile(
-			bytes.NewReader(sanitizedData),
+			sanitizedFile.Data,
 			string(board),
 			fmt.Sprintf("%d", threadID),
-			newFilename,
+			sanitizedFile.Filename,
 		)
 		if err != nil {
 			for _, p := range savedFiles {
@@ -139,8 +141,8 @@ func (b *Message) saveAndAttachFiles(
 
 		// Generate thumbnail for images
 		var thumbnailPath *string
-		if strings.HasPrefix(pendingFile.MimeType, "image/") {
-			img, _, err := image.Decode(bytes.NewReader(sanitizedData))
+		if strings.HasPrefix(sanitizedFile.MimeType, "image/") {
+			img, _, err := image.Decode(sanitizedFile.Data)
 			if err == nil {
 				thumbnail := utils.GenerateThumbnail(img, 125)
 				thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
@@ -152,16 +154,13 @@ func (b *Message) saveAndAttachFiles(
 			// Note: We don't fail the upload if thumbnail generation fails
 		}
 
-		// Create file metadata with original MIME type
+		// Create file metadata with BOTH original and sanitized data
 		fileData := &domain.File{
-			FilePath:         filePath,
-			OriginalFilename: newFilename,
-			FileSizeBytes:    int64(len(sanitizedData)),
-			MimeType:         pendingFile.MimeType,
-			OriginalMimeType: &originalMimeType,
-			ImageWidth:       pendingFile.ImageWidth,
-			ImageHeight:      pendingFile.ImageHeight,
-			ThumbnailPath:    thumbnailPath,
+			FileCommonMetadata: sanitizedFile.FileCommonMetadata, // Sanitized metadata
+			FilePath:           filePath,
+			OriginalFilename:   originalFilename,   // User's uploaded filename
+			OriginalMimeType:   &originalMimeType, // Pre-sanitization MIME type
+			ThumbnailPath:      thumbnailPath,
 		}
 
 		// Create attachment

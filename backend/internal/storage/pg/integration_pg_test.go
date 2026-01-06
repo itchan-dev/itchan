@@ -228,18 +228,24 @@ func getRandomAttachments(t *testing.T) domain.Attachments {
 	attachments := domain.Attachments{
 		&domain.Attachment{
 			File: &domain.File{
+				FileCommonMetadata: domain.FileCommonMetadata{
+					Filename:  f1Name,
+					SizeBytes: 1024,
+					MimeType:  "image/jpeg",
+				},
 				FilePath:         f1Name,
 				OriginalFilename: f1Name,
-				FileSizeBytes:    1024,
-				MimeType:         "image/jpeg",
 			},
 		},
 		&domain.Attachment{
 			File: &domain.File{
+				FileCommonMetadata: domain.FileCommonMetadata{
+					Filename:  f2Name,
+					SizeBytes: 2048,
+					MimeType:  "image/png",
+				},
 				FilePath:         f2Name,
 				OriginalFilename: f2Name,
-				FileSizeBytes:    2048,
-				MimeType:         "image/png",
 			},
 		},
 	}

@@ -31,9 +31,9 @@ func TestProcessAttachments(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Len(t, pendingFiles, 2)
-		assert.Equal(t, "image.jpg", pendingFiles[0].OriginalFilename)
+		assert.Equal(t, "image.jpg", pendingFiles[0].Filename)
 		assert.Equal(t, "image/jpeg", pendingFiles[0].MimeType)
-		assert.Equal(t, "video.mp4", pendingFiles[1].OriginalFilename)
+		assert.Equal(t, "video.mp4", pendingFiles[1].Filename)
 		assert.Equal(t, "video/mp4", pendingFiles[1].MimeType)
 
 		for _, pf := range pendingFiles {

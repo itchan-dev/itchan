@@ -90,36 +90,39 @@ func CheckFFmpegAvailable() error {
 }
 
 // SanitizeFile sanitizes a pending file (image or video), stripping metadata
-// Returns: sanitized bytes, new filename, error
+// Returns a new PendingFile with sanitized data
 // Handles all temp file creation and cleanup internally
-func SanitizeFile(pendingFile *domain.PendingFile) ([]byte, string, error) {
-	originalMimeType := pendingFile.MimeType
-
+func SanitizeFile(pendingFile *domain.PendingFile) (*domain.PendingFile, error) {
+	origExt := filepath.Ext(pendingFile.Filename)
 	if strings.HasPrefix(pendingFile.MimeType, "image/") {
 		// Sanitize image
 		sanitized, finalMime, finalExt, width, height, err := SanitizeImage(pendingFile.Data, pendingFile.MimeType)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to sanitize image: %w", err)
+			return nil, fmt.Errorf("failed to sanitize image: %w", err)
 		}
 
-		// Update PendingFile metadata
-		pendingFile.MimeType = finalMime
-		pendingFile.ImageWidth = width
-		pendingFile.ImageHeight = height
+		// Update filename extension if format changed
 
-		// Update filename extension
-		origExt := filepath.Ext(pendingFile.OriginalFilename)
-		baseName := strings.TrimSuffix(pendingFile.OriginalFilename, origExt)
+		baseName := strings.TrimSuffix(pendingFile.Filename, origExt)
 		newFilename := baseName + finalExt
 
-		return sanitized, newFilename, nil
+		// Return new PendingFile with sanitized data
+		return &domain.PendingFile{
+			FileCommonMetadata: domain.FileCommonMetadata{
+				Filename:    newFilename,
+				SizeBytes:   int64(len(sanitized)),
+				MimeType:    finalMime,
+				ImageWidth:  width,
+				ImageHeight: height,
+			},
+			Data: bytes.NewReader(sanitized),
+		}, nil
 
 	} else if strings.HasPrefix(pendingFile.MimeType, "video/") {
 		// Create temp input file for ffmpeg
-		origExt := filepath.Ext(pendingFile.OriginalFilename)
 		tmpInput, err := os.CreateTemp("", "upload_video_*"+origExt)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to create temp input file: %w", err)
+			return nil, fmt.Errorf("failed to create temp input file: %w", err)
 		}
 		tmpInputPath := tmpInput.Name()
 
@@ -128,27 +131,36 @@ func SanitizeFile(pendingFile *domain.PendingFile) ([]byte, string, error) {
 		tmpInput.Close()
 		if copyErr != nil {
 			os.Remove(tmpInputPath)
-			return nil, "", fmt.Errorf("failed to write temp video: %w", copyErr)
+			return nil, fmt.Errorf("failed to write temp video: %w", copyErr)
 		}
 
 		// Sanitize with ffmpeg
 		tmpOutputPath, err := SanitizeVideo(tmpInputPath)
 		os.Remove(tmpInputPath) // Clean up input immediately
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to sanitize video: %w", err)
+			return nil, fmt.Errorf("failed to sanitize video: %w", err)
 		}
 		defer os.Remove(tmpOutputPath) // Clean up output when function returns
 
 		// Read sanitized data
 		sanitizedData, err := os.ReadFile(tmpOutputPath)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to read sanitized video: %w", err)
+			return nil, fmt.Errorf("failed to read sanitized video: %w", err)
 		}
 
-		// Video keeps original filename and MIME type
-		return sanitizedData, pendingFile.OriginalFilename, nil
+		// Video keeps original filename and MIME type (metadata stripped, format unchanged)
+		return &domain.PendingFile{
+			FileCommonMetadata: domain.FileCommonMetadata{
+				Filename:    pendingFile.Filename,
+				SizeBytes:   int64(len(sanitizedData)),
+				MimeType:    pendingFile.MimeType,
+				ImageWidth:  pendingFile.ImageWidth,
+				ImageHeight: pendingFile.ImageHeight,
+			},
+			Data: bytes.NewReader(sanitizedData),
+		}, nil
 	}
 
 	// Should never reach here if validation is correct
-	return nil, "", fmt.Errorf("unsupported file type: %s", originalMimeType)
+	return nil, fmt.Errorf("unsupported file type: %s", pendingFile.MimeType)
 }

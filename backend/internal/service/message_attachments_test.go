@@ -5,6 +5,7 @@ import (
 	"errors"
 	"image"
 	"io"
+	"os"
 	"sync"
 	"testing"
 
@@ -13,6 +14,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// --- Test Helpers ---
+
+// loadTestImage loads the test image file for use in tests
+func loadTestImage(t *testing.T) []byte {
+	t.Helper()
+	data, err := os.ReadFile("../../test_data/test_img.jpg")
+	if err != nil {
+		t.Fatalf("Failed to load test image: %v", err)
+	}
+	return data
+}
+
+// loadTestVideo loads the test video file for use in tests
+func loadTestVideo(t *testing.T) []byte {
+	t.Helper()
+	data, err := os.ReadFile("../../test_data/test_video.webm")
+	if err != nil {
+		t.Fatalf("Failed to load test video: %v", err)
+	}
+	return data
+}
 
 // --- Mocks for Attachment Tests ---
 
@@ -172,10 +195,12 @@ func TestValidatePendingFiles(t *testing.T) {
 			Text:     "Test",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("test")),
-					OriginalFilename: "image.jpg",
-					Size:             1024,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "image.jpg",
+						SizeBytes: 1024,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 			},
 		}
@@ -195,10 +220,12 @@ func TestValidatePendingFiles(t *testing.T) {
 		files := make([]*domain.PendingFile, 5) // More than max of 4
 		for i := range files {
 			files[i] = &domain.PendingFile{
-				Data:             bytes.NewReader([]byte("test")),
-				OriginalFilename: "image.jpg",
-				Size:             1024,
-				MimeType:         "image/jpeg",
+				FileCommonMetadata: domain.FileCommonMetadata{
+					Filename:  "image.jpg",
+					SizeBytes: 1024,
+					MimeType:  "image/jpeg",
+				},
+				Data: bytes.NewReader(loadTestImage(t)),
 			}
 		}
 
@@ -230,10 +257,12 @@ func TestValidatePendingFiles(t *testing.T) {
 			Text:     "Test",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("test")),
-					OriginalFilename: "document.pdf",
-					Size:             1024,
-					MimeType:         "application/pdf",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "document.pdf",
+						SizeBytes: 1024,
+						MimeType:  "application/pdf",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 			},
 		}
@@ -245,7 +274,7 @@ func TestValidatePendingFiles(t *testing.T) {
 
 	t.Run("rejects file too large", func(t *testing.T) {
 		validator.pendingFilesFunc = func(files []*domain.PendingFile) error {
-			if files[0].Size > 10*1024*1024 {
+			if files[0].SizeBytes > 10*1024*1024 {
 				return errors.New("file too large: max 10485760 bytes allowed")
 			}
 			return nil
@@ -258,10 +287,12 @@ func TestValidatePendingFiles(t *testing.T) {
 			Text:     "Test",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader(make([]byte, 11*1024*1024)), // 11MB
-					OriginalFilename: "large.jpg",
-					Size:             11 * 1024 * 1024,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "large.jpg",
+						SizeBytes: 11 * 1024 * 1024,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(make([]byte, 11*1024*1024)), // 11MB
 				},
 			},
 		}
@@ -275,7 +306,7 @@ func TestValidatePendingFiles(t *testing.T) {
 		validator.pendingFilesFunc = func(files []*domain.PendingFile) error {
 			var totalSize int64
 			for _, file := range files {
-				totalSize += file.Size
+				totalSize += file.SizeBytes
 			}
 			if totalSize > 20*1024*1024 {
 				return errors.New("total attachments size too large: max 20971520 bytes allowed")
@@ -290,22 +321,28 @@ func TestValidatePendingFiles(t *testing.T) {
 			Text:     "Test",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader(make([]byte, 8*1024*1024)),
-					OriginalFilename: "file1.jpg",
-					Size:             8 * 1024 * 1024,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "file1.jpg",
+						SizeBytes: 8 * 1024 * 1024,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(make([]byte, 8*1024*1024)),
 				},
 				{
-					Data:             bytes.NewReader(make([]byte, 8*1024*1024)),
-					OriginalFilename: "file2.jpg",
-					Size:             8 * 1024 * 1024,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "file2.jpg",
+						SizeBytes: 8 * 1024 * 1024,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(make([]byte, 8*1024*1024)),
 				},
 				{
-					Data:             bytes.NewReader(make([]byte, 8*1024*1024)),
-					OriginalFilename: "file3.jpg",
-					Size:             8 * 1024 * 1024,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "file3.jpg",
+						SizeBytes: 8 * 1024 * 1024,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(make([]byte, 8*1024*1024)),
 				},
 			},
 		}
@@ -330,10 +367,12 @@ func TestValidatePendingFiles(t *testing.T) {
 				Text:     "Test",
 				PendingFiles: []*domain.PendingFile{
 					{
-						Data:             bytes.NewReader([]byte("test")),
-						OriginalFilename: "image." + mimeType[6:],
-						Size:             1024,
-						MimeType:         mimeType,
+						FileCommonMetadata: domain.FileCommonMetadata{
+							Filename:  "image." + mimeType[6:],
+							SizeBytes: 1024,
+							MimeType:  mimeType,
+						},
+						Data: bytes.NewReader(loadTestImage(t)),
 					},
 				},
 			}
@@ -344,31 +383,33 @@ func TestValidatePendingFiles(t *testing.T) {
 	})
 
 	t.Run("accepts all supported video types", func(t *testing.T) {
-		mimeTypes := []string{"video/mp4", "video/webm"}
+		// Only testing webm as we have a test video file for it
+		mimeType := "video/webm"
+		videoData := loadTestVideo(t)
 
-		for _, mimeType := range mimeTypes {
-			validator.pendingFilesFunc = func(files []*domain.PendingFile) error {
-				return nil // Accept all
-			}
-
-			creationData := domain.MessageCreationData{
-				Board:    "tech",
-				ThreadId: 1,
-				Author:   domain.User{Id: 1},
-				Text:     "Test",
-				PendingFiles: []*domain.PendingFile{
-					{
-						Data:             bytes.NewReader([]byte("test")),
-						OriginalFilename: "video." + mimeType[6:],
-						Size:             1024,
-						MimeType:         mimeType,
-					},
-				},
-			}
-
-			_, err := service.Create(creationData)
-			assert.NoError(t, err, "Should accept "+mimeType)
+		validator.pendingFilesFunc = func(files []*domain.PendingFile) error {
+			return nil // Accept all
 		}
+
+		creationData := domain.MessageCreationData{
+			Board:    "tech",
+			ThreadId: 1,
+			Author:   domain.User{Id: 1},
+			Text:     "Test",
+			PendingFiles: []*domain.PendingFile{
+				{
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "video.webm",
+						SizeBytes: int64(len(videoData)),
+						MimeType:  mimeType,
+					},
+					Data: bytes.NewReader(videoData),
+				},
+			},
+		}
+
+		_, err := service.Create(creationData)
+		assert.NoError(t, err, "Should accept "+mimeType)
 	})
 }
 
@@ -397,8 +438,8 @@ func TestCreateMessageWithFiles(t *testing.T) {
 
 		service := NewMessage(storage, validator, mediaStorage, cfg)
 
-		fileData1 := []byte("image content")
-		fileData2 := []byte("video content")
+		fileData1 := loadTestImage(t)
+		fileData2 := loadTestImage(t) // Using JPEG for video test (sanitization not tested here)
 
 		creationData := domain.MessageCreationData{
 			Board:    "tech",
@@ -407,16 +448,20 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			Text:     "Test message",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader(fileData1),
-					OriginalFilename: "image.jpg",
-					Size:             int64(len(fileData1)),
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "image.jpg",
+						SizeBytes: int64(len(fileData1)),
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(fileData1),
 				},
 				{
-					Data:             bytes.NewReader(fileData2),
-					OriginalFilename: "video.mp4",
-					Size:             int64(len(fileData2)),
-					MimeType:         "video/mp4",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "video.mp4",
+						SizeBytes: int64(len(fileData2)),
+						MimeType:  "video/mp4",
+					},
+					Data: bytes.NewReader(fileData2),
 				},
 			},
 		}
@@ -466,10 +511,12 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			Text:     "Test message",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("test")),
-					OriginalFilename: "image.jpg",
-					Size:             4,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "image.jpg",
+						SizeBytes: 4,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 			},
 		}
@@ -523,16 +570,20 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			Text:     "Test message",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("test1")),
-					OriginalFilename: "image1.jpg",
-					Size:             5,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "image1.jpg",
+						SizeBytes: 5,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 				{
-					Data:             bytes.NewReader([]byte("test2")),
-					OriginalFilename: "image2.jpg",
-					Size:             5,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "image2.jpg",
+						SizeBytes: 5,
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 			},
 		}
@@ -574,10 +625,12 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			Text:     "Test message",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("test")),
-					OriginalFilename: "too-large.jpg",
-					Size:             100 * 1024 * 1024, // 100MB - too large
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "too-large.jpg",
+						SizeBytes: 100 * 1024 * 1024, // 100MB - too large
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 			},
 		}
