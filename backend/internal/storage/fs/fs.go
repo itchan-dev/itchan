@@ -12,16 +12,37 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/itchan-dev/itchan/backend/internal/service"
 )
+
+type MediaStorage interface {
+	// SaveFile stores a file's content.
+	// It takes the board and thread IDs to construct the path and generates a unique filename.
+	// It returns the relative path where the file was stored.
+	SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
+
+	// SaveThumbnail saves a thumbnail image as JPEG.
+	// It returns the relative path where the thumbnail was stored.
+	SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error)
+
+	// Read opens a file for reading given its relative path.
+	Read(filePath string) (io.ReadCloser, error)
+
+	// DeleteFile removes a single file.
+	DeleteFile(filePath string) error
+
+	// DeleteThread removes all media for an entire thread.
+	DeleteThread(boardID, threadID string) error
+
+	// DeleteBoard removes all media for an entire board.
+	DeleteBoard(boardID string) error
+}
 
 type Storage struct {
 	rootPath string
 }
 
 // Ensure Storage struct implements the interface at compile time.
-var _ service.MediaStorage = (*Storage)(nil)
+var _ MediaStorage = (*Storage)(nil)
 
 func New(rootPath string) (*Storage, error) {
 	// Use filepath.Clean to prevent path traversal issues like "media/../"

@@ -12,7 +12,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/itchan-dev/itchan/backend/internal/service"
+	"github.com/itchan-dev/itchan/backend/internal/storage/fs"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +100,7 @@ func (m *MockMediaStorage) DeleteBoard(boardID string) error {
 	return nil
 }
 
-var _ service.MediaStorage = (*MockMediaStorage)(nil)
+var _ fs.MediaStorage = (*MockMediaStorage)(nil)
 
 func TestWriteJSON(t *testing.T) {
 	t.Run("valid JSON", func(t *testing.T) {

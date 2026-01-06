@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/itchan-dev/itchan/backend/internal/router"
-	"github.com/itchan-dev/itchan/backend/internal/service"
+	"github.com/itchan-dev/itchan/backend/internal/service/utils"
 	"github.com/itchan-dev/itchan/backend/internal/setup"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/logger"
@@ -29,7 +29,7 @@ func main() {
 	logger.Initialize(cfg.Public.LogLevel, useJSON)
 
 	// Check ffmpeg availability for video sanitization
-	if err := service.CheckFFmpegAvailable(); err != nil {
+	if err := utils.CheckFFmpegAvailable(); err != nil {
 		logger.Log.Error("ffmpeg is required but not available", "error", err)
 		fmt.Fprintln(os.Stderr, "ERROR: ffmpeg is required for video metadata stripping")
 		fmt.Fprintln(os.Stderr, "Install: apk add ffmpeg (Alpine), apt install ffmpeg (Debian), brew install ffmpeg (macOS)")

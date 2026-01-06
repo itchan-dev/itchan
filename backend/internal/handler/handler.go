@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/itchan-dev/itchan/backend/internal/service"
+	"github.com/itchan-dev/itchan/backend/internal/storage/fs"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/logger"
 )
@@ -14,11 +15,11 @@ type Handler struct {
 	board        service.BoardService
 	thread       service.ThreadService
 	message      service.MessageService
-	mediaStorage service.MediaStorage
+	mediaStorage fs.MediaStorage
 	cfg          *config.Config
 }
 
-func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, mediaStorage service.MediaStorage, cfg *config.Config) *Handler {
+func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, mediaStorage fs.MediaStorage, cfg *config.Config) *Handler {
 	return &Handler{
 		auth:         auth,
 		board:        board,
