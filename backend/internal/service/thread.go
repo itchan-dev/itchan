@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/itchan-dev/itchan/backend/internal/storage/fs"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
@@ -17,7 +18,7 @@ type Thread struct {
 	storage        ThreadStorage
 	validator      ThreadValidator
 	messageService MessageService
-	mediaStorage   MediaStorage
+	mediaStorage   fs.MediaStorage
 }
 
 type ThreadStorage interface {
@@ -32,7 +33,7 @@ type ThreadValidator interface {
 	Title(title domain.ThreadTitle) error
 }
 
-func NewThread(storage ThreadStorage, validator ThreadValidator, messageService MessageService, mediaStorage MediaStorage) ThreadService {
+func NewThread(storage ThreadStorage, validator ThreadValidator, messageService MessageService, mediaStorage fs.MediaStorage) ThreadService {
 	return &Thread{
 		storage:        storage,
 		validator:      validator,

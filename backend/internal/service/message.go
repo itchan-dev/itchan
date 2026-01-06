@@ -9,6 +9,8 @@ import (
 	_ "image/png"
 	"strings"
 
+	svcutils "github.com/itchan-dev/itchan/backend/internal/service/utils"
+	"github.com/itchan-dev/itchan/backend/internal/storage/fs"
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -24,7 +26,7 @@ type MessageService interface {
 type Message struct {
 	storage      MessageStorage
 	validator    MessageValidator
-	mediaStorage MediaStorage
+	mediaStorage fs.MediaStorage
 	cfg          *config.Public
 }
 
@@ -40,7 +42,7 @@ type MessageValidator interface {
 	PendingFiles(files []*domain.PendingFile) error
 }
 
-func NewMessage(storage MessageStorage, validator MessageValidator, mediaStorage MediaStorage, cfg *config.Public) MessageService {
+func NewMessage(storage MessageStorage, validator MessageValidator, mediaStorage fs.MediaStorage, cfg *config.Public) MessageService {
 	return &Message{
 		storage:      storage,
 		validator:    validator,
@@ -111,8 +113,8 @@ func (b *Message) saveAndAttachFiles(
 	for _, pendingFile := range pendingFiles {
 		originalMimeType := pendingFile.MimeType
 
-		// Sanitize the file (handles both images and videos)
-		sanitizedData, newFilename, err := SanitizeFile(pendingFile)
+		// Remove metadata
+		sanitizedData, newFilename, err := svcutils.SanitizeFile(pendingFile)
 		if err != nil {
 			// Cleanup saved files
 			for _, p := range savedFiles {
@@ -121,7 +123,6 @@ func (b *Message) saveAndAttachFiles(
 			return err
 		}
 
-		// Save sanitized file
 		filePath, err := b.mediaStorage.SaveFile(
 			bytes.NewReader(sanitizedData),
 			string(board),

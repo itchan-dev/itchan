@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/itchan-dev/itchan/backend/internal/storage/fs"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
@@ -14,7 +15,7 @@ type BoardService interface {
 type Board struct {
 	storage       BoardStorage
 	nameValidator BoardValidator
-	mediaStorage  MediaStorage
+	mediaStorage  fs.MediaStorage
 }
 
 type BoardStorage interface {
@@ -29,7 +30,7 @@ type BoardValidator interface {
 	ShortName(name domain.BoardShortName) error
 }
 
-func NewBoard(storage BoardStorage, validator BoardValidator, mediaStorage MediaStorage) BoardService {
+func NewBoard(storage BoardStorage, validator BoardValidator, mediaStorage fs.MediaStorage) BoardService {
 	return &Board{
 		storage:       storage,
 		nameValidator: validator,
