@@ -265,24 +265,30 @@ func TestMessageOperations(t *testing.T) {
 					Board:     boardShortName,
 					MessageId: msgID,
 					File: &domain.File{
+						FileCommonMetadata: domain.FileCommonMetadata{
+							Filename:    "image1.jpg",
+							SizeBytes:   1024,
+							MimeType:    "image/jpeg",
+							ImageWidth:  intPtr(800),
+							ImageHeight: intPtr(600),
+						},
 						FilePath:         "tech/1/image1.jpg",
 						OriginalFilename: "image1.jpg",
-						FileSizeBytes:    1024,
-						MimeType:         "image/jpeg",
-						ImageWidth:       intPtr(800),
-						ImageHeight:      intPtr(600),
 					},
 				},
 				&domain.Attachment{
 					Board:     boardShortName,
 					MessageId: msgID,
 					File: &domain.File{
+						FileCommonMetadata: domain.FileCommonMetadata{
+							Filename:    "image2.png",
+							SizeBytes:   2048,
+							MimeType:    "image/png",
+							ImageWidth:  intPtr(1024),
+							ImageHeight: intPtr(768),
+						},
 						FilePath:         "tech/1/image2.png",
 						OriginalFilename: "image2.png",
-						FileSizeBytes:    2048,
-						MimeType:         "image/png",
-						ImageWidth:       intPtr(1024),
-						ImageHeight:      intPtr(768),
 					},
 				},
 			}
@@ -297,8 +303,9 @@ func TestMessageOperations(t *testing.T) {
 
 			// Verify first attachment
 			assert.Equal(t, "tech/1/image1.jpg", attachmentsAfter[0].File.FilePath)
+			assert.Equal(t, "image1.jpg", attachmentsAfter[0].File.Filename)
 			assert.Equal(t, "image1.jpg", attachmentsAfter[0].File.OriginalFilename)
-			assert.Equal(t, int64(1024), attachmentsAfter[0].File.FileSizeBytes)
+			assert.Equal(t, int64(1024), attachmentsAfter[0].File.SizeBytes)
 			assert.Equal(t, "image/jpeg", attachmentsAfter[0].File.MimeType)
 			assert.NotNil(t, attachmentsAfter[0].File.ImageWidth)
 			assert.Equal(t, 800, *attachmentsAfter[0].File.ImageWidth)
@@ -346,12 +353,15 @@ func TestMessageOperations(t *testing.T) {
 					Board:     boardShortName,
 					MessageId: msgID,
 					File: &domain.File{
+						FileCommonMetadata: domain.FileCommonMetadata{
+							Filename:    "video.mp4",
+							SizeBytes:   10000,
+							MimeType:    "video/mp4",
+							ImageWidth:  nil,
+							ImageHeight: nil,
+						},
 						FilePath:         "tech/1/video.mp4",
 						OriginalFilename: "video.mp4",
-						FileSizeBytes:    10000,
-						MimeType:         "video/mp4",
-						ImageWidth:       nil,
-						ImageHeight:      nil,
 					},
 				},
 			}
@@ -372,10 +382,13 @@ func TestMessageOperations(t *testing.T) {
 					Board:     boardShortName,
 					MessageId: -999,
 					File: &domain.File{
+						FileCommonMetadata: domain.FileCommonMetadata{
+							Filename:  "file.jpg",
+							SizeBytes: 1000,
+							MimeType:  "image/jpeg",
+						},
 						FilePath:         "tech/1/file.jpg",
 						OriginalFilename: "file.jpg",
-						FileSizeBytes:    1000,
-						MimeType:         "image/jpeg",
 					},
 				},
 			}

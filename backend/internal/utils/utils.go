@@ -93,11 +93,11 @@ func (e *MessageValidator) PendingFiles(files []*domain.PendingFile) error {
 
 	// Validate each file
 	for _, file := range files {
-		if err := e.validateFileMeta(file.MimeType, file.Size, allowedMimeTypes); err != nil {
+		if err := e.validateFileMeta(file.MimeType, file.SizeBytes, allowedMimeTypes); err != nil {
 			return err
 		}
 
-		totalSize += file.Size
+		totalSize += file.SizeBytes
 	}
 
 	// Check total size

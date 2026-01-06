@@ -51,12 +51,14 @@ func ValidateAttachments(fileHeaders []*multipart.FileHeader, allowedImageMimes,
 		width, height := ExtractImageDimensions(file, mimeType)
 
 		pendingFiles = append(pendingFiles, &domain.PendingFile{
-			Data:             file,
-			OriginalFilename: fileHeader.Filename,
-			Size:             fileHeader.Size,
-			MimeType:         mimeType,
-			ImageWidth:       width,
-			ImageHeight:      height,
+			FileCommonMetadata: domain.FileCommonMetadata{
+				Filename:    fileHeader.Filename,
+				SizeBytes:   fileHeader.Size,
+				MimeType:    mimeType,
+				ImageWidth:  width,
+				ImageHeight: height,
+			},
+			Data: file,
 		})
 	}
 

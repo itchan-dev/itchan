@@ -1,19 +1,8 @@
 package domain
 
 import (
-	"io"
 	"time"
 )
-
-// PendingFile represents a file upload that hasn't been saved to storage yet
-type PendingFile struct {
-	Data             io.Reader
-	OriginalFilename string
-	Size             int64
-	MimeType         string
-	ImageWidth       *int
-	ImageHeight      *int
-}
 
 // to iterate thru layers: handler -> service -> storage
 type MessageCreationData struct {

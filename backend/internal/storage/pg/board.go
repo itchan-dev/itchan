@@ -366,7 +366,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	if len(messageIds) > 0 {
 		rows, err := q.Query(`
         SELECT a.id, a.board, a.message_id, a.file_id,
-               f.file_path, f.original_filename, f.file_size_bytes, f.mime_type, f.image_width, f.image_height, f.thumbnail_path
+               f.file_path, f.filename, f.original_filename, f.file_size_bytes, f.mime_type, f.original_mime_type, f.image_width, f.image_height, f.thumbnail_path
         FROM attachments a
         JOIN files f ON a.file_id = f.id
         WHERE a.board = $1 AND a.message_id = ANY($2)
@@ -382,7 +382,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 			var file domain.File
 			if err := rows.Scan(
 				&attachment.Id, &attachment.Board, &attachment.MessageId, &attachment.FileId,
-				&file.FilePath, &file.OriginalFilename, &file.FileSizeBytes, &file.MimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
+				&file.FilePath, &file.Filename, &file.OriginalFilename, &file.SizeBytes, &file.MimeType, &file.OriginalMimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
 			); err != nil {
 				return domain.Board{}, fmt.Errorf("failed to scan attachment row for board page: %w", err)
 			}

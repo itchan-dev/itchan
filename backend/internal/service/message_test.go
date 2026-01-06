@@ -463,10 +463,12 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 			Text:     "", // Empty text
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("fake image data")),
-					OriginalFilename: "test.jpg",
-					Size:             15,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "test.jpg",
+						SizeBytes: int64(len(loadTestImage(t))),
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 			},
 		}
@@ -493,10 +495,12 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 			Text:     "Message with attachment",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("fake image data")),
-					OriginalFilename: "test.jpg",
-					Size:             15,
-					MimeType:         "image/jpeg",
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "test.jpg",
+						SizeBytes: int64(len(loadTestImage(t))),
+						MimeType:  "image/jpeg",
+					},
+					Data: bytes.NewReader(loadTestImage(t)),
 				},
 			},
 		}
@@ -554,10 +558,12 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 			Text:     "",
 			PendingFiles: []*domain.PendingFile{
 				{
-					Data:             bytes.NewReader([]byte("fake data")),
-					OriginalFilename: "test.exe",
-					Size:             9,
-					MimeType:         "application/x-executable", // Invalid MIME type
+					FileCommonMetadata: domain.FileCommonMetadata{
+						Filename:  "test.exe",
+						SizeBytes: 9,
+						MimeType:  "application/x-executable", // Invalid MIME type
+					},
+					Data: bytes.NewReader([]byte("fake data")),
 				},
 			},
 		}
