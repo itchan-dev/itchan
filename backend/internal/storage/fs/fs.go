@@ -23,8 +23,8 @@ type MediaStorage interface {
 	SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
 
 	// SaveImage encodes and saves an image.Image (PNG if format="png", JPEG otherwise).
-	// It returns the relative path where the image was stored.
-	SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, error)
+	// It returns the relative path where the image was stored and the file size in bytes.
+	SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, int64, error)
 
 	// MoveFile moves a file from sourcePath to the storage location.
 	// Used for sanitized videos to avoid loading into memory.
@@ -147,7 +147,7 @@ func (s *Storage) SaveFile(fileData io.Reader, boardID, threadID, originalFilena
 // SaveImage encodes and saves an image.Image.
 // PNG format is preserved, all others are encoded as JPEG with quality 85.
 // The originalFilename is only used to extract the extension.
-func (s *Storage) SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, error) {
+func (s *Storage) SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, int64, error) {
 	// Encode image to buffer
 	var buf bytes.Buffer
 	var err error
@@ -162,14 +162,17 @@ func (s *Storage) SaveImage(img image.Image, format, boardID, threadID, original
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("failed to encode image: %w", err)
+		return "", 0, fmt.Errorf("failed to encode image: %w", err)
 	}
+
+	// Get encoded size
+	size := int64(buf.Len())
 
 	// Generate unique filename pattern: *.ext (e.g., "*.jpg")
 	pattern := "*" + ext
 	filename, err := generateUniqueFilename(pattern)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	// Construct relative path
@@ -177,10 +180,10 @@ func (s *Storage) SaveImage(img image.Image, format, boardID, threadID, original
 
 	// Save file
 	if err := s.saveFile(&buf, relativePath); err != nil {
-		return "", err
+		return "", 0, err
 	}
 
-	return relativePath, nil
+	return relativePath, size, nil
 }
 
 // MoveFile moves a file from sourcePath to the storage location.

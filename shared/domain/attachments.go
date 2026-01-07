@@ -1,6 +1,9 @@
 package domain
 
-import "io"
+import (
+	"io"
+	"strings"
+)
 
 // FileCommonMetadata contains common file metadata fields shared between
 // PendingFile (uploaded) and File (stored). Following the MessageMetadata pattern.
@@ -16,6 +19,16 @@ type FileCommonMetadata struct {
 type PendingFile struct {
 	FileCommonMetadata
 	Data io.Reader `json:"-"`
+}
+
+// IsImage returns true if the file is an image
+func (pf *PendingFile) IsImage() bool {
+	return strings.HasPrefix(pf.MimeType, "image/")
+}
+
+// IsVideo returns true if the file is a video
+func (pf *PendingFile) IsVideo() bool {
+	return strings.HasPrefix(pf.MimeType, "video/")
 }
 
 // SanitizedImage represents a sanitized image file ready to be saved.
@@ -35,12 +48,12 @@ type SanitizedVideo struct {
 
 // File represents a file stored in the system
 type File struct {
-	FileCommonMetadata                             // Sanitized file metadata
-	Id               FileId `json:"id,omitempty"` // Database ID
-	FilePath         string `json:"file_path,omitempty"` // Full path on disk
-	OriginalFilename string `json:"original_filename,omitempty"` // User's uploaded filename (before sanitization)
-	OriginalMimeType string `json:"original_mime_type,omitempty"` // MIME type before sanitization (always present)
-	ThumbnailPath    *string `json:"thumbnail_path,omitempty"` // Path to generated thumbnail (images only)
+	FileCommonMetadata         // Sanitized file metadata
+	Id                 FileId  `json:"id,omitempty"`                 // Database ID
+	FilePath           string  `json:"file_path,omitempty"`          // Full path on disk
+	OriginalFilename   string  `json:"original_filename,omitempty"`  // User's uploaded filename (before sanitization)
+	OriginalMimeType   string  `json:"original_mime_type,omitempty"` // MIME type before sanitization (always present)
+	ThumbnailPath      *string `json:"thumbnail_path,omitempty"`     // Path to generated thumbnail (images only)
 }
 
 // Attachment represents an attachment linking a message to a file

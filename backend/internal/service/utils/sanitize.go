@@ -89,7 +89,7 @@ func SanitizeImage(pendingFile *domain.PendingFile) (*domain.SanitizedImage, err
 	return &domain.SanitizedImage{
 		FileCommonMetadata: domain.FileCommonMetadata{
 			Filename:    newFilename,
-			SizeBytes:   0, // Size unknown until encoding (will be set by SaveImage)
+			SizeBytes:   0, // Will be set by SaveImage after encoding
 			MimeType:    finalMimeType,
 			ImageWidth:  &width,
 			ImageHeight: &height,
