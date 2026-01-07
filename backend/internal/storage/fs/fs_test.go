@@ -182,6 +182,162 @@ func TestSaveFile(t *testing.T) {
 	})
 }
 
+// TestMoveFile tests the MoveFile method
+func TestMoveFile(t *testing.T) {
+	t.Run("moves file successfully", func(t *testing.T) {
+		storage, err := New(t.TempDir())
+		require.NoError(t, err)
+
+		// Create a temp file to move
+		tmpFile, err := os.CreateTemp("", "test_video_*.mp4")
+		require.NoError(t, err)
+		tmpPath := tmpFile.Name()
+		content := []byte("video content")
+		_, err = tmpFile.Write(content)
+		require.NoError(t, err)
+		tmpFile.Close()
+
+		// Move the file
+		path, err := storage.MoveFile(tmpPath, "board1", "thread1", "video.mp4")
+		require.NoError(t, err)
+		assert.NotEmpty(t, path)
+
+		// Verify path structure
+		assert.Contains(t, path, "board1")
+		assert.Contains(t, path, "thread1")
+		assert.Contains(t, path, ".mp4")
+
+		// Verify file exists at destination
+		fullPath := filepath.Join(storage.rootPath, path)
+		movedContent, err := os.ReadFile(fullPath)
+		require.NoError(t, err)
+		assert.Equal(t, content, movedContent)
+
+		// Verify source file is deleted
+		_, err = os.Stat(tmpPath)
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("generates unique filenames", func(t *testing.T) {
+		storage, err := New(t.TempDir())
+		require.NoError(t, err)
+
+		content := []byte("test content")
+
+		// Create two temp files
+		tmpFile1, _ := os.CreateTemp("", "video_*.mp4")
+		tmpPath1 := tmpFile1.Name()
+		tmpFile1.Write(content)
+		tmpFile1.Close()
+
+		tmpFile2, _ := os.CreateTemp("", "video_*.mp4")
+		tmpPath2 := tmpFile2.Name()
+		tmpFile2.Write(content)
+		tmpFile2.Close()
+
+		// Move both files
+		path1, err := storage.MoveFile(tmpPath1, "board1", "thread1", "video.mp4")
+		require.NoError(t, err)
+
+		path2, err := storage.MoveFile(tmpPath2, "board1", "thread1", "video.mp4")
+		require.NoError(t, err)
+
+		// Paths should be different
+		assert.NotEqual(t, path1, path2)
+
+		// Both files should exist
+		_, err = os.Stat(filepath.Join(storage.rootPath, path1))
+		assert.NoError(t, err)
+		_, err = os.Stat(filepath.Join(storage.rootPath, path2))
+		assert.NoError(t, err)
+	})
+
+	t.Run("creates board and thread directories", func(t *testing.T) {
+		storage, err := New(t.TempDir())
+		require.NoError(t, err)
+
+		// Create temp file
+		tmpFile, _ := os.CreateTemp("", "test_*.txt")
+		tmpPath := tmpFile.Name()
+		tmpFile.Write([]byte("test"))
+		tmpFile.Close()
+
+		path, err := storage.MoveFile(tmpPath, "newboard", "newthread", "file.txt")
+		require.NoError(t, err)
+
+		// Verify directory structure
+		boardDir := filepath.Join(storage.rootPath, "newboard")
+		threadDir := filepath.Join(storage.rootPath, "newboard", "newthread")
+
+		_, err = os.Stat(boardDir)
+		assert.NoError(t, err)
+		_, err = os.Stat(threadDir)
+		assert.NoError(t, err)
+
+		// Verify file is in correct location
+		assert.True(t, strings.HasPrefix(path, "newboard"+string(filepath.Separator)+"newthread"))
+	})
+
+	t.Run("removes source file after successful move", func(t *testing.T) {
+		storage, err := New(t.TempDir())
+		require.NoError(t, err)
+
+		// Create temp file
+		tmpFile, _ := os.CreateTemp("", "test_*.mp4")
+		tmpPath := tmpFile.Name()
+		tmpFile.Write([]byte("content"))
+		tmpFile.Close()
+
+		// Verify source exists
+		_, err = os.Stat(tmpPath)
+		require.NoError(t, err)
+
+		// Move file
+		_, err = storage.MoveFile(tmpPath, "b", "t", "video.mp4")
+		require.NoError(t, err)
+
+		// Verify source is deleted
+		_, err = os.Stat(tmpPath)
+		assert.True(t, os.IsNotExist(err), "Source file should be deleted")
+	})
+
+	t.Run("returns error if source file doesn't exist", func(t *testing.T) {
+		storage, err := New(t.TempDir())
+		require.NoError(t, err)
+
+		_, err = storage.MoveFile("/nonexistent/file.mp4", "b", "t", "video.mp4")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to open source file")
+	})
+
+	t.Run("preserves file extension", func(t *testing.T) {
+		storage, err := New(t.TempDir())
+		require.NoError(t, err)
+
+		testCases := []struct {
+			filename string
+			ext      string
+		}{
+			{"video.mp4", ".mp4"},
+			{"video.webm", ".webm"},
+			{"file.tar.gz", ".gz"},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.filename, func(t *testing.T) {
+				tmpFile, _ := os.CreateTemp("", "test_*")
+				tmpPath := tmpFile.Name()
+				tmpFile.Write([]byte("test"))
+				tmpFile.Close()
+
+				path, err := storage.MoveFile(tmpPath, "b", "t", tc.filename)
+				require.NoError(t, err)
+				assert.True(t, strings.HasSuffix(path, tc.ext))
+			})
+		}
+	})
+}
+
 // TestRead tests the Read method
 func TestRead(t *testing.T) {
 	t.Run("reads existing file", func(t *testing.T) {

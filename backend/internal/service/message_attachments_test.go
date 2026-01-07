@@ -41,17 +41,21 @@ func loadTestVideo(t *testing.T) []byte {
 
 // SharedMockMediaStorage mocks the MediaStorage interface for use across different test files
 type SharedMockMediaStorage struct {
-	saveFileFunc    func(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
-	readFunc        func(filePath string) (io.ReadCloser, error)
-	deleteFileFunc  func(filePath string) error
+	saveFileFunc     func(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
+	saveImageFunc    func(img image.Image, format, boardID, threadID, originalFilename string) (string, error)
+	moveFileFunc     func(sourcePath, boardID, threadID, filename string) (string, error)
+	readFunc         func(filePath string) (io.ReadCloser, error)
+	deleteFileFunc   func(filePath string) error
 	deleteThreadFunc func(boardID, threadID string) error
-	deleteBoardFunc func(boardID string) error
+	deleteBoardFunc  func(boardID string) error
 
-	mu                  sync.Mutex
-	saveFileCalls       []SaveFileCall
-	deleteFileCalls     []string
-	deleteThreadCalls   []DeleteThreadCall
-	deleteBoardCalls    []string
+	mu                sync.Mutex
+	saveFileCalls     []SaveFileCall
+	saveImageCalls    []SaveImageCall
+	moveFileCalls     []MoveFileCall
+	deleteFileCalls   []string
+	deleteThreadCalls []DeleteThreadCall
+	deleteBoardCalls  []string
 }
 
 type SaveFileCall struct {
@@ -59,6 +63,20 @@ type SaveFileCall struct {
 	ThreadID         string
 	OriginalFilename string
 	Data             []byte
+}
+
+type SaveImageCall struct {
+	BoardID          string
+	ThreadID         string
+	OriginalFilename string
+	Format           string
+}
+
+type MoveFileCall struct {
+	SourcePath string
+	BoardID    string
+	ThreadID   string
+	Filename   string
 }
 
 type DeleteThreadCall struct {
@@ -84,6 +102,40 @@ func (m *SharedMockMediaStorage) SaveFile(fileData io.Reader, boardID, threadID,
 	}
 	// Default: return a fake path
 	return boardID + "/" + threadID + "/" + originalFilename, nil
+}
+
+func (m *SharedMockMediaStorage) SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, error) {
+	m.mu.Lock()
+	m.saveImageCalls = append(m.saveImageCalls, SaveImageCall{
+		BoardID:          boardID,
+		ThreadID:         threadID,
+		OriginalFilename: originalFilename,
+		Format:           format,
+	})
+	m.mu.Unlock()
+
+	if m.saveImageFunc != nil {
+		return m.saveImageFunc(img, format, boardID, threadID, originalFilename)
+	}
+	// Default: return a fake path
+	return boardID + "/" + threadID + "/" + originalFilename, nil
+}
+
+func (m *SharedMockMediaStorage) MoveFile(sourcePath, boardID, threadID, filename string) (string, error) {
+	m.mu.Lock()
+	m.moveFileCalls = append(m.moveFileCalls, MoveFileCall{
+		SourcePath: sourcePath,
+		BoardID:    boardID,
+		ThreadID:   threadID,
+		Filename:   filename,
+	})
+	m.mu.Unlock()
+
+	if m.moveFileFunc != nil {
+		return m.moveFileFunc(sourcePath, boardID, threadID, filename)
+	}
+	// Default: return a fake path (simulating successful move)
+	return boardID + "/" + threadID + "/" + filename, nil
 }
 
 func (m *SharedMockMediaStorage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
@@ -471,11 +523,12 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, createdMessageID, msgID)
 
-		// Verify SaveFile was called twice
+		// Verify SaveImage was called once for image, MoveFile once for video
 		mediaStorage.mu.Lock()
-		assert.Len(t, mediaStorage.saveFileCalls, 2)
-		assert.Equal(t, "image.jpg", mediaStorage.saveFileCalls[0].OriginalFilename)
-		assert.Equal(t, "video.mp4", mediaStorage.saveFileCalls[1].OriginalFilename)
+		assert.Len(t, mediaStorage.saveImageCalls, 1, "Image should use SaveImage")
+		assert.Equal(t, "image.jpg", mediaStorage.saveImageCalls[0].OriginalFilename)
+		assert.Len(t, mediaStorage.moveFileCalls, 1, "Video should use MoveFile")
+		assert.Equal(t, "video.mp4", mediaStorage.moveFileCalls[0].Filename)
 		mediaStorage.mu.Unlock()
 
 		// Verify AddAttachments was called
@@ -526,10 +579,10 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to save attachments to DB")
 
-		// Verify files were cleaned up
+		// Verify files were cleaned up (image + thumbnail)
 		mediaStorage.mu.Lock()
-		assert.Len(t, mediaStorage.saveFileCalls, 1, "File should have been saved")
-		assert.Len(t, mediaStorage.deleteFileCalls, 1, "File should have been deleted on error")
+		assert.Len(t, mediaStorage.saveImageCalls, 1, "File should have been saved")
+		assert.Len(t, mediaStorage.deleteFileCalls, 2, "Image and thumbnail should have been deleted on error")
 		mediaStorage.mu.Unlock()
 
 		// Verify message was deleted
@@ -550,15 +603,15 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			return createdMessageID, nil
 		}
 
-		// First SaveFile succeeds, second fails
+		// First SaveImage succeeds, second fails
 		callCount := 0
-		saveFileError := errors.New("disk full")
-		mediaStorage.saveFileFunc = func(fileData io.Reader, boardID, threadID, originalFilename string) (string, error) {
+		saveImageError := errors.New("disk full")
+		mediaStorage.saveImageFunc = func(img image.Image, format, boardID, threadID, originalFilename string) (string, error) {
 			callCount++
 			if callCount == 1 {
 				return "tech/1/file1.jpg", nil
 			}
-			return "", saveFileError
+			return "", saveImageError
 		}
 
 		service := NewMessage(storage, validator, mediaStorage, cfg)
@@ -591,12 +644,12 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		_, err := service.Create(creationData)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to save file")
+		assert.Contains(t, err.Error(), "failed to save image file")
 
-		// Verify first file was cleaned up
+		// Verify first file was cleaned up (image + thumbnail)
 		mediaStorage.mu.Lock()
-		assert.Len(t, mediaStorage.deleteFileCalls, 1, "First file should have been deleted")
-		assert.Equal(t, "tech/1/file1.jpg", mediaStorage.deleteFileCalls[0])
+		assert.Len(t, mediaStorage.deleteFileCalls, 2, "First image and thumbnail should have been deleted")
+		assert.Contains(t, mediaStorage.deleteFileCalls, "tech/1/file1.jpg")
 		mediaStorage.mu.Unlock()
 
 		// Verify message was deleted

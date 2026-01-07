@@ -6,6 +6,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"os"
 	"strings"
 
 	svcutils "github.com/itchan-dev/itchan/backend/internal/service/utils"
@@ -110,56 +111,89 @@ func (b *Message) saveAndAttachFiles(
 	savedFiles := make([]string, 0) // Track for cleanup on error
 
 	for _, pendingFile := range pendingFiles {
-		// Capture original metadata BEFORE sanitization
-		originalFilename := pendingFile.Filename
-		originalMimeType := pendingFile.MimeType
-
-		// Sanitize file (returns new PendingFile with sanitized data)
-		sanitizedFile, err := svcutils.SanitizeFile(pendingFile)
-		if err != nil {
-			// Cleanup saved files
-			for _, p := range savedFiles {
-				b.mediaStorage.DeleteFile(p)
-			}
-			return err
-		}
-
-		// Save sanitized file to disk
-		filePath, err := b.mediaStorage.SaveFile(
-			sanitizedFile.Data,
-			string(board),
-			fmt.Sprintf("%d", threadID),
-			sanitizedFile.Filename,
-		)
-		if err != nil {
-			for _, p := range savedFiles {
-				b.mediaStorage.DeleteFile(p)
-			}
-			return fmt.Errorf("failed to save file: %w", err)
-		}
-		savedFiles = append(savedFiles, filePath)
-
-		// Generate thumbnail for images
+		var filePath string
+		var sanitizedMetadata domain.FileCommonMetadata
 		var thumbnailPath *string
-		if strings.HasPrefix(sanitizedFile.MimeType, "image/") {
-			img, _, err := image.Decode(sanitizedFile.Data)
-			if err == nil {
-				thumbnail := utils.GenerateThumbnail(img, 125)
-				thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
-				if err == nil {
-					thumbnailPath = &thumbPath
-					savedFiles = append(savedFiles, thumbPath)
+
+		if strings.HasPrefix(pendingFile.MimeType, "video/") {
+			// Video: Sanitize to temp file and move
+			sanitizedVideo, err := svcutils.SanitizeVideo(pendingFile)
+			if err != nil {
+				// Cleanup saved files
+				for _, p := range savedFiles {
+					b.mediaStorage.DeleteFile(p)
 				}
+				return err
+			}
+
+			// Move temp file to final destination
+			filePath, err = b.mediaStorage.MoveFile(
+				sanitizedVideo.TempFilePath,
+				string(board),
+				fmt.Sprintf("%d", threadID),
+				sanitizedVideo.Filename,
+			)
+			if err != nil {
+				// Clean up temp file on error
+				os.Remove(sanitizedVideo.TempFilePath)
+				// Clean up previously saved files
+				for _, p := range savedFiles {
+					b.mediaStorage.DeleteFile(p)
+				}
+				return fmt.Errorf("failed to move video file: %w", err)
+			}
+			// Track saved file immediately after saving
+			savedFiles = append(savedFiles, filePath)
+			sanitizedMetadata = sanitizedVideo.FileCommonMetadata
+
+		} else if strings.HasPrefix(pendingFile.MimeType, "image/") {
+			sanitizedImage, err := svcutils.SanitizeImage(pendingFile)
+			if err != nil {
+				// Cleanup saved files
+				for _, p := range savedFiles {
+					b.mediaStorage.DeleteFile(p)
+				}
+				return err
+			}
+
+			filePath, err = b.mediaStorage.SaveImage(
+				sanitizedImage.Image.(image.Image),
+				sanitizedImage.Format,
+				string(board),
+				fmt.Sprintf("%d", threadID),
+				sanitizedImage.Filename,
+			)
+			if err != nil {
+				for _, p := range savedFiles {
+					b.mediaStorage.DeleteFile(p)
+				}
+				return fmt.Errorf("failed to save image file: %w", err)
+			}
+			// Track saved file immediately after saving
+			savedFiles = append(savedFiles, filePath)
+			sanitizedMetadata = sanitizedImage.FileCommonMetadata
+
+			// Generate thumbnail from the SAME decoded image (no re-decode!)
+			thumbnail := utils.GenerateThumbnail(sanitizedImage.Image.(image.Image), 125)
+			thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
+			if err == nil {
+				// Track thumbnail file
+				savedFiles = append(savedFiles, thumbPath)
+				thumbnailPath = &thumbPath
 			}
 			// Note: We don't fail the upload if thumbnail generation fails
+
+		} else {
+			// Unsupported file type (should not happen if validation is correct)
+			return fmt.Errorf("unsupported file type: %s", pendingFile.MimeType)
 		}
 
-		// Create file metadata with BOTH original and sanitized data
+		// Create file metadata ONCE with both original and sanitized data
 		fileData := &domain.File{
-			FileCommonMetadata: sanitizedFile.FileCommonMetadata, // Sanitized metadata
+			FileCommonMetadata: sanitizedMetadata,
 			FilePath:           filePath,
-			OriginalFilename:   originalFilename,   // User's uploaded filename
-			OriginalMimeType:   &originalMimeType, // Pre-sanitization MIME type
+			OriginalFilename:   pendingFile.Filename,
+			OriginalMimeType:   pendingFile.MimeType,
 			ThumbnailPath:      thumbnailPath,
 		}
 

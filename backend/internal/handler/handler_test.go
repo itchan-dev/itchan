@@ -77,6 +77,14 @@ func (m *MockMediaStorage) SaveFile(fileData io.Reader, boardID, threadID, origi
 	return "", nil
 }
 
+func (m *MockMediaStorage) SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, error) {
+	return "", nil
+}
+
+func (m *MockMediaStorage) MoveFile(sourcePath, boardID, threadID, filename string) (string, error) {
+	return "", nil
+}
+
 func (m *MockMediaStorage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
 	return "", nil
 }

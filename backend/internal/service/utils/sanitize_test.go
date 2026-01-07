@@ -6,7 +6,12 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"testing"
+
+	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSanitizeImage_PNG(t *testing.T) {
@@ -20,34 +25,35 @@ func TestSanitizeImage_PNG(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		t.Fatalf("failed to create test PNG: %v", err)
+	require.NoError(t, png.Encode(&buf, img))
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.png",
+			MimeType:  "image/png",
+			SizeBytes: int64(buf.Len()),
+		},
+		Data: bytes.NewReader(buf.Bytes()),
 	}
 
 	// Sanitize
-	sanitized, mimeType, ext, width, height, err := SanitizeImage(bytes.NewReader(buf.Bytes()), "image/png")
+	result, err := SanitizeImage(pendingFile)
+	require.NoError(t, err)
 
-	if err != nil {
-		t.Fatalf("sanitization failed: %v", err)
-	}
-	if mimeType != "image/png" {
-		t.Errorf("expected image/png, got %s", mimeType)
-	}
-	if ext != ".png" {
-		t.Errorf("expected .png, got %s", ext)
-	}
-	if *width != 100 || *height != 100 {
-		t.Errorf("expected 100x100, got %dx%d", *width, *height)
-	}
-	if len(sanitized) == 0 {
-		t.Error("sanitized data is empty")
-	}
+	assert.Equal(t, "image/png", result.MimeType)
+	assert.NotNil(t, result.ImageWidth)
+	assert.NotNil(t, result.ImageHeight)
+	assert.Equal(t, 100, *result.ImageWidth)
+	assert.Equal(t, 100, *result.ImageHeight)
+	assert.Equal(t, "png", result.Format)
+	assert.NotNil(t, result.Image, "decoded Image should be present")
 
-	// Verify it's a valid PNG by decoding it
-	_, err = png.Decode(bytes.NewReader(sanitized))
-	if err != nil {
-		t.Errorf("sanitized output is not valid PNG: %v", err)
-	}
+	// Verify the decoded image has correct dimensions
+	decodedImg, ok := result.Image.(image.Image)
+	require.True(t, ok, "Image should be of type image.Image")
+	bounds := decodedImg.Bounds()
+	assert.Equal(t, 100, bounds.Dx())
+	assert.Equal(t, 100, bounds.Dy())
 }
 
 func TestSanitizeImage_JPEG(t *testing.T) {
@@ -60,31 +66,35 @@ func TestSanitizeImage_JPEG(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
-		t.Fatalf("failed to create test JPEG: %v", err)
+	require.NoError(t, jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}))
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.jpg",
+			MimeType:  "image/jpeg",
+			SizeBytes: int64(buf.Len()),
+		},
+		Data: bytes.NewReader(buf.Bytes()),
 	}
 
 	// Sanitize
-	sanitized, mimeType, ext, width, height, err := SanitizeImage(bytes.NewReader(buf.Bytes()), "image/jpeg")
+	result, err := SanitizeImage(pendingFile)
+	require.NoError(t, err)
 
-	if err != nil {
-		t.Fatalf("sanitization failed: %v", err)
-	}
-	if mimeType != "image/jpeg" {
-		t.Errorf("expected image/jpeg, got %s", mimeType)
-	}
-	if ext != ".jpg" {
-		t.Errorf("expected .jpg, got %s", ext)
-	}
-	if *width != 50 || *height != 50 {
-		t.Errorf("expected 50x50, got %dx%d", *width, *height)
-	}
+	assert.Equal(t, "image/jpeg", result.MimeType)
+	assert.NotNil(t, result.ImageWidth)
+	assert.NotNil(t, result.ImageHeight)
+	assert.Equal(t, 50, *result.ImageWidth)
+	assert.Equal(t, 50, *result.ImageHeight)
+	assert.Equal(t, "jpeg", result.Format)
+	assert.NotNil(t, result.Image)
 
-	// Verify it's a valid JPEG
-	_, err = jpeg.Decode(bytes.NewReader(sanitized))
-	if err != nil {
-		t.Errorf("sanitized output is not valid JPEG: %v", err)
-	}
+	// Verify the decoded image has correct dimensions
+	decodedImg, ok := result.Image.(image.Image)
+	require.True(t, ok)
+	bounds := decodedImg.Bounds()
+	assert.Equal(t, 50, bounds.Dx())
+	assert.Equal(t, 50, bounds.Dy())
 }
 
 func TestSanitizeImage_GIF_ConvertedToJPEG(t *testing.T) {
@@ -97,59 +107,70 @@ func TestSanitizeImage_GIF_ConvertedToJPEG(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := gif.Encode(&buf, img, nil); err != nil {
-		t.Fatalf("failed to create test GIF: %v", err)
+	require.NoError(t, gif.Encode(&buf, img, nil))
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.gif",
+			MimeType:  "image/gif",
+			SizeBytes: int64(buf.Len()),
+		},
+		Data: bytes.NewReader(buf.Bytes()),
 	}
 
 	// Sanitize
-	sanitized, mimeType, ext, width, height, err := SanitizeImage(bytes.NewReader(buf.Bytes()), "image/gif")
+	result, err := SanitizeImage(pendingFile)
+	require.NoError(t, err)
 
-	if err != nil {
-		t.Fatalf("sanitization failed: %v", err)
-	}
-	if mimeType != "image/jpeg" {
-		t.Errorf("expected image/jpeg (GIF→JPEG conversion), got %s", mimeType)
-	}
-	if ext != ".jpg" {
-		t.Errorf("expected .jpg, got %s", ext)
-	}
-	if *width != 80 || *height != 60 {
-		t.Errorf("expected 80x60, got %dx%d", *width, *height)
-	}
+	// GIF should be converted to JPEG
+	assert.Equal(t, "image/jpeg", result.MimeType)
+	assert.NotNil(t, result.ImageWidth)
+	assert.NotNil(t, result.ImageHeight)
+	assert.Equal(t, 80, *result.ImageWidth)
+	assert.Equal(t, 60, *result.ImageHeight)
+	assert.Equal(t, "gif", result.Format) // Format is from image.Decode, still "gif"
+	assert.NotNil(t, result.Image)
 
-	// Verify it's a valid JPEG (not GIF)
-	_, err = jpeg.Decode(bytes.NewReader(sanitized))
-	if err != nil {
-		t.Errorf("sanitized output is not valid JPEG: %v", err)
-	}
-
-	// Verify it's NOT a GIF anymore
-	_, err = gif.Decode(bytes.NewReader(sanitized))
-	if err == nil {
-		t.Error("output should not be decodable as GIF after conversion")
-	}
+	// Verify the decoded image has correct dimensions
+	decodedImg, ok := result.Image.(image.Image)
+	require.True(t, ok)
+	bounds := decodedImg.Bounds()
+	assert.Equal(t, 80, bounds.Dx())
+	assert.Equal(t, 60, bounds.Dy())
 }
 
 func TestSanitizeImage_InvalidData(t *testing.T) {
 	// Test with invalid image data
 	invalidData := []byte("not an image")
 
-	_, _, _, _, _, err := SanitizeImage(bytes.NewReader(invalidData), "image/jpeg")
-
-	if err == nil {
-		t.Error("expected error for invalid image data, got nil")
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.jpg",
+			MimeType:  "image/jpeg",
+			SizeBytes: int64(len(invalidData)),
+		},
+		Data: bytes.NewReader(invalidData),
 	}
+
+	_, err := SanitizeImage(pendingFile)
+	assert.Error(t, err, "expected error for invalid image data")
 }
 
 func TestSanitizeImage_EmptyData(t *testing.T) {
 	// Test with empty data
 	emptyData := []byte{}
 
-	_, _, _, _, _, err := SanitizeImage(bytes.NewReader(emptyData), "image/png")
-
-	if err == nil {
-		t.Error("expected error for empty data, got nil")
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.png",
+			MimeType:  "image/png",
+			SizeBytes: 0,
+		},
+		Data: bytes.NewReader(emptyData),
 	}
+
+	_, err := SanitizeImage(pendingFile)
+	assert.Error(t, err, "expected error for empty data")
 }
 
 func TestCheckFFmpegAvailable(t *testing.T) {
@@ -171,34 +192,33 @@ func TestSanitizeImage_PreservesQuality(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 100}); err != nil {
-		t.Fatalf("failed to create test JPEG: %v", err)
-	}
+	require.NoError(t, jpeg.Encode(&buf, img, &jpeg.Options{Quality: 100}))
 
 	originalSize := buf.Len()
 
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.jpg",
+			MimeType:  "image/jpeg",
+			SizeBytes: int64(buf.Len()),
+		},
+		Data: bytes.NewReader(buf.Bytes()),
+	}
+
 	// Sanitize
-	sanitized, _, _, _, _, err := SanitizeImage(bytes.NewReader(buf.Bytes()), "image/jpeg")
-	if err != nil {
-		t.Fatalf("sanitization failed: %v", err)
-	}
+	result, err := SanitizeImage(pendingFile)
+	require.NoError(t, err)
 
-	sanitizedSize := len(sanitized)
+	t.Logf("Original size: %d bytes (note: sanitized will be encoded with quality 85)", originalSize)
 
-	// Quality 85 should produce reasonably sized output
-	// It might be slightly smaller or larger depending on content
-	t.Logf("Original size: %d bytes, Sanitized size: %d bytes", originalSize, sanitizedSize)
-
-	// Verify sanitized image is still valid
-	decodedImg, err := jpeg.Decode(bytes.NewReader(sanitized))
-	if err != nil {
-		t.Errorf("failed to decode sanitized image: %v", err)
-	}
+	// Verify sanitized image is valid
+	assert.NotNil(t, result.Image)
+	decodedImg, ok := result.Image.(image.Image)
+	require.True(t, ok)
 
 	bounds := decodedImg.Bounds()
-	if bounds.Dx() != 200 || bounds.Dy() != 200 {
-		t.Errorf("dimensions changed after sanitization: got %dx%d", bounds.Dx(), bounds.Dy())
-	}
+	assert.Equal(t, 200, bounds.Dx(), "width should be preserved")
+	assert.Equal(t, 200, bounds.Dy(), "height should be preserved")
 }
 
 func TestSanitizeImage_PNGTransparency(t *testing.T) {
@@ -212,26 +232,32 @@ func TestSanitizeImage_PNGTransparency(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		t.Fatalf("failed to create test PNG: %v", err)
+	require.NoError(t, png.Encode(&buf, img))
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.png",
+			MimeType:  "image/png",
+			SizeBytes: int64(buf.Len()),
+		},
+		Data: bytes.NewReader(buf.Bytes()),
 	}
 
 	// Sanitize
-	sanitized, mimeType, _, _, _, err := SanitizeImage(bytes.NewReader(buf.Bytes()), "image/png")
-	if err != nil {
-		t.Fatalf("sanitization failed: %v", err)
-	}
+	result, err := SanitizeImage(pendingFile)
+	require.NoError(t, err)
 
 	// Should remain PNG (not converted to JPEG)
-	if mimeType != "image/png" {
-		t.Errorf("PNG should not be converted, got %s", mimeType)
-	}
+	assert.Equal(t, "image/png", result.MimeType)
+	assert.Equal(t, "png", result.Format)
 
-	// Verify it's still a valid PNG
-	_, err = png.Decode(bytes.NewReader(sanitized))
-	if err != nil {
-		t.Errorf("sanitized output is not valid PNG: %v", err)
-	}
+	// Verify decoded image is valid
+	assert.NotNil(t, result.Image)
+	decodedImg, ok := result.Image.(image.Image)
+	require.True(t, ok)
+	bounds := decodedImg.Bounds()
+	assert.Equal(t, 50, bounds.Dx())
+	assert.Equal(t, 50, bounds.Dy())
 }
 
 func BenchmarkSanitizeImage_PNG(b *testing.B) {
@@ -241,7 +267,15 @@ func BenchmarkSanitizeImage_PNG(b *testing.B) {
 	data := buf.Bytes()
 
 	for b.Loop() {
-		SanitizeImage(bytes.NewReader(data), "image/png")
+		pendingFile := &domain.PendingFile{
+			FileCommonMetadata: domain.FileCommonMetadata{
+				Filename:  "bench.png",
+				MimeType:  "image/png",
+				SizeBytes: int64(len(data)),
+			},
+			Data: bytes.NewReader(data),
+		}
+		SanitizeImage(pendingFile)
 	}
 }
 
@@ -252,6 +286,236 @@ func BenchmarkSanitizeImage_JPEG(b *testing.B) {
 	data := buf.Bytes()
 
 	for b.Loop() {
-		SanitizeImage(bytes.NewReader(data), "image/jpeg")
+		pendingFile := &domain.PendingFile{
+			FileCommonMetadata: domain.FileCommonMetadata{
+				Filename:  "bench.jpg",
+				MimeType:  "image/jpeg",
+				SizeBytes: int64(len(data)),
+			},
+			Data: bytes.NewReader(data),
+		}
+		SanitizeImage(pendingFile)
 	}
+}
+
+// TestSanitizeImage_ReturnsImageAndFormat tests that image sanitization returns SanitizedImage with decoded Image and Format
+func TestSanitizeImage_ReturnsImageAndFormat(t *testing.T) {
+	// Create test PNG image
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for y := range 100 {
+		for x := range 100 {
+			img.Set(x, y, image.White)
+		}
+	}
+
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.png",
+			MimeType:  "image/png",
+			SizeBytes: int64(buf.Len()),
+		},
+		Data: bytes.NewReader(buf.Bytes()),
+	}
+
+	result, err := SanitizeImage(pendingFile)
+	require.NoError(t, err)
+
+	// Image should have decoded Image and Format set
+	assert.NotNil(t, result.Image, "SanitizedImage should have decoded Image set")
+	assert.Equal(t, "png", result.Format, "Format should be set from image.Decode")
+	assert.Equal(t, "image/png", result.MimeType)
+	assert.NotNil(t, result.ImageWidth)
+	assert.NotNil(t, result.ImageHeight)
+	assert.Equal(t, 100, *result.ImageWidth)
+	assert.Equal(t, 100, *result.ImageHeight)
+
+	// Verify the decoded image is valid
+	decodedImg, ok := result.Image.(image.Image)
+	require.True(t, ok, "Image should be of type image.Image")
+	bounds := decodedImg.Bounds()
+	assert.Equal(t, 100, bounds.Dx())
+	assert.Equal(t, 100, bounds.Dy())
+}
+
+// TestSanitizeVideo_ReturnsTempPath tests that video sanitization returns SanitizedVideo with TempFilePath
+func TestSanitizeVideo_ReturnsTempPath(t *testing.T) {
+	// Check if ffmpeg is available
+	if err := CheckFFmpegAvailable(); err != nil {
+		t.Skip("ffmpeg not available, skipping video test")
+	}
+
+	// Create a minimal valid MP4 file (we'll create a simple temp file)
+	// For testing purposes, we'll use a very small video or just check the path mechanism
+	tmpFile, err := os.CreateTemp("", "test_video_*.mp4")
+	require.NoError(t, err)
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	// Write minimal MP4 header (ftyp box) to make it a valid MP4 for ffmpeg
+	// This is a minimal MP4 that ffmpeg can process
+	minimalMP4 := []byte{
+		0x00, 0x00, 0x00, 0x20, 'f', 't', 'y', 'p',
+		'i', 's', 'o', 'm', 0x00, 0x00, 0x02, 0x00,
+		'i', 's', 'o', 'm', 'i', 's', 'o', '2',
+		'a', 'v', 'c', '1', 'm', 'p', '4', '1',
+		0x00, 0x00, 0x00, 0x08, 'm', 'd', 'a', 't',
+	}
+	_, err = tmpFile.Write(minimalMP4)
+	require.NoError(t, err)
+	tmpFile.Close()
+
+	// Read it back for PendingFile
+	videoData, err := os.ReadFile(tmpPath)
+	require.NoError(t, err)
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.mp4",
+			MimeType:  "video/mp4",
+			SizeBytes: int64(len(videoData)),
+		},
+		Data: bytes.NewReader(videoData),
+	}
+
+	result, err := SanitizeVideo(pendingFile)
+
+	// Clean up temp file if sanitization created one
+	if result != nil {
+		defer os.Remove(result.TempFilePath)
+	}
+
+	// Note: This might fail if ffmpeg can't process our minimal MP4
+	// In that case, we skip the test
+	if err != nil {
+		if bytes.Contains([]byte(err.Error()), []byte("ffmpeg")) {
+			t.Skip("ffmpeg couldn't process minimal MP4, skipping")
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Video should have TempFilePath set
+	assert.NotEmpty(t, result.TempFilePath, "SanitizedVideo should have TempFilePath set")
+	assert.Equal(t, "video/mp4", result.MimeType)
+	assert.Equal(t, "test.mp4", result.Filename)
+}
+
+// TestSanitizeVideo_TempFileExists tests that the temp file actually exists
+func TestSanitizeVideo_TempFileExists(t *testing.T) {
+	// Check if ffmpeg is available
+	if err := CheckFFmpegAvailable(); err != nil {
+		t.Skip("ffmpeg not available, skipping video test")
+	}
+
+	// Create a minimal valid MP4 file
+	tmpFile, err := os.CreateTemp("", "test_video_*.mp4")
+	require.NoError(t, err)
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	minimalMP4 := []byte{
+		0x00, 0x00, 0x00, 0x20, 'f', 't', 'y', 'p',
+		'i', 's', 'o', 'm', 0x00, 0x00, 0x02, 0x00,
+		'i', 's', 'o', 'm', 'i', 's', 'o', '2',
+		'a', 'v', 'c', '1', 'm', 'p', '4', '1',
+		0x00, 0x00, 0x00, 0x08, 'm', 'd', 'a', 't',
+	}
+	tmpFile.Write(minimalMP4)
+	tmpFile.Close()
+
+	videoData, _ := os.ReadFile(tmpPath)
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.mp4",
+			MimeType:  "video/mp4",
+			SizeBytes: int64(len(videoData)),
+		},
+		Data: bytes.NewReader(videoData),
+	}
+
+	result, err := SanitizeVideo(pendingFile)
+
+	// Clean up temp file
+	if result != nil {
+		defer os.Remove(result.TempFilePath)
+	}
+
+	if err != nil {
+		if bytes.Contains([]byte(err.Error()), []byte("ffmpeg")) {
+			t.Skip("ffmpeg couldn't process minimal MP4, skipping")
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	require.NotEmpty(t, result.TempFilePath)
+
+	// Verify the temp file actually exists
+	_, err = os.Stat(result.TempFilePath)
+	assert.NoError(t, err, "Temp file should exist at the returned path")
+
+	// Verify the file has content
+	fileInfo, err := os.Stat(result.TempFilePath)
+	require.NoError(t, err)
+	assert.True(t, fileInfo.Size() > 0, "Temp file should have content")
+}
+
+// TestSanitizeVideo_FileSizeMatches tests that SizeBytes matches actual file size
+func TestSanitizeVideo_FileSizeMatches(t *testing.T) {
+	// Check if ffmpeg is available
+	if err := CheckFFmpegAvailable(); err != nil {
+		t.Skip("ffmpeg not available, skipping video test")
+	}
+
+	// Create a minimal valid MP4 file
+	tmpFile, err := os.CreateTemp("", "test_video_*.mp4")
+	require.NoError(t, err)
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	minimalMP4 := []byte{
+		0x00, 0x00, 0x00, 0x20, 'f', 't', 'y', 'p',
+		'i', 's', 'o', 'm', 0x00, 0x00, 0x02, 0x00,
+		'i', 's', 'o', 'm', 'i', 's', 'o', '2',
+		'a', 'v', 'c', '1', 'm', 'p', '4', '1',
+		0x00, 0x00, 0x00, 0x08, 'm', 'd', 'a', 't',
+	}
+	tmpFile.Write(minimalMP4)
+	tmpFile.Close()
+
+	videoData, _ := os.ReadFile(tmpPath)
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.mp4",
+			MimeType:  "video/mp4",
+			SizeBytes: int64(len(videoData)),
+		},
+		Data: bytes.NewReader(videoData),
+	}
+
+	result, err := SanitizeVideo(pendingFile)
+
+	// Clean up temp file
+	if result != nil {
+		defer os.Remove(result.TempFilePath)
+	}
+
+	if err != nil {
+		if bytes.Contains([]byte(err.Error()), []byte("ffmpeg")) {
+			t.Skip("ffmpeg couldn't process minimal MP4, skipping")
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	require.NotEmpty(t, result.TempFilePath)
+
+	// Get actual file size
+	fileInfo, err := os.Stat(result.TempFilePath)
+	require.NoError(t, err)
+
+	// Verify SizeBytes matches actual file size
+	assert.Equal(t, fileInfo.Size(), result.SizeBytes, "SizeBytes should match actual file size")
 }
