@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -19,6 +21,16 @@ type MediaStorage interface {
 	// It takes the board and thread IDs to construct the path and generates a unique filename.
 	// It returns the relative path where the file was stored.
 	SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
+
+	// SaveImage encodes and saves an image.Image (PNG if format="png", JPEG otherwise).
+	// It returns the relative path where the image was stored.
+	SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, error)
+
+	// MoveFile moves a file from sourcePath to the storage location.
+	// Used for sanitized videos to avoid loading into memory.
+	// The source file will be deleted after successful move.
+	// Returns the relative path where the file was stored.
+	MoveFile(sourcePath, boardID, threadID, filename string) (string, error)
 
 	// SaveThumbnail saves a thumbnail image as JPEG.
 	// It returns the relative path where the thumbnail was stored.
@@ -57,85 +69,199 @@ func New(rootPath string) (*Storage, error) {
 	return &Storage{rootPath: p}, nil
 }
 
-// SaveFile writes a file to the configured storage path with a unique generated filename.
-func (s *Storage) SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error) {
-	// Step 1: Generate a unique filename
-	// Format: {timestamp}_{random}_{sanitized_original_name}
-	ext := filepath.Ext(originalFilename)
-	baseName := originalFilename[:len(originalFilename)-len(ext)]
-
+// generateUniqueFilename generates a unique filename based on a pattern.
+// The pattern works like os.CreateTemp: "*" is replaced with timestamp_random.
+// Examples:
+//   - "*.jpg"        → "1234567890_abc123def456.jpg"
+//   - "thumb_*.jpg"  → "thumb_1234567890_abc123def456.jpg"
+//   - "*"            → "1234567890_abc123def456"
+func generateUniqueFilename(pattern string) (string, error) {
 	// Generate random bytes for uniqueness
 	randBytes := make([]byte, 8)
 	if _, err := rand.Read(randBytes); err != nil {
-		return "", fmt.Errorf("failed to generate random filename: %w", err)
+		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
 	randStr := hex.EncodeToString(randBytes)
 
-	// Create unique filename: timestamp_random_originalname.ext
+	// Create unique string: timestamp_random
 	timestamp := time.Now().Unix()
-	filename := fmt.Sprintf("%d_%s_%s%s", timestamp, randStr, filepath.Base(baseName), ext)
+	uniqueStr := fmt.Sprintf("%d_%s", timestamp, randStr)
 
-	// Step 2: Construct the relative and full paths.
-	relativePath := filepath.Join(boardID, threadID, filename)
+	// Replace * with unique string
+	filename := strings.Replace(pattern, "*", uniqueStr, 1)
+	return filename, nil
+}
+
+// saveFile writes file data to the specified path.
+// This is an internal helper that just handles the file I/O.
+// The caller is responsible for generating unique filenames and constructing paths.
+func (s *Storage) saveFile(fileData io.Reader, relativePath string) error {
 	fullPath := filepath.Join(s.rootPath, relativePath)
 
-	// Step 3: Lazily create the board/thread subdirectories.
+	// Create subdirectories if needed
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
-		return "", fmt.Errorf("failed to create subdirectories: %w", err)
+		return fmt.Errorf("failed to create subdirectories: %w", err)
 	}
 
-	// Step 4: Create and write the file.
+	// Create and write the file
 	dst, err := os.Create(fullPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to create destination file: %w", err)
+		return fmt.Errorf("failed to create destination file: %w", err)
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, fileData); err != nil {
 		// Important: If the copy fails, we should try to clean up the empty file.
 		os.Remove(fullPath) // Best effort, ignore error here.
-		return "", fmt.Errorf("failed to copy file data: %w", err)
+		return fmt.Errorf("failed to copy file data: %w", err)
+	}
+
+	return nil
+}
+
+// SaveFile writes a file to the configured storage path with a unique generated filename.
+// The original filename is only used to extract the extension. The actual filename is generated
+// to ensure uniqueness and improve privacy (no user-provided names in storage).
+func (s *Storage) SaveFile(fileData io.Reader, boardID, threadID, originalFilename string) (string, error) {
+	// Extract extension from original filename
+	ext := filepath.Ext(originalFilename)
+
+	// Generate unique filename pattern: *.ext (e.g., "*.jpg")
+	pattern := "*" + ext
+	filename, err := generateUniqueFilename(pattern)
+	if err != nil {
+		return "", err
+	}
+
+	// Construct relative path
+	relativePath := filepath.Join(boardID, threadID, filename)
+
+	// Save file
+	if err := s.saveFile(fileData, relativePath); err != nil {
+		return "", err
+	}
+
+	return relativePath, nil
+}
+
+// SaveImage encodes and saves an image.Image.
+// PNG format is preserved, all others are encoded as JPEG with quality 85.
+// The originalFilename is only used to extract the extension.
+func (s *Storage) SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, error) {
+	// Encode image to buffer
+	var buf bytes.Buffer
+	var err error
+	var ext string
+
+	if format == "png" {
+		err = png.Encode(&buf, img)
+		ext = ".png"
+	} else {
+		err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85})
+		ext = ".jpg"
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("failed to encode image: %w", err)
+	}
+
+	// Generate unique filename pattern: *.ext (e.g., "*.jpg")
+	pattern := "*" + ext
+	filename, err := generateUniqueFilename(pattern)
+	if err != nil {
+		return "", err
+	}
+
+	// Construct relative path
+	relativePath := filepath.Join(boardID, threadID, filename)
+
+	// Save file
+	if err := s.saveFile(&buf, relativePath); err != nil {
+		return "", err
+	}
+
+	return relativePath, nil
+}
+
+// MoveFile moves a file from sourcePath to the storage location.
+// This is more efficient than SaveFile for large files already on disk.
+// The filename parameter is only used to extract the extension.
+func (s *Storage) MoveFile(sourcePath, boardID, threadID, filename string) (string, error) {
+	// Extract extension from filename
+	ext := filepath.Ext(filename)
+
+	// Generate unique filename pattern: *.ext
+	pattern := "*" + ext
+	uniqueFilename, err := generateUniqueFilename(pattern)
+	if err != nil {
+		return "", err
+	}
+
+	// Construct destination path
+	relativePath := filepath.Join(boardID, threadID, uniqueFilename)
+	destPath := filepath.Join(s.rootPath, relativePath)
+
+	// Create destination directory
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		return "", fmt.Errorf("failed to create subdirectories: %w", err)
+	}
+
+	// Move file (try rename first, fall back to copy+delete)
+	err = os.Rename(sourcePath, destPath)
+	if err != nil {
+		// Rename failed (different filesystem?), fall back to copy
+		src, err := os.Open(sourcePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to open source file: %w", err)
+		}
+		defer src.Close()
+
+		dst, err := os.Create(destPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to create destination file: %w", err)
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, src); err != nil {
+			os.Remove(destPath) // Cleanup partial copy
+			return "", fmt.Errorf("failed to copy file: %w", err)
+		}
+
+		// Remove source after successful copy
+		if err := os.Remove(sourcePath); err != nil {
+			// Log warning but don't fail - file was copied successfully
+			// In production, this should be logged
+		}
 	}
 
 	return relativePath, nil
 }
 
 // SaveThumbnail saves a thumbnail image as JPEG in the same directory as the original file.
-// The thumbnail filename is prefixed with "thumb_".
+// The thumbnail filename is generated with "thumb_" prefix for easy identification.
 // Returns the relative path to the thumbnail.
 func (s *Storage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
-	// Generate thumbnail filename by prefixing with "thumb_" and changing extension to .jpg
+	// Get directory from original file path
 	dir := filepath.Dir(originalRelativePath)
-	originalFilename := filepath.Base(originalRelativePath)
-	ext := filepath.Ext(originalFilename)
-	baseName := originalFilename[:len(originalFilename)-len(ext)]
-	thumbnailFilename := fmt.Sprintf("thumb_%s.jpg", baseName)
 
-	// Construct paths
-	thumbnailRelativePath := filepath.Join(dir, thumbnailFilename)
-	thumbnailFullPath := filepath.Join(s.rootPath, thumbnailRelativePath)
-
-	// Ensure directory exists (should already exist from SaveFile, but be safe)
-	if err := os.MkdirAll(filepath.Dir(thumbnailFullPath), 0755); err != nil {
-		return "", fmt.Errorf("failed to create thumbnail directory: %w", err)
+	// Generate unique thumbnail filename: thumb_*.jpg
+	thumbnailFilename, err := generateUniqueFilename("thumb_*.jpg")
+	if err != nil {
+		return "", err
 	}
 
-	// Encode thumbnail as JPEG to a buffer first
+	// Construct relative path
+	thumbnailRelativePath := filepath.Join(dir, thumbnailFilename)
+
+	// Encode thumbnail as JPEG to a buffer
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, thumbnail, &jpeg.Options{Quality: 75}); err != nil {
 		return "", fmt.Errorf("failed to encode thumbnail as JPEG: %w", err)
 	}
 
-	// Write thumbnail to file
-	dst, err := os.Create(thumbnailFullPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to create thumbnail file: %w", err)
-	}
-	defer dst.Close()
-
-	if _, err := io.Copy(dst, &buf); err != nil {
-		os.Remove(thumbnailFullPath) // Best effort cleanup
-		return "", fmt.Errorf("failed to write thumbnail data: %w", err)
+	// Save file
+	if err := s.saveFile(&buf, thumbnailRelativePath); err != nil {
+		return "", err
 	}
 
 	return thumbnailRelativePath, nil

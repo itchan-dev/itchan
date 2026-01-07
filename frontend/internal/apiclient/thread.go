@@ -75,7 +75,6 @@ func (c *APIClient) postMultipartRequest(path string, data any, multipartForm *m
 					pipeWriter.CloseWithError(err)
 					return
 				}
-				defer file.Close()
 
 				// Create part with proper Content-Type header
 				h := make(textproto.MIMEHeader)
@@ -91,14 +90,19 @@ func (c *APIClient) postMultipartRequest(path string, data any, multipartForm *m
 
 				part, err := writer.CreatePart(h)
 				if err != nil {
+					file.Close()
 					pipeWriter.CloseWithError(err)
 					return
 				}
 
 				if _, err := io.Copy(part, file); err != nil {
+					file.Close()
 					pipeWriter.CloseWithError(err)
 					return
 				}
+
+				// Close file immediately after use
+				file.Close()
 			}
 		}
 	}()
