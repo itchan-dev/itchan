@@ -115,7 +115,7 @@ func (b *Message) saveAndAttachFiles(
 		var sanitizedMetadata domain.FileCommonMetadata
 		var thumbnailPath *string
 
-		if strings.HasPrefix(pendingFile.MimeType, "video/") {
+		if pendingFile.IsVideo() {
 			// Video: Sanitize to temp file and move
 			sanitizedVideo, err := svcutils.SanitizeVideo(pendingFile)
 			if err != nil {
@@ -146,7 +146,7 @@ func (b *Message) saveAndAttachFiles(
 			savedFiles = append(savedFiles, filePath)
 			sanitizedMetadata = sanitizedVideo.FileCommonMetadata
 
-		} else if strings.HasPrefix(pendingFile.MimeType, "image/") {
+		} else if pendingFile.IsImage() {
 			sanitizedImage, err := svcutils.SanitizeImage(pendingFile)
 			if err != nil {
 				// Cleanup saved files
@@ -156,7 +156,8 @@ func (b *Message) saveAndAttachFiles(
 				return err
 			}
 
-			filePath, err = b.mediaStorage.SaveImage(
+			var imageSize int64
+			filePath, imageSize, err = b.mediaStorage.SaveImage(
 				sanitizedImage.Image.(image.Image),
 				sanitizedImage.Format,
 				string(board),
@@ -172,6 +173,8 @@ func (b *Message) saveAndAttachFiles(
 			// Track saved file immediately after saving
 			savedFiles = append(savedFiles, filePath)
 			sanitizedMetadata = sanitizedImage.FileCommonMetadata
+			// Update size with actual encoded size
+			sanitizedMetadata.SizeBytes = imageSize
 
 			// Generate thumbnail from the SAME decoded image (no re-decode!)
 			thumbnail := utils.GenerateThumbnail(sanitizedImage.Image.(image.Image), 125)

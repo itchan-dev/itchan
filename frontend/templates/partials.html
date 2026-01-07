@@ -94,24 +94,24 @@
     {{range .Message.Attachments}}
         {{if .File}}
             {{$mediaUrl := printf "/media/%s" .File.FilePath}}
-            {{if hasPrefix .File.MimeType "image/"}}
+            {{if .File.IsImage}}
                 {{$thumbnailUrl := $mediaUrl}}
                 {{if .File.ThumbnailPath}}
                     {{/* Dereference pointer first, then use printf */}}
                     {{$thumb := derefStr .File.ThumbnailPath}}
                     {{$thumbnailUrl = printf "/media/%s" $thumb}}
                 {{end}}
-                
+
                 <div class="attachment-item">
                     <a href="{{$mediaUrl}}" target="_blank" class="attachment-link">
                         <img src="{{$thumbnailUrl}}" alt="{{.File.OriginalFilename}}" loading="lazy" class="attachment-thumbnail">
                     </a>
                     <div class="attachment-info">
                         <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
-                        ({{if .File.ImageWidth}}{{.File.ImageWidth}}x{{.File.ImageHeight}}, {{end}}{{.File.FileSizeBytes}} bytes)
+                        ({{if .File.ImageWidth}}{{.File.ImageWidth}}x{{.File.ImageHeight}}, {{end}}{{.File.SizeBytes}} bytes)
                     </div>
                 </div>
-            {{else if hasPrefix .File.MimeType "video/"}}
+            {{else if .File.IsVideo}}
                 <div class="attachment-item">
                     <video controls class="attachment-thumbnail">
                         <source src="{{$mediaUrl}}" type="{{.File.MimeType}}">
@@ -119,13 +119,13 @@
                     </video>
                     <div class="attachment-info">
                         <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
-                        ({{.File.FileSizeBytes}} bytes)
+                        ({{.File.SizeBytes}} bytes)
                     </div>
                 </div>
             {{else}}
                 <div class="attachment-item">
                     <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
-                    ({{.File.FileSizeBytes}} bytes)
+                    ({{.File.SizeBytes}} bytes)
                 </div>
             {{end}}
         {{end}}

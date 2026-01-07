@@ -42,7 +42,7 @@ func loadTestVideo(t *testing.T) []byte {
 // SharedMockMediaStorage mocks the MediaStorage interface for use across different test files
 type SharedMockMediaStorage struct {
 	saveFileFunc     func(fileData io.Reader, boardID, threadID, originalFilename string) (string, error)
-	saveImageFunc    func(img image.Image, format, boardID, threadID, originalFilename string) (string, error)
+	saveImageFunc    func(img image.Image, format, boardID, threadID, originalFilename string) (string, int64, error)
 	moveFileFunc     func(sourcePath, boardID, threadID, filename string) (string, error)
 	readFunc         func(filePath string) (io.ReadCloser, error)
 	deleteFileFunc   func(filePath string) error
@@ -104,7 +104,7 @@ func (m *SharedMockMediaStorage) SaveFile(fileData io.Reader, boardID, threadID,
 	return boardID + "/" + threadID + "/" + originalFilename, nil
 }
 
-func (m *SharedMockMediaStorage) SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, error) {
+func (m *SharedMockMediaStorage) SaveImage(img image.Image, format, boardID, threadID, originalFilename string) (string, int64, error) {
 	m.mu.Lock()
 	m.saveImageCalls = append(m.saveImageCalls, SaveImageCall{
 		BoardID:          boardID,
@@ -117,8 +117,8 @@ func (m *SharedMockMediaStorage) SaveImage(img image.Image, format, boardID, thr
 	if m.saveImageFunc != nil {
 		return m.saveImageFunc(img, format, boardID, threadID, originalFilename)
 	}
-	// Default: return a fake path
-	return boardID + "/" + threadID + "/" + originalFilename, nil
+	// Default: return a fake path and size
+	return boardID + "/" + threadID + "/" + originalFilename, 1024, nil
 }
 
 func (m *SharedMockMediaStorage) MoveFile(sourcePath, boardID, threadID, filename string) (string, error) {
@@ -606,12 +606,12 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		// First SaveImage succeeds, second fails
 		callCount := 0
 		saveImageError := errors.New("disk full")
-		mediaStorage.saveImageFunc = func(img image.Image, format, boardID, threadID, originalFilename string) (string, error) {
+		mediaStorage.saveImageFunc = func(img image.Image, format, boardID, threadID, originalFilename string) (string, int64, error) {
 			callCount++
 			if callCount == 1 {
-				return "tech/1/file1.jpg", nil
+				return "tech/1/file1.jpg", 1024, nil
 			}
-			return "", saveImageError
+			return "", 0, saveImageError
 		}
 
 		service := NewMessage(storage, validator, mediaStorage, cfg)
