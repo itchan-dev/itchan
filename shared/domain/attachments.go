@@ -15,20 +15,20 @@ type FileCommonMetadata struct {
 	ImageHeight *int   `json:"image_height,omitempty"`
 }
 
+// IsImage returns true if the file is an image
+func (fcm *FileCommonMetadata) IsImage() bool {
+	return strings.HasPrefix(fcm.MimeType, "image/")
+}
+
+// IsVideo returns true if the file is a video
+func (fcm *FileCommonMetadata) IsVideo() bool {
+	return strings.HasPrefix(fcm.MimeType, "video/")
+}
+
 // PendingFile represents a file upload being processed (moved from domain/message.go)
 type PendingFile struct {
 	FileCommonMetadata
 	Data io.Reader `json:"-"`
-}
-
-// IsImage returns true if the file is an image
-func (pf *PendingFile) IsImage() bool {
-	return strings.HasPrefix(pf.MimeType, "image/")
-}
-
-// IsVideo returns true if the file is a video
-func (pf *PendingFile) IsVideo() bool {
-	return strings.HasPrefix(pf.MimeType, "video/")
 }
 
 // SanitizedImage represents a sanitized image file ready to be saved.
