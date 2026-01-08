@@ -36,29 +36,27 @@
 {{end}}
 
 {{define "popup-reply-form"}}
-<template id="popup-reply-template">
-    <div class="popup-reply-container post-form-container">
-        <button class="popup-close-btn" aria-label="Close">&times;</button>
-        <form method="post" enctype="multipart/form-data"> {{/* Action will be set by JS */}}
-            <input type="hidden" name="form_action" value="reply">
-            <table class="form-table">
-                <tbody>
-                    <tr>
-                        <td>
-                            <textarea name="text" cols="48" rows="4" maxlength="{{.Validation.MessageTextMaxLen}}"></textarea>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>{{template "file-input" dict "InputClass" "popup-attachments" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
-                    </tr>
-                    <tr>
-                        <td><button type="submit">Post</button></td>
-                    </tr>
-                </tbody>
-            </table>
-        </form>
-    </div>
-</template>
+<div class="popup-reply-container post-form-container" style="display: none;">
+    <button class="popup-close-btn" aria-label="Close">&times;</button>
+    <form method="post" enctype="multipart/form-data"> {{/* Action will be set by JS */}}
+        <input type="hidden" name="form_action" value="reply">
+        <table class="form-table">
+            <tbody>
+                <tr>
+                    <td>
+                        <textarea name="text" cols="48" rows="4" maxlength="{{.Validation.MessageTextMaxLen}}"></textarea>
+                    </td>
+                </tr>
+                <tr>
+                    <td>{{template "file-input" dict "InputClass" "popup-attachments" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
+                </tr>
+                <tr>
+                    <td><button type="submit">Post</button></td>
+                </tr>
+            </tbody>
+        </table>
+    </form>
+</div>
 {{end}}
 
 {{/* ===== POST COMPONENTS ===== */}}
