@@ -15,12 +15,12 @@
 {{/* File input with preview - used in forms */}}
 {{/* Expects: InputID (string), InputClass (string, optional), MaxCount (int, optional), MaxTotalSize (int64, optional), MaxFileSize (int64, optional), AllowedImages ([]string, optional), AllowedVideos ([]string, optional) */}}
 {{define "file-input"}}
-<input type="file" {{if .InputID}}id="{{.InputID}}"{{end}} {{if .InputClass}}class="{{.InputClass}}"{{end}} {{if .MaxCount}}data-max-files="{{.MaxCount}}"{{end}} {{if .MaxTotalSize}}data-max-total-size="{{.MaxTotalSize}}"{{end}} {{if .MaxFileSize}}data-max-file-size="{{.MaxFileSize}}"{{end}} name="attachments" multiple accept="{{formatAcceptMimeTypes .AllowedImageMimeTypes .AllowedVideoMimeTypes}}">
+<input type="file" {{if .InputID}}id="{{.InputID}}"{{end}} {{if .InputClass}}class="{{.InputClass}}"{{end}} {{if .MaxCount}}data-max-files="{{.MaxCount}}"{{end}} {{if .MaxTotalSize}}data-max-total-size="{{.MaxTotalSize}}"{{end}} {{if .MaxFileSize}}data-max-file-size="{{.MaxFileSize}}"{{end}} name="attachments" multiple accept="{{formatAcceptMimeTypes .AllowedImages .AllowedVideos}}">
 <div class="file-hint">
     Hold Ctrl/Cmd to select multiple files{{if .MaxCount}} (max {{.MaxCount}}){{end}}.
     {{if .MaxFileSize}}Max per file: {{bytesToMB .MaxFileSize}}MB.{{end}}
     {{if .MaxTotalSize}} Max total: {{bytesToMB .MaxTotalSize}}MB.{{end}}
-    {{if or .AllowedImages .AllowedVideos}} Allowed types: {{mimeTypeExtensions .AllowedImages}}{{if and .AllowedImages .AllowedVideos}}, {{end}}{{mimeTypeExtensions .AllowedVideos}}.{{end}}
+    {{if or .AllowedImages .AllowedVideos}} Allowed types: {{if .AllowedImages}}{{mimeTypeExtensions .AllowedImages}}{{end}}{{if and .AllowedImages .AllowedVideos}}, {{end}}{{if .AllowedVideos}}{{mimeTypeExtensions .AllowedVideos}}{{end}}.{{end}}
 </div>
 <div class="file-preview-list"{{if .InputID}} data-for="{{.InputID}}"{{end}}></div>
 {{end}}
