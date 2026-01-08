@@ -318,18 +318,8 @@ class MessagePreview {
 }
 
 function setupPopupReplySystem() {
-    const template = document.getElementById('popup-reply-template');
-    if (!template) return; // Do nothing if the template isn't on the page
-
-    let currentPopup = null; // Keep track of the currently open popup
-
-    // Function to remove the popup
-    const removeCurrentPopup = () => {
-        if (currentPopup) {
-            currentPopup.remove();
-            currentPopup = null;
-        }
-    };
+    const popup = document.querySelector('.popup-reply-container');
+    if (!popup) return; // Do nothing if the popup isn't on the page
 
     // Main click listener using event delegation
     document.body.addEventListener('click', (e) => {
@@ -339,9 +329,6 @@ function setupPopupReplySystem() {
         if (replyLink) {
             e.preventDefault();
 
-            // Remove any existing popup before creating a new one
-            removeCurrentPopup();
-
             const postElement = replyLink.closest('.post');
             if (!postElement) return;
 
@@ -349,45 +336,38 @@ function setupPopupReplySystem() {
             const threadId = postElement.dataset.threadId;
             const messageId = postElement.dataset.messageId;
 
-            // 1. CLONE: Create a new popup from the template
-            const clone = template.content.cloneNode(true);
-            const newPopup = clone.querySelector('.popup-reply-container');
-            
-            // 2. CONFIGURE: Set the form's action attribute
-            const form = newPopup.querySelector('form');
+            // 1. CONFIGURE: Update the form's action attribute for current board/thread
+            const form = popup.querySelector('form');
             form.action = `/${board}/${threadId}`;
-            
-            // 3. POSITION: Place it near the clicked link
-            document.body.appendChild(newPopup);
+
+            // 2. POSITION: Place it near the clicked link
             const linkRect = replyLink.getBoundingClientRect();
-            newPopup.style.top = `${window.scrollY + linkRect.bottom + 5}px`;
-            newPopup.style.left = `${window.scrollX + linkRect.left}px`;
-            
-            // 4. ACTIVATE: Call addReplyLink on the new textarea
-            const textarea = newPopup.querySelector('textarea');
+            popup.style.top = `${window.scrollY + linkRect.bottom + 5}px`;
+            popup.style.left = `${window.scrollX + linkRect.left}px`;
+            popup.style.display = 'block';
+
+            // 3. ACTIVATE: Add reply link to the textarea (accumulates)
+            const textarea = popup.querySelector('textarea');
             addReplyLink(textarea, threadId, messageId);
 
             // Note: File preview works automatically via event delegation - no setup needed!
-
-            // Keep track of our new popup
-            currentPopup = newPopup;
 
             // Stop the click from closing the form immediately (see below)
             e.stopPropagation();
             return;
         }
-        
+
         // Logic to close the popup
         // If the click was on the close button...
         if (e.target.closest('.popup-close-btn')) {
             e.stopPropagation(); // Prevent event from bubbling to MessagePreview handler
-            removeCurrentPopup();
+            popup.style.display = 'none';
             return;
         }
 
         // If the click was anywhere on the body BUT not inside a popup...
-        if (currentPopup && !e.target.closest('.popup-reply-container')) {
-            removeCurrentPopup();
+        if (!e.target.closest('.popup-reply-container')) {
+            popup.style.display = 'none';
         }
     });
 }
