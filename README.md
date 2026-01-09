@@ -30,6 +30,7 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 - **Boards & Threads**: Create boards with custom names, organize discussions in threads
 - **Messages & Replies**: Post messages with cross-thread reply support
 - **File Attachments**: Upload images (PNG, JPEG, GIF, WebP) and videos with automatic thumbnail generation
+- **Attachments-Only Messages**: Post messages with only attachments (text is optional)
 - **Markdown Support**: Rich text formatting using a custom markdown parser
 - **Thread Bumping**: Automatic bump-to-top with configurable bump limits
 - **Sticky Threads**: Pin important threads to the top of boards
@@ -39,12 +40,15 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 - **User Registration**: Email-based registration with confirmation codes
 - **JWT Authentication**: Secure, stateless authentication using JWT tokens
 - **Admin Roles**: Special privileges for board and content moderation
+- **User Blacklist**: Admin-managed user blacklist with cached validation for banned users
 - **Board Permissions**: Domain-based access control (restrict boards to specific email domains)
 
 ### Performance & Security
+- **Media Sanitization**: Automatic EXIF/metadata stripping from images and videos using ffmpeg
 - **Rate Limiting**: Multi-tier rate limiting (per-user, per-IP, global)
 - **Database Partitioning**: Automatic table partitioning by board for optimal performance
 - **Materialized Views**: Fast board previews with configurable refresh intervals
+- **Security Headers**: CSP, X-Frame-Options, and other security headers
 - **Gzip Compression**: Automatic response compression
 - **CORS Support**: Configured for secure cross-origin requests
 - **Graceful Shutdown**: Proper cleanup and connection handling
@@ -90,6 +94,7 @@ Shared Modules:
 - **Router**: Gorilla Mux
 - **Auth**: JWT (golang-jwt/jwt)
 - **Markdown**: Goldmark
+- **Media Processing**: ffmpeg (for metadata sanitization)
 - **Container**: Docker & Docker Compose
 - **Email**: SMTP support for confirmations
 
@@ -100,6 +105,7 @@ Shared Modules:
 - **Docker** 20.10+ and **Docker Compose** 2.0+
 - **Go** 1.24+ (for local development)
 - **PostgreSQL** 17.6+ (if running without Docker)
+- **ffmpeg** (for media sanitization - automatically included in Docker image)
 
 ### Quick Start with Docker
 
@@ -155,6 +161,7 @@ itchan/
 │   ├── internal/
 │   │   ├── handler/           # HTTP handlers (REST endpoints)
 │   │   │   ├── auth.go        # Register, login, logout
+│   │   │   ├── blacklist.go   # User blacklist management
 │   │   │   ├── board.go       # Board CRUD operations
 │   │   │   ├── thread.go      # Thread operations
 │   │   │   ├── message.go     # Message posting and retrieval
@@ -166,10 +173,13 @@ itchan/
 │   │   │   ├── message.go     # Message processing
 │   │   │   ├── fs.go          # File storage service
 │   │   │   ├── gc.go          # Board garbage collection
-│   │   │   └── thread_gc.go   # Thread cleanup
+│   │   │   ├── thread_gc.go   # Thread cleanup
+│   │   │   └── utils/         # Service utilities
+│   │   │       └── sanitize.go # Media sanitization (EXIF/metadata stripping)
 │   │   ├── storage/           # Data access layer
 │   │   │   ├── pg/            # PostgreSQL implementation
 │   │   │   │   ├── auth.go    # User storage operations
+│   │   │   │   ├── blacklist.go # User blacklist operations
 │   │   │   │   ├── board.go   # Board storage
 │   │   │   │   ├── board_view.go  # Materialized view management
 │   │   │   │   ├── thread.go  # Thread storage
@@ -331,13 +341,14 @@ The database uses PostgreSQL's **table partitioning** for scalability. Each boar
 ### Key Tables
 
 - **users**: User accounts with email and password hash
+- **user_blacklist**: Blacklisted users with reason and admin reference (cached for JWT validation)
 - **confirmation_data**: Email confirmation codes for registration
 - **boards**: Board metadata (name, short_name, activity timestamps)
 - **board_permissions**: Domain-based access control (email domain allowlist per board)
 - **threads**: Thread metadata (title, message count, bump time, sticky flag) - **partitioned by board**
 - **messages**: Individual posts (text, author, timestamps, ordinal) - **partitioned by board**
 - **attachments**: Links messages to uploaded files - **partitioned by board**
-- **files**: File metadata (path, size, MIME type, dimensions, thumbnail path)
+- **files**: File metadata with both original and sanitized filenames/MIME types (path, size, dimensions, thumbnail path)
 - **message_replies**: Cross-reference table for reply relationships - **partitioned by board**
 
 ### Materialized Views
@@ -446,6 +457,10 @@ DELETE /v1/admin/{board}/{thread}/{message} - Delete message (admin only)
 ```
 POST   /v1/admin/boards                  - Create new board
 DELETE /v1/admin/{board}                 - Delete board
+POST   /v1/admin/users/{userId}/blacklist - Blacklist user (with optional reason)
+DELETE /v1/admin/users/{userId}/blacklist - Remove user from blacklist
+GET    /v1/admin/blacklist               - Get all blacklisted users with details
+POST   /v1/admin/blacklist/refresh       - Manually refresh blacklist cache
 ```
 
 ### Rate Limits
@@ -480,10 +495,18 @@ The frontend includes a custom markdown parser built on Goldmark:
 - Quote blocks
 - Lists (ordered and unordered)
 
+### Interactive Features
+
+- **Popup Reply System**: Dynamic popup forms for quick replies with intelligent positioning
+- **Message Preview System**: Hover over message links to see inline previews with caching (500 message cache)
+- **Preview Chains**: Navigate through reply chains with automatic cleanup and smart timeout handling
+- **File Upload Manager**: Real-time file preview with thumbnails, size validation, and individual file removal
+- **Hash-based Reply Links**: Support for #reply-{id} URLs to auto-populate reply forms
+
 ### Static Assets
 
 - **CSS**: Minimal, responsive stylesheet
-- **JavaScript**: Vanilla JS for dynamic reply forms and image preview
+- **JavaScript**: Vanilla JS for dynamic reply forms, message previews, and file upload management
 - **Favicon**: Custom imageboard icon
 
 ## Testing
@@ -524,6 +547,7 @@ Integration tests use a separate test database and clean up after execution.
 
 ### Authentication & Authorization
 - **JWT-based authentication** with configurable TTL
+- **Blacklist cache validation**: Automatic JWT rejection for blacklisted users with cached validation
 - **Secure cookie storage** with HttpOnly and Secure flags (when enabled)
 - **Password hashing** using bcrypt
 - **Email confirmation** required for registration
@@ -540,14 +564,17 @@ Integration tests use a separate test database and clean up after execution.
 - **Middleware enforcement**: Board access checked on every request
 - **Automatic filtering**: Users only see boards they can access
 
-### Input Validation
+### Input Validation & Media Processing
 - **File type validation**: Strict MIME type checking for uploads
 - **File size limits**: Per-file and total attachment size limits
+- **Media sanitization**: Automatic EXIF/metadata stripping from images (decode/encode) and videos (ffmpeg)
+- **Format normalization**: GIF/WebP images converted to JPEG, PNG preserved
 - **Image dimension extraction**: Metadata validation
 - **SQL injection prevention**: Parameterized queries throughout
 - **XSS prevention**: Template auto-escaping, markdown sanitization
 
 ### Infrastructure
+- **Security headers**: Content Security Policy (CSP), X-Frame-Options, X-Content-Type-Options
 - **CORS configuration**: Controlled cross-origin access
 - **Gzip compression**: Automatic response compression
 - **Graceful shutdown**: Proper connection cleanup
