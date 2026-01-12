@@ -82,7 +82,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	err = h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)
 	if err != nil {
 		logger.Log.Error("posting reply via API", "error", err)
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 
@@ -99,7 +99,7 @@ func (h *Handler) ThreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteThread(r, boardShortName, threadId)
 	if err != nil {
 		logger.Log.Error("deleting thread via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 

@@ -43,13 +43,14 @@ func redirectWithParams(w http.ResponseWriter, r *http.Request, targetURL string
 }
 
 // parseMessagesFromQuery extracts and decodes error/success messages from URL query parameters.
+// Note: Does NOT escape HTML - the caller must use template.HTMLEscapeString if needed.
 func parseMessagesFromQuery(r *http.Request) (errMsg template.HTML, successMsg template.HTML) {
 	if errorParam, err := url.QueryUnescape(r.URL.Query().Get("error")); err == nil && errorParam != "" {
-		errMsg = template.HTML(template.HTMLEscapeString(errorParam))
+		errMsg = template.HTML(errorParam)
 	}
 
 	if successParam, err := url.QueryUnescape(r.URL.Query().Get("success")); err == nil && successParam != "" {
-		successMsg = template.HTML(template.HTMLEscapeString(successParam))
+		successMsg = template.HTML(successParam)
 	}
 	return
 }

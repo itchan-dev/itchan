@@ -27,10 +27,6 @@ func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get user from context
 	templateData.User = mw.GetUserFromContext(r)
-	if templateData.User == nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
 
 	// Parse error/success messages from query params
 	templateData.Error, templateData.Success = parseMessagesFromQuery(r)
@@ -59,10 +55,7 @@ func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Calculate remaining invites
 		maxInvites := h.Public.MaxInvitesPerUser
-		templateData.RemainingInvites = maxInvites - unusedCount
-		if templateData.RemainingInvites < 0 {
-			templateData.RemainingInvites = 0
-		}
+		templateData.RemainingInvites = max(maxInvites-unusedCount, 0)
 	}
 
 	// Calculate account age
@@ -96,12 +89,12 @@ func (h *Handler) GenerateInvitePostHandler(w http.ResponseWriter, r *http.Reque
 	invite, err := h.APIClient.GenerateInvite(r)
 	if err != nil {
 		logger.Log.Error("generating invite via API", "error", err)
-		redirectWithParams(w, r, "/invites", map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, "/invites", map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 
-	// Success - redirect with the plain code in success message
-	successMsg := fmt.Sprintf("Invite code generated: %s (save this now, it won't be shown again)", invite.PlainCode)
+	// Success - redirect with the plain code in success message (escape the code for safety)
+	successMsg := fmt.Sprintf("Invite code generated: %s (save this now, it won't be shown again)", template.HTMLEscapeString(invite.PlainCode))
 	redirectWithParams(w, r, "/invites", map[string]string{"success": successMsg})
 }
 
@@ -125,7 +118,7 @@ func (h *Handler) RevokeInvitePostHandler(w http.ResponseWriter, r *http.Request
 	err := h.APIClient.RevokeInvite(r, codeHash)
 	if err != nil {
 		logger.Log.Error("revoking invite via API", "error", err)
-		redirectWithParams(w, r, "/invites", map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, "/invites", map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 
