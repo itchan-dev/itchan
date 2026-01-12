@@ -10,6 +10,7 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+	sharedutils "github.com/itchan-dev/itchan/shared/utils"
 	_ "github.com/lib/pq"
 )
 
@@ -107,7 +108,7 @@ func (s *Storage) saveUser(q Querier, user domain.User) (domain.UserId, error) {
 // user contains the core logic for fetching a single user record by email.
 func (s *Storage) user(q Querier, email domain.Email) (domain.User, error) {
 	var user domain.User
-	err := q.QueryRow("SELECT id, email, password_hash, is_admin FROM users WHERE email = $1", email).Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin)
+	err := q.QueryRow("SELECT id, email, password_hash, is_admin, created_at FROM users WHERE email = $1", email).Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: http.StatusNotFound}
@@ -193,4 +194,263 @@ func (s *Storage) deleteConfirmationData(q Querier, email domain.Email) error {
 		return &internal_errors.ErrorWithStatusCode{Message: "Confirmation data not found for deletion", StatusCode: http.StatusNotFound}
 	}
 	return nil
+}
+
+// =========================================================================
+// Invite Code Methods (for invite-based registration system)
+// =========================================================================
+
+// SaveInviteCode saves a new invite code to the database
+func (s *Storage) SaveInviteCode(invite domain.InviteCode) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		return s.saveInviteCode(tx, invite)
+	})
+}
+
+// InviteCode finds an invite code by its plain-text value
+// Uses deterministic HMAC-SHA256 hashing for O(1) database lookup
+func (s *Storage) InviteCode(plainCode string) (domain.InviteCode, error) {
+	// Hash the plain code deterministically (using HMAC-SHA256)
+	codeHash := sharedutils.HashSHA256(plainCode)
+
+	// Use the existing hash lookup method (leverages primary key index)
+	return s.InviteCodeByHash(codeHash)
+}
+
+// InviteCodeByHash fetches an invite code by its hash
+func (s *Storage) InviteCodeByHash(codeHash string) (domain.InviteCode, error) {
+	return s.inviteCodeByHash(s.db, codeHash)
+}
+
+// GetInvitesByUser returns all invite codes created by a user
+func (s *Storage) GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error) {
+	return s.getInvitesByUser(s.db, userId)
+}
+
+// CountActiveInvites returns the number of active (unused, unexpired) invites for a user
+func (s *Storage) CountActiveInvites(userId domain.UserId) (int, error) {
+	return s.countActiveInvites(s.db, userId)
+}
+
+// MarkInviteUsed marks an invite code as used by a specific user
+func (s *Storage) MarkInviteUsed(plainCode string, usedBy domain.UserId) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Find the invite first
+	invite, err := s.InviteCode(plainCode)
+	if err != nil {
+		return err
+	}
+
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		return s.markInviteUsed(tx, invite.CodeHash, usedBy)
+	})
+}
+
+// DeleteInviteCode deletes an invite code by its hash
+func (s *Storage) DeleteInviteCode(codeHash string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		return s.deleteInviteCode(tx, codeHash)
+	})
+}
+
+// DeleteInvitesByUser deletes all unused invite codes created by a user
+func (s *Storage) DeleteInvitesByUser(userId domain.UserId) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return s.withTx(ctx, func(tx *sql.Tx) error {
+		return s.deleteInvitesByUser(tx, userId)
+	})
+}
+
+// =========================================================================
+// Internal Invite Methods (Core Database Logic)
+// =========================================================================
+
+func (s *Storage) saveInviteCode(q Querier, invite domain.InviteCode) error {
+	_, err := q.Exec(`
+		INSERT INTO invite_codes(code_hash, created_by, created_at, expires_at)
+		VALUES($1, $2, $3, $4)`,
+		invite.CodeHash, invite.CreatedBy, invite.CreatedAt, invite.ExpiresAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to insert invite code: %w", err)
+	}
+	return nil
+}
+
+func (s *Storage) inviteCodeByHash(q Querier, codeHash string) (domain.InviteCode, error) {
+	row := q.QueryRow(`
+		SELECT code_hash, created_by, created_at, expires_at, used_by, used_at
+		FROM invite_codes
+		WHERE code_hash = $1`,
+		codeHash,
+	)
+
+	invite, err := scanInviteCode(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.InviteCode{}, &internal_errors.ErrorWithStatusCode{
+				Message:    "Invite code not found",
+				StatusCode: http.StatusNotFound,
+			}
+		}
+		return domain.InviteCode{}, fmt.Errorf("failed to query invite code: %w", err)
+	}
+
+	return invite, nil
+}
+
+func (s *Storage) getInvitesByUser(q Querier, userId domain.UserId) ([]domain.InviteCode, error) {
+	rows, err := q.Query(`
+		SELECT code_hash, created_by, created_at, expires_at, used_by, used_at
+		FROM invite_codes
+		WHERE created_by = $1
+		ORDER BY created_at DESC`,
+		userId,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user invites: %w", err)
+	}
+	defer rows.Close()
+
+	var invites []domain.InviteCode
+	for rows.Next() {
+		invite, err := scanInviteCode(rows)
+		if err != nil {
+			return nil, err
+		}
+		invites = append(invites, invite)
+	}
+
+	return invites, rows.Err()
+}
+
+func (s *Storage) countActiveInvites(q Querier, userId domain.UserId) (int, error) {
+	var count int
+
+	err := q.QueryRow(`
+		SELECT COUNT(*)
+		FROM invite_codes
+		WHERE created_by = $1
+		  AND used_by IS NULL
+		  AND expires_at > now()`,
+		userId,
+	).Scan(&count)
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to count active invites: %w", err)
+	}
+
+	return count, nil
+}
+
+func (s *Storage) markInviteUsed(q Querier, codeHash string, usedBy domain.UserId) error {
+	now := time.Now().UTC()
+
+	result, err := q.Exec(`
+		UPDATE invite_codes
+		SET used_by = $1, used_at = $2
+		WHERE code_hash = $3
+		  AND used_by IS NULL`,
+		usedBy, now, codeHash,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to mark invite as used: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return &internal_errors.ErrorWithStatusCode{
+			Message:    "Invite code already used or not found",
+			StatusCode: http.StatusConflict,
+		}
+	}
+
+	return nil
+}
+
+func (s *Storage) deleteInviteCode(q Querier, codeHash string) error {
+	result, err := q.Exec(`
+		DELETE FROM invite_codes
+		WHERE code_hash = $1`,
+		codeHash,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete invite code: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return &internal_errors.ErrorWithStatusCode{
+			Message:    "Invite code not found",
+			StatusCode: http.StatusNotFound,
+		}
+	}
+
+	return nil
+}
+
+func (s *Storage) deleteInvitesByUser(q Querier, userId domain.UserId) error {
+	_, err := q.Exec(`
+		DELETE FROM invite_codes
+		WHERE created_by = $1
+		  AND used_by IS NULL`,
+		userId,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete user invites: %w", err)
+	}
+
+	return nil
+}
+
+// scanInviteCode is a helper function to scan invite codes from rows
+func scanInviteCode(scanner interface {
+	Scan(dest ...any) error
+}) (domain.InviteCode, error) {
+	var invite domain.InviteCode
+	var usedBy sql.NullInt64
+	var usedAt sql.NullTime
+
+	err := scanner.Scan(
+		&invite.CodeHash,
+		&invite.CreatedBy,
+		&invite.CreatedAt,
+		&invite.ExpiresAt,
+		&usedBy,
+		&usedAt,
+	)
+
+	if err != nil {
+		return domain.InviteCode{}, err
+	}
+
+	if usedBy.Valid {
+		userId := domain.UserId(usedBy.Int64)
+		invite.UsedBy = &userId
+	}
+
+	if usedAt.Valid {
+		t := usedAt.Time.UTC()
+		invite.UsedAt = &t
+	}
+
+	return invite, nil
 }

@@ -46,6 +46,13 @@ type Public struct {
 	MaxTotalAttachmentSize   int64    `yaml:"max_total_attachment_size"`
 	AllowedImageMimeTypes    []string `yaml:"allowed_image_mime_types"`
 	AllowedVideoMimeTypes    []string `yaml:"allowed_video_mime_types"`
+
+	// Invite system configuration
+	InviteEnabled            bool          `yaml:"invite_enabled"`
+	InviteCodeLength         int           `yaml:"invite_code_length"`
+	InviteCodeTTL            time.Duration `yaml:"invite_code_ttl"`
+	MaxInvitesPerUser        int           `yaml:"max_invites_per_user"`
+	MinAccountAgeForInvites  time.Duration `yaml:"min_account_age_for_invites"`
 }
 
 type Pg struct {
@@ -178,6 +185,22 @@ func applyValidationDefaults(public *Public) {
 			"video/mp4",
 			"video/webm",
 			"video/ogg",
+		}
+	}
+
+	// Invite system defaults
+	if public.InviteEnabled {
+		if public.InviteCodeLength == 0 {
+			public.InviteCodeLength = 12 // Longer than confirmation codes for security
+		}
+		if public.InviteCodeTTL == 0 {
+			public.InviteCodeTTL = 720 * time.Hour // 30 days
+		}
+		if public.MaxInvitesPerUser == 0 {
+			public.MaxInvitesPerUser = 5
+		}
+		if public.MinAccountAgeForInvites == 0 {
+			public.MinAccountAgeForInvites = 720 * time.Hour // 30 days (1 month)
 		}
 	}
 }

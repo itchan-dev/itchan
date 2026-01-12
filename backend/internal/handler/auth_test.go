@@ -23,6 +23,10 @@ type MockAuthService struct {
 	MockUnblacklistUser                func(userId domain.UserId) error
 	MockGetBlacklistedUsersWithDetails func() ([]domain.BlacklistEntry, error)
 	MockRefreshBlacklistCache          func() error
+	MockRegisterWithInvite             func(inviteCode string, password domain.Password) (string, error)
+	MockGenerateInvite                 func(user domain.User) (*domain.InviteCodeWithPlaintext, error)
+	MockGetUserInvites                 func(userId domain.UserId) ([]domain.InviteCode, error)
+	MockRevokeInvite                   func(userId domain.UserId, codeHash string) error
 }
 
 func (m *MockAuthService) Register(creds domain.Credentials) error {
@@ -70,6 +74,42 @@ func (m *MockAuthService) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEn
 func (m *MockAuthService) RefreshBlacklistCache() error {
 	if m.MockRefreshBlacklistCache != nil {
 		return m.MockRefreshBlacklistCache()
+	}
+	return nil
+}
+
+func (m *MockAuthService) RegisterWithInvite(inviteCode string, password domain.Password) (string, error) {
+	if m.MockRegisterWithInvite != nil {
+		return m.MockRegisterWithInvite(inviteCode, password)
+	}
+	return "generated@itchan.ru", nil
+}
+
+func (m *MockAuthService) GenerateInvite(user domain.User) (*domain.InviteCodeWithPlaintext, error) {
+	if m.MockGenerateInvite != nil {
+		return m.MockGenerateInvite(user)
+	}
+	return &domain.InviteCodeWithPlaintext{
+		PlainCode: "test-invite-code",
+		InviteCode: domain.InviteCode{
+			CodeHash:  "hash",
+			CreatedBy: user.Id,
+			CreatedAt: time.Now(),
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+		},
+	}, nil
+}
+
+func (m *MockAuthService) GetUserInvites(userId domain.UserId) ([]domain.InviteCode, error) {
+	if m.MockGetUserInvites != nil {
+		return m.MockGetUserInvites(userId)
+	}
+	return []domain.InviteCode{}, nil
+}
+
+func (m *MockAuthService) RevokeInvite(userId domain.UserId, codeHash string) error {
+	if m.MockRevokeInvite != nil {
+		return m.MockRevokeInvite(userId, codeHash)
 	}
 	return nil
 }

@@ -80,6 +80,12 @@ func New(deps *setup.Dependencies) *mux.Router {
 	authLogin.Use(mw.GlobalRateLimit(rl.Rps1000()))          // 1000 global RPS
 	authLogin.HandleFunc("/login", h.Login).Methods("POST")
 
+	// Invite-based registration (public, rate limited)
+	authRegisterInvite := auth.NewRoute().Subrouter()
+	authRegisterInvite.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetIP)) // 1 per second by IP
+	authRegisterInvite.Use(mw.GlobalRateLimit(rl.Rps100()))           // 100 global RPS
+	authRegisterInvite.HandleFunc("/register_with_invite", h.RegisterWithInvite).Methods("POST")
+
 	// Logout (no rate limits)
 	auth.HandleFunc("/logout", h.Logout).Methods("POST")
 
@@ -100,6 +106,17 @@ func New(deps *setup.Dependencies) *mux.Router {
 	loggedIn.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateMessage))).Methods("POST")
 
 	loggedIn.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods("GET")
+
+	// Invite management routes (authenticated users only)
+	invites := v1.PathPrefix("/invites").Subrouter()
+	invites.Use(authMw.NeedAuth())                                 // Require JWT auth
+	invites.Use(mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)) // 10 RPS per user
+
+	invites.HandleFunc("", h.GetMyInvites).Methods("GET")
+	// Generate invite: 1 per minute per user to prevent spam
+	invites.Handle("", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(
+		http.HandlerFunc(h.GenerateInvite))).Methods("POST")
+	invites.HandleFunc("/{codeHash}", h.RevokeInvite).Methods("DELETE")
 
 	return r
 }
