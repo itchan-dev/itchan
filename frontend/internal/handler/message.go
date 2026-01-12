@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/itchan-dev/itchan/shared/logger"
 	"fmt"
+	"html/template"
 	"io"
 
 	"net/http"
@@ -21,7 +22,7 @@ func (h *Handler) MessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteMessage(r, boardShortName, threadId, messageId)
 	if err != nil {
 		logger.Log.Error("deleting message via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 

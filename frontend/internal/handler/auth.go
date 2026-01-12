@@ -8,7 +8,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/logger"
 
 	"net/http"
-	"net/url"
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
@@ -47,21 +46,19 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 	// Handle specific case: confirmation needed
 	if resp.StatusCode == http.StatusTooEarly {
 		// Safely construct message without XSS risk - use template escaping
-		msg := string(bodyBytes) + " Please check your email or use the confirmation page."
-		// Pass email separately for URL construction in the redirect
-		targetWithEmail := fmt.Sprintf("/check_confirmation_code?email=%s", url.QueryEscape(email))
-		redirectWithParams(w, r, targetURL, map[string]string{"error": msg, "redirect_to": targetWithEmail})
+		msg := template.HTMLEscapeString(string(bodyBytes)) + " Please check your email or use the confirmation page."
+		// Redirect to confirmation page with email pre-filled and error message
+		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"error": msg, "email": email})
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		redirectWithParams(w, r, targetURL, map[string]string{"error": string(bodyBytes)})
+		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(string(bodyBytes))})
 		return
 	}
 
 	// Success (StatusOK): Redirect to confirmation page with email pre-filled
-	finalSuccessURL := fmt.Sprintf("%s?email=%s", successURL, url.QueryEscape(email))
-	http.Redirect(w, r, finalSuccessURL, http.StatusSeeOther)
+	redirectWithParams(w, r, successURL, map[string]string{"email": email})
 }
 
 func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -77,27 +74,21 @@ func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request)
 	templateData.Error, templateData.Success = parseMessagesFromQuery(r) // Get messages
 	templateData.Validation = h.NewValidationData()
 
-	// Customize success message if needed based on query param
-	if r.URL.Query().Get("success") == "confirmed" {
-		templateData.Success = template.HTML(`Success! You can now <a href="/login">login</a>.`)
-	}
-
 	h.renderTemplate(w, "check_confirmation_code.html", templateData)
 }
 
 func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	code := r.FormValue("confirmation_code")
-	targetURL := fmt.Sprintf("/check_confirmation_code?email=%s", url.QueryEscape(email))
 
 	err := h.APIClient.ConfirmEmail(email, code)
 	if err != nil {
 		logger.Log.Error("confirming email via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email, "error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 
-	redirectWithParams(w, r, targetURL, map[string]string{"success": "confirmed"})
+	redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email, "success": `Success! You can now <a href="/login">login</a>.`})
 }
 
 func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -123,19 +114,18 @@ func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("password")
-	targetURL := fmt.Sprintf("/login?email=%s", url.QueryEscape(email))
 
 	resp, err := h.APIClient.Login(email, password)
 	if err != nil {
 		logger.Log.Error("during login API call", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": "Internal error: backend unavailable."})
+		redirectWithParams(w, r, "/login", map[string]string{"email": email, "error": "Internal error: backend unavailable."})
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": string(bodyBytes)})
+		redirectWithParams(w, r, "/login", map[string]string{"email": email, "error": template.HTMLEscapeString(string(bodyBytes))})
 		return
 	}
 
@@ -186,11 +176,12 @@ func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Reque
 	email, err := h.APIClient.RegisterWithInvite(inviteCode, password)
 	if err != nil {
 		logger.Log.Error("during invite registration API call", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 
 	// Success: Redirect to login page with generated email pre-filled and success message
+	// Note: HTML tags are intentional, but escape the email value for safety
 	successMsg := fmt.Sprintf("<strong>Registration successful!</strong> Your email is: <strong>%s</strong><br>Please save this - it cannot be recovered!", template.HTMLEscapeString(email))
 	redirectWithParams(w, r, "/login", map[string]string{"success": successMsg, "email": email})
 }

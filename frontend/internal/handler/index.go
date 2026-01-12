@@ -59,7 +59,7 @@ func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.CreateBoard(r, backendData)
 	if err != nil {
 		logger.Log.Error("creating board via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 

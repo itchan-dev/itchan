@@ -78,7 +78,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	newThreadID, err := h.APIClient.CreateThread(r, shortName, backendData, r.MultipartForm)
 	if err != nil {
 		logger.Log.Error("creating thread via API", "error", err)
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 
@@ -93,7 +93,7 @@ func (h *Handler) BoardDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteBoard(r, shortName)
 	if err != nil {
 		logger.Log.Error("deleting board via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
+		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
 		return
 	}
 
