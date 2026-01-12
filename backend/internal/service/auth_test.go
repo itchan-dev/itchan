@@ -29,6 +29,16 @@ type MockAuthStorage struct {
 	BlacklistUserFunc                  func(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
 	UnblacklistUserFunc                func(userId domain.UserId) error
 	GetBlacklistedUsersWithDetailsFunc func() ([]domain.BlacklistEntry, error)
+
+	// Invite code function fields
+	SaveInviteCodeFunc      func(invite domain.InviteCode) error
+	InviteCodeFunc          func(plainCode string) (domain.InviteCode, error)
+	InviteCodeByHashFunc    func(codeHash string) (domain.InviteCode, error)
+	GetInvitesByUserFunc    func(userId domain.UserId) ([]domain.InviteCode, error)
+	CountActiveInvitesFunc  func(userId domain.UserId) (int, error)
+	MarkInviteUsedFunc      func(plainCode string, usedBy domain.UserId) error
+	DeleteInviteCodeFunc    func(codeHash string) error
+	DeleteInvitesByUserFunc func(userId domain.UserId) error
 }
 
 func (m *MockAuthStorage) SaveUser(user domain.User) (domain.UserId, error) {
@@ -113,6 +123,63 @@ func (m *MockAuthStorage) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEn
 		return m.GetBlacklistedUsersWithDetailsFunc()
 	}
 	return nil, nil
+}
+
+// Invite code methods
+func (m *MockAuthStorage) SaveInviteCode(invite domain.InviteCode) error {
+	if m.SaveInviteCodeFunc != nil {
+		return m.SaveInviteCodeFunc(invite)
+	}
+	return nil
+}
+
+func (m *MockAuthStorage) InviteCode(plainCode string) (domain.InviteCode, error) {
+	if m.InviteCodeFunc != nil {
+		return m.InviteCodeFunc(plainCode)
+	}
+	return domain.InviteCode{}, &internal_errors.ErrorWithStatusCode{Message: "Invite code not found", StatusCode: http.StatusNotFound}
+}
+
+func (m *MockAuthStorage) InviteCodeByHash(codeHash string) (domain.InviteCode, error) {
+	if m.InviteCodeByHashFunc != nil {
+		return m.InviteCodeByHashFunc(codeHash)
+	}
+	return domain.InviteCode{}, nil
+}
+
+func (m *MockAuthStorage) GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error) {
+	if m.GetInvitesByUserFunc != nil {
+		return m.GetInvitesByUserFunc(userId)
+	}
+	return nil, nil
+}
+
+func (m *MockAuthStorage) CountActiveInvites(userId domain.UserId) (int, error) {
+	if m.CountActiveInvitesFunc != nil {
+		return m.CountActiveInvitesFunc(userId)
+	}
+	return 0, nil
+}
+
+func (m *MockAuthStorage) MarkInviteUsed(plainCode string, usedBy domain.UserId) error {
+	if m.MarkInviteUsedFunc != nil {
+		return m.MarkInviteUsedFunc(plainCode, usedBy)
+	}
+	return nil
+}
+
+func (m *MockAuthStorage) DeleteInviteCode(codeHash string) error {
+	if m.DeleteInviteCodeFunc != nil {
+		return m.DeleteInviteCodeFunc(codeHash)
+	}
+	return nil
+}
+
+func (m *MockAuthStorage) DeleteInvitesByUser(userId domain.UserId) error {
+	if m.DeleteInvitesByUserFunc != nil {
+		return m.DeleteInvitesByUserFunc(userId)
+	}
+	return nil
 }
 
 type MockEmail struct {
@@ -862,5 +929,462 @@ func TestLogin(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, mockError))
 		assert.Empty(t, token)
+	})
+}
+
+func TestRegisterWithInvite(t *testing.T) {
+	storage := &MockAuthStorage{}
+	emailMock := &MockEmail{}
+	jwt := &MockJwt{}
+	service := NewAuth(storage, emailMock, jwt, &config.Public{
+		InviteEnabled:    true,
+		InviteCodeLength: 12,
+		InviteCodeTTL:    720 * time.Hour,
+	}, nil)
+
+	testInviteCode := "TESTCODE1234"
+	testPassword := domain.Password("password123")
+
+	validInvite := domain.InviteCode{
+		CodeHash:  "valid_hash",
+		CreatedBy: 10,
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
+		UsedBy:    nil,
+		UsedAt:    nil,
+	}
+
+	t.Run("Successful registration with invite", func(t *testing.T) {
+		// Arrange
+		saveUserCalled := false
+		markUsedCalled := false
+		generatedEmail := ""
+
+		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+			assert.Equal(t, testInviteCode, plainCode)
+			return validInvite, nil
+		}
+		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+			// First call should not find user (email available)
+			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
+		}
+		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
+			saveUserCalled = true
+			generatedEmail = user.Email
+			assert.Contains(t, user.Email, "@invited.ru")
+			assert.NotEmpty(t, user.PassHash)
+			assert.False(t, user.Admin)
+			// Verify password was hashed correctly
+			err := bcrypt.CompareHashAndPassword([]byte(user.PassHash), []byte(testPassword))
+			assert.NoError(t, err)
+			return 100, nil
+		}
+		storage.MarkInviteUsedFunc = func(plainCode string, usedBy domain.UserId) error {
+			markUsedCalled = true
+			assert.Equal(t, testInviteCode, plainCode)
+			assert.Equal(t, domain.UserId(100), usedBy)
+			return nil
+		}
+		defer func() {
+			storage.InviteCodeFunc = nil
+			storage.UserFunc = nil
+			storage.SaveUserFunc = nil
+			storage.MarkInviteUsedFunc = nil
+		}()
+
+		// Act
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, email)
+		assert.Equal(t, generatedEmail, email)
+		assert.Contains(t, email, "@invited.ru")
+		assert.True(t, saveUserCalled)
+		assert.True(t, markUsedCalled)
+	})
+
+	t.Run("Invalid invite code", func(t *testing.T) {
+		// Arrange
+		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+			return domain.InviteCode{}, &internal_errors.ErrorWithStatusCode{
+				Message:    "Invalid or expired invite code",
+				StatusCode: http.StatusBadRequest,
+			}
+		}
+		defer func() { storage.InviteCodeFunc = nil }()
+
+		// Act
+		email, err := service.RegisterWithInvite("INVALIDCODE", testPassword)
+
+		// Assert
+		require.Error(t, err)
+		assert.Empty(t, email)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusBadRequest, errWithStatus.StatusCode)
+	})
+
+	t.Run("Already used invite code", func(t *testing.T) {
+		// Arrange
+		usedBy := domain.UserId(50)
+		usedAt := time.Now().UTC().Add(-1 * time.Hour)
+		usedInvite := validInvite
+		usedInvite.UsedBy = &usedBy
+		usedInvite.UsedAt = &usedAt
+
+		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+			return usedInvite, nil
+		}
+		defer func() { storage.InviteCodeFunc = nil }()
+
+		// Act
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+
+		// Assert
+		require.Error(t, err)
+		assert.Empty(t, email)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusBadRequest, errWithStatus.StatusCode)
+		assert.Contains(t, err.Error(), "has already been used")
+	})
+
+	t.Run("Expired invite code", func(t *testing.T) {
+		// Arrange
+		expiredInvite := validInvite
+		expiredInvite.ExpiresAt = time.Now().UTC().Add(-1 * time.Hour)
+
+		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+			return expiredInvite, nil
+		}
+		defer func() { storage.InviteCodeFunc = nil }()
+
+		// Act
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+
+		// Assert
+		require.Error(t, err)
+		assert.Empty(t, email)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusBadRequest, errWithStatus.StatusCode)
+		assert.Contains(t, err.Error(), "has expired")
+	})
+
+	t.Run("Email collision retry logic", func(t *testing.T) {
+		// Arrange
+		callCount := 0
+		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+			return validInvite, nil
+		}
+		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+			callCount++
+			if callCount <= 3 {
+				// First 3 attempts: email already exists
+				return domain.User{Id: 99, Email: email}, nil
+			}
+			// 4th attempt: email available
+			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
+		}
+		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
+			return 100, nil
+		}
+		storage.MarkInviteUsedFunc = func(plainCode string, usedBy domain.UserId) error {
+			return nil
+		}
+		defer func() {
+			storage.InviteCodeFunc = nil
+			storage.UserFunc = nil
+			storage.SaveUserFunc = nil
+			storage.MarkInviteUsedFunc = nil
+		}()
+
+		// Act
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotEmpty(t, email)
+		assert.Equal(t, 4, callCount, "Should retry 3 times before finding available email")
+	})
+
+	t.Run("SaveUser error", func(t *testing.T) {
+		// Arrange
+		mockError := errors.New("mock SaveUser error")
+		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+			return validInvite, nil
+		}
+		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
+		}
+		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
+			return 0, mockError
+		}
+		defer func() {
+			storage.InviteCodeFunc = nil
+			storage.UserFunc = nil
+			storage.SaveUserFunc = nil
+		}()
+
+		// Act
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+
+		// Assert
+		require.Error(t, err)
+		assert.Empty(t, email)
+		assert.True(t, errors.Is(err, mockError))
+	})
+}
+
+func TestGenerateInvite(t *testing.T) {
+	storage := &MockAuthStorage{}
+	emailMock := &MockEmail{}
+	jwt := &MockJwt{}
+
+	testUser := domain.User{
+		Id:        42,
+		Email:     "test@example.com",
+		Admin:     false,
+		CreatedAt: time.Now().UTC().Add(-60 * 24 * time.Hour), // 60 days old
+	}
+
+	t.Run("Successful invite generation", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled:     true,
+			InviteCodeLength:  12,
+			InviteCodeTTL:     720 * time.Hour,
+			MaxInvitesPerUser: 5,
+		}, nil)
+
+		saveInviteCalled := false
+		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
+			assert.Equal(t, testUser.Id, userId)
+			return 2, nil // User has 2 active invites
+		}
+		storage.SaveInviteCodeFunc = func(invite domain.InviteCode) error {
+			saveInviteCalled = true
+			assert.Equal(t, testUser.Id, invite.CreatedBy)
+			assert.NotEmpty(t, invite.CodeHash)
+			assert.Equal(t, 64, len(invite.CodeHash)) // SHA256 produces 64 hex chars
+			assert.True(t, invite.ExpiresAt.After(time.Now().UTC()))
+			return nil
+		}
+		defer func() {
+			storage.CountActiveInvitesFunc = nil
+			storage.SaveInviteCodeFunc = nil
+		}()
+
+		// Act
+		invite, err := service.GenerateInvite(testUser)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotNil(t, invite)
+		assert.NotEmpty(t, invite.PlainCode)
+		assert.Equal(t, 12, len(invite.PlainCode))
+		assert.Equal(t, testUser.Id, invite.CreatedBy)
+		assert.True(t, saveInviteCalled)
+	})
+
+	t.Run("Admin bypasses invite limit", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled:     true,
+			InviteCodeLength:  12,
+			InviteCodeTTL:     720 * time.Hour,
+			MaxInvitesPerUser: 2, // Low limit
+		}, nil)
+
+		adminUser := testUser
+		adminUser.Admin = true
+
+		// Mock shows admin already has max invites
+		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
+			return 10, nil // Already at 10 invites, but admin should bypass
+		}
+		storage.SaveInviteCodeFunc = func(invite domain.InviteCode) error {
+			return nil
+		}
+		defer func() {
+			storage.CountActiveInvitesFunc = nil
+			storage.SaveInviteCodeFunc = nil
+		}()
+
+		// Act
+		invite, err := service.GenerateInvite(adminUser)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotNil(t, invite)
+		assert.NotEmpty(t, invite.PlainCode)
+	})
+
+	t.Run("Regular user exceeds invite limit", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled:     true,
+			InviteCodeLength:  12,
+			InviteCodeTTL:     720 * time.Hour,
+			MaxInvitesPerUser: 3,
+		}, nil)
+
+		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
+			return 3, nil // Already at limit
+		}
+		defer func() { storage.CountActiveInvitesFunc = nil }()
+
+		// Act
+		invite, err := service.GenerateInvite(testUser)
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, invite)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusForbidden, errWithStatus.StatusCode)
+		assert.Contains(t, err.Error(), "Maximum invite limit reached")
+	})
+
+	t.Run("Unlimited invites when MaxInvitesPerUser is 0", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled:     true,
+			InviteCodeLength:  12,
+			InviteCodeTTL:     720 * time.Hour,
+			MaxInvitesPerUser: 0, // Unlimited
+		}, nil)
+
+		// CountActiveInvites should not be called when limit is 0
+		countCalled := false
+		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
+			countCalled = true
+			return 9999, nil
+		}
+		storage.SaveInviteCodeFunc = func(invite domain.InviteCode) error {
+			return nil
+		}
+		defer func() {
+			storage.CountActiveInvitesFunc = nil
+			storage.SaveInviteCodeFunc = nil
+		}()
+
+		// Act
+		invite, err := service.GenerateInvite(testUser)
+
+		// Assert
+		require.NoError(t, err)
+		assert.NotNil(t, invite)
+		assert.False(t, countCalled, "Should not check count when limit is 0 (unlimited)")
+	})
+
+	t.Run("Invite system disabled", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled: false,
+		}, nil)
+
+		// Act
+		invite, err := service.GenerateInvite(testUser)
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, invite)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusForbidden, errWithStatus.StatusCode)
+		assert.Contains(t, err.Error(), "Invite system is disabled")
+	})
+
+	t.Run("Deterministic HMAC-SHA256 hashing (not bcrypt)", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled:     true,
+			InviteCodeLength:  12,
+			InviteCodeTTL:     720 * time.Hour,
+			MaxInvitesPerUser: 0,
+		}, nil)
+
+		var savedHash1, savedHash2 string
+		callCount := 0
+
+		storage.SaveInviteCodeFunc = func(invite domain.InviteCode) error {
+			callCount++
+			if callCount == 1 {
+				savedHash1 = invite.CodeHash
+			} else {
+				savedHash2 = invite.CodeHash
+			}
+			// Verify it's SHA256 (64 hex chars), not bcrypt (60 chars with $2a$ prefix)
+			assert.Equal(t, 64, len(invite.CodeHash))
+			assert.NotContains(t, invite.CodeHash, "$")
+			return nil
+		}
+		defer func() { storage.SaveInviteCodeFunc = nil }()
+
+		// Act - Generate two invites
+		invite1, err1 := service.GenerateInvite(testUser)
+		invite2, err2 := service.GenerateInvite(testUser)
+
+		// Assert
+		require.NoError(t, err1)
+		require.NoError(t, err2)
+		assert.NotEqual(t, savedHash1, savedHash2, "Different codes should produce different hashes")
+		assert.NotEqual(t, invite1.PlainCode, invite2.PlainCode, "Should generate different codes")
+	})
+
+	t.Run("CountActiveInvites error", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled:     true,
+			InviteCodeLength:  12,
+			InviteCodeTTL:     720 * time.Hour,
+			MaxInvitesPerUser: 5,
+		}, nil)
+
+		mockError := errors.New("mock CountActiveInvites error")
+		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
+			return 0, mockError
+		}
+		defer func() { storage.CountActiveInvitesFunc = nil }()
+
+		// Act
+		invite, err := service.GenerateInvite(testUser)
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, invite)
+		assert.True(t, errors.Is(err, mockError))
+	})
+
+	t.Run("SaveInviteCode error", func(t *testing.T) {
+		// Arrange
+		service := NewAuth(storage, emailMock, jwt, &config.Public{
+			InviteEnabled:     true,
+			InviteCodeLength:  12,
+			InviteCodeTTL:     720 * time.Hour,
+			MaxInvitesPerUser: 5,
+		}, nil)
+
+		mockError := errors.New("mock SaveInviteCode error")
+		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
+			return 2, nil
+		}
+		storage.SaveInviteCodeFunc = func(invite domain.InviteCode) error {
+			return mockError
+		}
+		defer func() {
+			storage.CountActiveInvitesFunc = nil
+			storage.SaveInviteCodeFunc = nil
+		}()
+
+		// Act
+		invite, err := service.GenerateInvite(testUser)
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, invite)
+		assert.True(t, errors.Is(err, mockError))
 	})
 }

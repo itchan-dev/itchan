@@ -139,3 +139,31 @@ CREATE INDEX IF NOT EXISTS idx_message_replies_receiver_thread
 -- Index to find all replies to a specific message
 CREATE INDEX IF NOT EXISTS idx_message_replies_receiver_msg
     ON message_replies (board, receiver_message_id);
+
+-- Stores invite codes (similar to confirmation_data)
+CREATE TABLE IF NOT EXISTS invite_codes (
+    code_hash          varchar(80) PRIMARY KEY,      -- bcrypt hash of the invite code
+    created_by         int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at         timestamp NOT NULL DEFAULT (now() at time zone 'utc'),
+    expires_at         timestamp NOT NULL,           -- Configurable expiration (default: 30 days)
+    used_by            int REFERENCES users(id) ON DELETE SET NULL,
+    used_at            timestamp,                    -- NULL if unused
+
+    -- Ensure consistency: both used_by and used_at must be NULL or both must be set
+    CONSTRAINT used_consistency CHECK (
+        (used_by IS NULL AND used_at IS NULL) OR
+        (used_by IS NOT NULL AND used_at IS NOT NULL)
+    )
+);
+
+-- Index to quickly find all invites created by a user
+CREATE INDEX IF NOT EXISTS idx_invite_codes_created_by
+    ON invite_codes (created_by, created_at DESC);
+
+-- Index for cleanup of expired invites
+CREATE INDEX IF NOT EXISTS idx_invite_codes_expires
+    ON invite_codes (expires_at);
+
+-- Index to check if a user has been invited (for analytics/tracking)
+CREATE INDEX IF NOT EXISTS idx_invite_codes_used_by
+    ON invite_codes (used_by) WHERE used_by IS NOT NULL;

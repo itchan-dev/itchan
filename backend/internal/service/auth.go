@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/errors"
 	"github.com/itchan-dev/itchan/shared/logger"
+	sharedutils "github.com/itchan-dev/itchan/shared/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -19,6 +19,12 @@ type AuthService interface {
 	Register(creds domain.Credentials) error
 	CheckConfirmationCode(email domain.Email, confirmationCode string) error
 	Login(creds domain.Credentials) (string, error)
+
+	// Invite system methods
+	RegisterWithInvite(inviteCode string, password domain.Password) (string, error)
+	GenerateInvite(user domain.User) (*domain.InviteCodeWithPlaintext, error)
+	GetUserInvites(userId domain.UserId) ([]domain.InviteCode, error)
+	RevokeInvite(userId domain.UserId, codeHash string) error
 
 	// Admin blacklist operations
 	BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
@@ -43,6 +49,16 @@ type AuthStorage interface {
 	SaveConfirmationData(data domain.ConfirmationData) error
 	ConfirmationData(email domain.Email) (domain.ConfirmationData, error)
 	DeleteConfirmationData(email domain.Email) error
+
+	// Invite code operations
+	SaveInviteCode(invite domain.InviteCode) error
+	InviteCode(plainCode string) (domain.InviteCode, error)
+	InviteCodeByHash(codeHash string) (domain.InviteCode, error)
+	GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error)
+	CountActiveInvites(userId domain.UserId) (int, error)
+	MarkInviteUsed(plainCode string, usedBy domain.UserId) error
+	DeleteInviteCode(codeHash string) error
+	DeleteInvitesByUser(userId domain.UserId) error
 
 	// Admin blacklist operations
 	IsUserBlacklisted(userId domain.UserId) (bool, error)
@@ -97,7 +113,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		}
 	}
 
-	confirmationCode := utils.GenerateConfirmationCode(a.cfg.ConfirmationCodeLen)
+	confirmationCode := sharedutils.GenerateConfirmationCode(a.cfg.ConfirmationCodeLen)
 	passHash, err := bcrypt.GenerateFromPassword([]byte(creds.Password), bcrypt.DefaultCost)
 	if err != nil {
 		logger.Log.Error("failed to hash password", "error", err)
@@ -231,11 +247,18 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 	return token, nil
 }
 
-// BlacklistUser adds a user to the blacklist.
+// BlacklistUser adds a user to the blacklist
 func (a *Auth) BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error {
 	// Blacklist the user in database
 	if err := a.storage.BlacklistUser(userId, reason, blacklistedBy); err != nil {
 		return err
+	}
+
+	// Delete all unused invites created by this user
+	if err := a.storage.DeleteInvitesByUser(userId); err != nil {
+		logger.Log.Warn("failed to delete user's invites",
+			"user_id", userId,
+			"error", err)
 	}
 
 	// Trigger immediate cache update for instant effect
@@ -275,4 +298,188 @@ func (a *Auth) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error)
 // RefreshBlacklistCache manually refreshes the blacklist cache.
 func (a *Auth) RefreshBlacklistCache() error {
 	return a.blacklistCache.Update()
+}
+
+// =========================================================================
+// Invite System Methods
+// =========================================================================
+
+// RegisterWithInvite creates a user account using an invite code
+// Returns the generated @itchan.ru email address
+func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (string, error) {
+	// 1. Validate invite code exists and is valid
+	invite, err := a.storage.InviteCode(inviteCode)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return "", &errors.ErrorWithStatusCode{
+				Message:    "Invalid or expired invite code",
+				StatusCode: http.StatusBadRequest,
+			}
+		}
+		return "", err
+	}
+
+	// 2. Check if already used
+	if invite.UsedBy != nil {
+		return "", &errors.ErrorWithStatusCode{
+			Message:    "Invite code has already been used",
+			StatusCode: http.StatusBadRequest,
+		}
+	}
+
+	// 3. Check expiration
+	if invite.ExpiresAt.Before(time.Now()) {
+		return "", &errors.ErrorWithStatusCode{
+			Message:    "Invite code has expired",
+			StatusCode: http.StatusBadRequest,
+		}
+	}
+
+	// 4. Generate random @itchan.ru email (retry on collision)
+	email := sharedutils.GenerateRandomEmail()
+	for range 10 {
+		_, err := a.storage.User(email)
+		if errors.IsNotFound(err) {
+			break // Email is available
+		}
+		if err != nil {
+			return "", err
+		}
+		// Collision detected, try again
+		email = sharedutils.GenerateRandomEmail()
+	}
+
+	// 5. Hash password
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Log.Error("failed to hash password", "error", err)
+		return "", err
+	}
+
+	// 6. Create user
+	userId, err := a.storage.SaveUser(domain.User{
+		Email:    email,
+		PassHash: string(passHash),
+		Admin:    false,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// 7. Mark invite as used
+	if err := a.storage.MarkInviteUsed(inviteCode, userId); err != nil {
+		logger.Log.Error("failed to mark invite used", "invite_code", inviteCode, "user_id", userId, "error", err)
+		// Don't fail - user is already created
+	}
+
+	logger.Log.Info("user registered via invite",
+		"email", email,
+		"user_id", userId,
+		"invited_by", invite.CreatedBy)
+
+	return email, nil
+}
+
+// GenerateInvite creates a new invite code for a user
+func (a *Auth) GenerateInvite(user domain.User) (*domain.InviteCodeWithPlaintext, error) {
+	// 1. Check if invites enabled
+	if !a.cfg.InviteEnabled {
+		return nil, &errors.ErrorWithStatusCode{
+			Message:    "Invite system is disabled",
+			StatusCode: http.StatusForbidden,
+		}
+	}
+
+	// 2. Check account age (skip for admins to allow bootstrapping)
+	if !user.Admin {
+		accountAge := time.Since(user.CreatedAt)
+		if accountAge < a.cfg.MinAccountAgeForInvites {
+			// Calculate when the user will be eligible
+			eligibleAt := user.CreatedAt.Add(a.cfg.MinAccountAgeForInvites)
+			remaining := time.Until(eligibleAt)
+
+			days := int(remaining.Hours() / 24)
+			hours := int(remaining.Hours()) % 24
+			requiredDays := int(a.cfg.MinAccountAgeForInvites.Hours() / 24)
+
+			return nil, &errors.ErrorWithStatusCode{
+				Message:    fmt.Sprintf("Account must be %d days old to generate invites. Wait %d days and %d hours", requiredDays, days, hours),
+				StatusCode: http.StatusForbidden,
+			}
+		}
+	}
+
+	// 3. Check invite limit (skip for admins)
+	if !user.Admin && a.cfg.MaxInvitesPerUser > 0 {
+		activeCount, err := a.storage.CountActiveInvites(user.Id)
+		if err != nil {
+			return nil, err
+		}
+
+		if activeCount >= a.cfg.MaxInvitesPerUser {
+			return nil, &errors.ErrorWithStatusCode{
+				Message:    fmt.Sprintf("Maximum invite limit reached (%d)", a.cfg.MaxInvitesPerUser),
+				StatusCode: http.StatusForbidden,
+			}
+		}
+	}
+
+	// 4. Generate invite code
+	plainCode := sharedutils.GenerateConfirmationCode(a.cfg.InviteCodeLength)
+
+	// 5. Hash code
+	codeHash := sharedutils.HashSHA256(plainCode)
+
+	invite := domain.InviteCode{
+		CodeHash:  codeHash,
+		CreatedBy: user.Id,
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(a.cfg.InviteCodeTTL),
+		UsedBy:    nil,
+		UsedAt:    nil,
+	}
+
+	// 6. Save to database
+	if err := a.storage.SaveInviteCode(invite); err != nil {
+		return nil, err
+	}
+
+	logger.Log.Info("invite code generated",
+		"user_id", user.Id,
+		"expires_at", invite.ExpiresAt)
+
+	return &domain.InviteCodeWithPlaintext{
+		PlainCode:  plainCode,
+		InviteCode: invite,
+	}, nil
+}
+
+// GetUserInvites returns all invite codes created by a user
+func (a *Auth) GetUserInvites(userId domain.UserId) ([]domain.InviteCode, error) {
+	return a.storage.GetInvitesByUser(userId)
+}
+
+// RevokeInvite deletes an unused invite code
+func (a *Auth) RevokeInvite(userId domain.UserId, codeHash string) error {
+	// Verify the invite belongs to the user and is unused
+	invite, err := a.storage.InviteCodeByHash(codeHash)
+	if err != nil {
+		return err
+	}
+
+	if invite.CreatedBy != userId {
+		return &errors.ErrorWithStatusCode{
+			Message:    "Unauthorized: invite not owned by user",
+			StatusCode: http.StatusForbidden,
+		}
+	}
+
+	if invite.UsedBy != nil {
+		return &errors.ErrorWithStatusCode{
+			Message:    "Cannot revoke used invite",
+			StatusCode: http.StatusBadRequest,
+		}
+	}
+
+	return a.storage.DeleteInviteCode(codeHash)
 }

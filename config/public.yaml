@@ -9,3 +9,10 @@ blacklist_cache_interval: 300
 # Logging configuration
 log_level: info    # debug, info, warn, error
 log_format: text   # text or json
+
+# Invite system
+invite_enabled: true
+invite_code_length: 12
+invite_code_ttl: 720h                 # 30 days
+max_invites_per_user: 5               # 0 = unlimited
+min_account_age_for_invites: 720h    # 30 days (1 month)
