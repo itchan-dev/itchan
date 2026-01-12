@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS invite_codes (
     created_at         timestamp NOT NULL DEFAULT (now() at time zone 'utc'),
     expires_at         timestamp NOT NULL,           -- Configurable expiration (default: 30 days)
     used_by            int REFERENCES users(id) ON DELETE SET NULL,
-    used_at            timestamp,                    -- NULL if unused
+    used_at            timestamp                     -- NULL if unused
 
     -- Ensure consistency: both used_by and used_at must be NULL or both must be set
     CONSTRAINT used_consistency CHECK (

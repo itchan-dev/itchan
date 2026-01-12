@@ -95,18 +95,26 @@ func GetEmailFromBody(r *http.Request) (string, error) {
 	return data.Email, nil
 }
 
+// GetFieldFromForm extracts email from form data for rate limiting purposes
+// Used by frontend HTML form submissions
+func GetFieldFromForm(field string) func(r *http.Request) (string, error) {
+	return func(r *http.Request) (string, error) {
+		// Parse form if not already parsed
+		if err := r.ParseForm(); err != nil {
+			return "", errors.New("failed to parse form")
+		}
+
+		email := r.FormValue(field)
+		if email == "" {
+			return "", fmt.Errorf("%s field is required", field)
+		}
+
+		return email, nil
+	}
+}
+
 // GetEmailFromForm extracts email from form data for rate limiting purposes
 // Used by frontend HTML form submissions
 func GetEmailFromForm(r *http.Request) (string, error) {
-	// Parse form if not already parsed
-	if err := r.ParseForm(); err != nil {
-		return "", errors.New("failed to parse form")
-	}
-
-	email := r.FormValue("email")
-	if email == "" {
-		return "", errors.New("email field is required")
-	}
-
-	return email, nil
+	return GetFieldFromForm("email")(r)
 }
