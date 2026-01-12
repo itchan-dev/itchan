@@ -9,22 +9,19 @@
 </head>
 <body>
     <header class="site-header">
-        <!-- Optional: Simple board list header common on chans -->
-        <!-- <div class="board-list-header">[ <a href="/">Home</a> / <a href="/b/">b</a> / <a href="/g/">g</a> ]</div> -->
         <div class="header-content">
             <div class="header-left">
                  <h1 class="site-title"><a href="/">Itchan</a></h1>
-                 <nav class="main-nav">
-                     [ <a href="/">Home</a> / <a href="/boards">Boards</a> / <a href="/catalog">Catalog</a> / <a href="/faq">FAQ</a> ]
-                 </nav>
             </div>
             <div class="auth-links">
                 {{if .User}}
                     <span class="user-info">[{{.User.Email}}]</span>
+                    [<a href="/invites">Invites</a>]
                     [<a href="/logout">Logout</a>]
                 {{else}}
                     [<a href="/login">Login</a>]
-                    [<a href="/register">Register</a>] <!-- Simplified link text -->
+                    [<a href="/register">Register</a>]
+                    [<a href="/register_invite">Register with Invite</a>]
                 {{end}}
             </div>
         </div>
@@ -35,12 +32,9 @@
     </main>
 
     <footer class="site-footer">
-        <nav class="footer-nav">
-           [ <a href="/rules">Rules</a> / <a href="/contact">Contact</a> / <a href="/about">About</a> / <a href="/privacy">Privacy</a> ]
-        </nav>
         <div class="footer-info">
             <p>All trademarks and copyrights on this page are owned by their respective parties. Images uploaded are the responsibility of the Poster.</p>
-            <p>© 2023 Itchan Imageboard</p>
+            <p>© 2025 Itchan Imageboard</p>
         </div>
     </footer>
 </body>

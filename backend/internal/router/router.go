@@ -92,31 +92,30 @@ func New(deps *setup.Dependencies) *mux.Router {
 	// Logged-in user routes
 	loggedIn := v1.NewRoute().Subrouter()
 	loggedIn.Use(authMw.NeedAuth())                                 // Enforce JWT authentication with blacklist check
-	loggedIn.Use(mw.RestrictBoardAccess(deps.AccessData))           // Restrict access based on board and email domain
 	loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
 
-	loggedIn.HandleFunc("/boards", h.GetBoards).Methods("GET")
-	// GetBoard: 10 RPS per user
-	loggedIn.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)(http.HandlerFunc(h.GetBoard))).Methods("GET")
-	// CreateThread: 1 per minute per user
-	loggedIn.Handle("/{board}", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateThread))).Methods("POST")
-
-	loggedIn.HandleFunc("/{board}/{thread}", h.GetThread).Methods("GET")
-	// CreateMessage: 1 per second per user (fixed rate limiter)
-	loggedIn.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateMessage))).Methods("POST")
-
-	loggedIn.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods("GET")
-
 	// Invite management routes (authenticated users only)
-	invites := v1.PathPrefix("/invites").Subrouter()
-	invites.Use(authMw.NeedAuth())                                 // Require JWT auth
-	invites.Use(mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)) // 10 RPS per user
+	invites := loggedIn.PathPrefix("/invites").Subrouter() // Require JWT auth
 
 	invites.HandleFunc("", h.GetMyInvites).Methods("GET")
 	// Generate invite: 1 per minute per user to prevent spam
 	invites.Handle("", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(
 		http.HandlerFunc(h.GenerateInvite))).Methods("POST")
 	invites.HandleFunc("/{codeHash}", h.RevokeInvite).Methods("DELETE")
+
+	boards := loggedIn.NewRoute().Subrouter()
+	boards.Use(mw.RestrictBoardAccess(deps.AccessData)) // Restrict access based on board and email domain
+
+	boards.HandleFunc("/boards", h.GetBoards).Methods("GET")
+	// GetBoard: 10 RPS per user
+	boards.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)(http.HandlerFunc(h.GetBoard))).Methods("GET")
+	// CreateThread: 1 per minute per user
+	boards.Handle("/{board}", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateThread))).Methods("POST")
+
+	boards.HandleFunc("/{board}/{thread}", h.GetThread).Methods("GET")
+	// CreateMessage: 1 per second per user (fixed rate limiter)
+	boards.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateMessage))).Methods("POST")
+	boards.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods("GET")
 
 	return r
 }

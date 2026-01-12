@@ -1,0 +1,28 @@
+{{define "title"}}Register with Invite Code{{end}}
+{{define "content"}}
+<h2>Register with Invite Code</h2>
+<p>Enter your invite code and desired password. A random email will be generated for your account.</p>
+<form method="POST" action="/register_invite" class="auth-form">
+    <table class="form-table">
+        <tbody>
+            <tr>
+                <td class="form-label"><label for="invite_code">Invite Code:</label></td>
+                <td><input type="text" id="invite_code" name="invite_code" required size="30"></td>
+            </tr>
+            <tr>
+                <td class="form-label"><label for="password">Password:</label></td>
+                <td>
+                    {{template "password-input" dict "PasswordMinLen" .Validation.PasswordMinLen}}
+                    <br><small>Requires: 8+ characters, upper & lower case, number.</small>
+                </td>
+            </tr>
+            <tr>
+                <td class="form-label"></td>
+                <td><button type="submit">Register</button></td>
+            </tr>
+        </tbody>
+    </table>
+    {{template "error-message" .}}
+</form>
+<p style="margin-top: 1em; font-size: 0.9em;">Want to register normally? <a href="/register">Register with email</a>.</p>
+{{end}}

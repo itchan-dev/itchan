@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -100,11 +101,20 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 				return
 			}
 
+			createdAtFloat, ok := claims["created_at"].(float64)
+			if !ok {
+				logger.Log.Error("missing or invalid created_at claim in jwt")
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				return
+			}
+			createdAt := time.Unix(int64(createdAtFloat), 0)
+
 			// Create a User struct from the claims
 			user := &domain.User{
-				Id:    int64(uidFloat),
-				Email: email,
-				Admin: isAdmin,
+				Id:        int64(uidFloat),
+				Email:     email,
+				Admin:     isAdmin,
+				CreatedAt: createdAt,
 			}
 
 			// Check if user is blacklisted

@@ -1,0 +1,77 @@
+{{define "title"}}Invites{{end}}
+{{define "content"}}
+<h1>Invite Codes</h1>
+
+{{template "error-message" .}}
+{{template "success-message" .}}
+
+<!-- Stats section -->
+<div class="invite-stats">
+    <p><strong>Account age:</strong> {{.AccountAgeDays}} days
+        {{if not .User.Admin}}
+        (Required: {{.RequiredAgeDays}} days)
+        {{if not .IsEligibleByAge}}
+        <span style="color: red;">⚠ Account too young to generate invites</span>
+        {{end}}
+        {{end}}
+    </p>
+    <p><strong>Invites remaining:</strong> {{if .User.Admin}}∞ (Unlimited){{else}}{{.RemainingInvites}}{{end}}</p>
+</div>
+
+<!-- Generate form -->
+<form method="POST" action="/invites/generate">
+    {{if and (not .User.Admin) (not .IsEligibleByAge)}}
+    <input type="submit" value="Generate New Invite" disabled title="Account too young">
+    {{else if and (not .User.Admin) (eq .RemainingInvites 0)}}
+    <input type="submit" value="Generate New Invite" disabled title="Invite limit reached">
+    {{else}}
+    <input type="submit" value="Generate New Invite">
+    {{end}}
+</form>
+
+<hr>
+
+<!-- List of invites -->
+<h2>Your Invite Codes</h2>
+{{if .Invites}}
+<table class="invites-table">
+    <thead>
+        <tr>
+            <th>Code Hash</th>
+            <th>Created</th>
+            <th>Expires</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Invites}}
+        <tr>
+            <td><code>{{.CodeHash}}</code></td>
+            <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+            <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
+            <td>
+                {{if .UsedBy}}
+                Used (User: {{.UsedBy}})
+                {{else}}
+                Active
+                {{end}}
+            </td>
+            <td>
+                {{if not .UsedBy}}
+                <form method="POST" action="/invites/revoke" style="display:inline;">
+                    <input type="hidden" name="codeHash" value="{{.CodeHash}}">
+                    <input type="submit" value="Revoke" onclick="return confirm('Revoke this invite?')">
+                </form>
+                {{else}}
+                -
+                {{end}}
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<p>No invites found. Generate one to get started!</p>
+{{end}}
+{{end}}

@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
 	"fmt"
 	"html/template"
 	"io"
+
+	"github.com/itchan-dev/itchan/shared/logger"
 
 	"net/http"
 	"net/url"
@@ -102,13 +103,14 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
 		Error            template.HTML
+		Success          template.HTML
 		User             *domain.User
 		EmailPlaceholder string
 		Validation       ValidationData
 	}
 	templateData.User = mw.GetUserFromContext(r)
-	templateData.Error, _ = parseMessagesFromQuery(r)          // Get error message
-	templateData.EmailPlaceholder = r.URL.Query().Get("email") // Pre-fill email if redirected with it
+	templateData.Error, templateData.Success = parseMessagesFromQuery(r) // Get error and success messages
+	templateData.EmailPlaceholder = r.URL.Query().Get("email")           // Pre-fill email if redirected with it
 	if templateData.EmailPlaceholder == "" {
 		// Fallback if not passed in query
 		templateData.EmailPlaceholder = parseEmail(r)
@@ -160,4 +162,35 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to login page
 	http.Redirect(w, r, "/login", http.StatusSeeOther) // Use SeeOther after logout action
+}
+
+func (h *Handler) RegisterInviteGetHandler(w http.ResponseWriter, r *http.Request) {
+	var templateData struct {
+		Error      template.HTML
+		User       *domain.User
+		Validation ValidationData
+	}
+	templateData.User = mw.GetUserFromContext(r)
+	templateData.Error, _ = parseMessagesFromQuery(r)
+	templateData.Validation = h.NewValidationData()
+
+	h.renderTemplate(w, "register_invite.html", templateData)
+}
+
+func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Request) {
+	targetURL := "/register_invite"
+
+	inviteCode := r.FormValue("invite_code")
+	password := r.FormValue("password")
+
+	email, err := h.APIClient.RegisterWithInvite(inviteCode, password)
+	if err != nil {
+		logger.Log.Error("during invite registration API call", "error", err)
+		redirectWithParams(w, r, targetURL, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Success: Redirect to login page with generated email pre-filled and success message
+	successMsg := fmt.Sprintf("<strong>Registration successful!</strong> Your email is: <strong>%s</strong><br>Please save this - it cannot be recovered!", template.HTMLEscapeString(email))
+	redirectWithParams(w, r, "/login", map[string]string{"success": successMsg, "email": email})
 }

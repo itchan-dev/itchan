@@ -33,16 +33,21 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
 	r.HandleFunc("/login", deps.Handler.LoginGetHandler).Methods("GET")
 	r.HandleFunc("/register", deps.Handler.RegisterGetHandler).Methods("GET")
+	r.HandleFunc("/register_invite", deps.Handler.RegisterInviteGetHandler).Methods("GET")
 	r.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailGetHandler).Methods("GET")
 
 	// Public POST routes (rate limited to prevent abuse)
 	publicPosts := r.NewRoute().Subrouter()
-	publicPosts.Use(mw.RateLimit(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetEmailFromForm)) // 5 attempts per minute by email
-	publicPosts.Use(mw.RateLimit(rl.New(10.0/60.0, 10, 1*time.Hour), mw.GetIP))          // 10 per minute by IP (backup)
-	publicPosts.Use(mw.GlobalRateLimit(rl.Rps100()))                                     // 100 global RPS
-	publicPosts.HandleFunc("/login", deps.Handler.LoginPostHandler).Methods("POST")
-	publicPosts.HandleFunc("/register", deps.Handler.RegisterPostHandler).Methods("POST")
-	publicPosts.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler).Methods("POST")
+	publicPosts.Use(mw.GlobalRateLimit(rl.Rps100()))                                          // 100 global RPS
+	publicPosts.Use(mw.RateLimit(rl.New(10.0/60.0, 10, 1*time.Hour), mw.GetIP))               // 10 per minute by IP (backup)
+	publicPostsEmail := publicPosts.NewRoute().Subrouter()                                    // Using email field
+	publicPostsEmail.Use(mw.RateLimit(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetEmailFromForm)) // 5 attempts per minute by email
+	publicPostsEmail.HandleFunc("/login", deps.Handler.LoginPostHandler).Methods("POST")
+	publicPostsEmail.HandleFunc("/register", deps.Handler.RegisterPostHandler).Methods("POST")
+	publicPostsEmail.HandleFunc("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler).Methods("POST")
+	publicPostsInvite := publicPosts.NewRoute().Subrouter()                                                   // Using invite_code field
+	publicPostsInvite.Use(mw.RateLimit(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetFieldFromForm("invite_code"))) // 5 attempts per minute by each invite code
+	publicPostsInvite.HandleFunc("/register_invite", deps.Handler.RegisterInvitePostHandler).Methods("POST")
 
 	r.PathPrefix("/static/").Handler(
 		http.StripPrefix("/static/", http.FileServer(http.Dir("static"))),
@@ -74,6 +79,12 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	authRouter.HandleFunc("/", deps.Handler.IndexGetHandler).Methods("GET")
 	authRouter.HandleFunc("/", deps.Handler.IndexPostHandler).Methods("POST")
 	authRouter.HandleFunc("/logout", deps.Handler.LogoutHandler)
+
+	// Invite routes (must be registered before /{board} to avoid route conflicts)
+	authRouter.HandleFunc("/invites", deps.Handler.InvitesGetHandler).Methods("GET")
+	// GenerateInvite: 1 per minute per user (same as CreateThread)
+	authRouter.Handle("/invites/generate", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.GenerateInvitePostHandler))).Methods("POST")
+	authRouter.HandleFunc("/invites/revoke", deps.Handler.RevokeInvitePostHandler).Methods("POST")
 
 	// Board routes with specific rate limits
 	// GetBoard: 10 RPS per user
