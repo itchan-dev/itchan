@@ -13,7 +13,7 @@ type CreateMessageRequest struct {
 type CreateThreadRequest struct {
 	Title     string               `json:"title" validate:"required"`
 	IsSticky  bool                 `json:"is_sticky,omitempty"`
-	OpMessage CreateMessageRequest `json:"op_message,omitempty"`
+	OpMessage CreateMessageRequest `json:"op_message"`
 }
 
 type CreateBoardRequest struct {
@@ -28,4 +28,9 @@ type BlacklistUserRequest struct {
 
 type BlacklistResponse struct {
 	Users []domain.BlacklistEntry `json:"users"`
+}
+
+// UserActivityResponse contains user's recent messages
+type UserActivityResponse struct {
+	Messages []domain.Message `json:"messages"` // FULLY enriched (Author, Attachments, Replies)
 }

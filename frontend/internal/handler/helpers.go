@@ -135,6 +135,9 @@ type ValidationData struct {
 	MaxAttachmentSizeBytes   int64
 	AllowedImageMimeTypes    []string
 	AllowedVideoMimeTypes    []string
+
+	// User activity page settings
+	UserMessagesPageLimit int
 }
 
 // NewValidationData creates a ValidationData struct populated from the public config.
@@ -152,5 +155,6 @@ func (h *Handler) NewValidationData() ValidationData {
 		MaxAttachmentSizeBytes:   h.Public.MaxAttachmentSizeBytes,
 		AllowedImageMimeTypes:    h.Public.AllowedImageMimeTypes,
 		AllowedVideoMimeTypes:    h.Public.AllowedVideoMimeTypes,
+		UserMessagesPageLimit:    h.Public.UserMessagesPageLimit,
 	}
 }

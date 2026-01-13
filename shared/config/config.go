@@ -53,6 +53,9 @@ type Public struct {
 	InviteCodeTTL            time.Duration `yaml:"invite_code_ttl"`
 	MaxInvitesPerUser        int           `yaml:"max_invites_per_user"`
 	MinAccountAgeForInvites  time.Duration `yaml:"min_account_age_for_invites"`
+
+	// User activity page settings
+	UserMessagesPageLimit int `yaml:"user_messages_page_limit"` // Number of messages/replies shown on account page
 }
 
 type Pg struct {
@@ -202,5 +205,10 @@ func applyValidationDefaults(public *Public) {
 		if public.MinAccountAgeForInvites == 0 {
 			public.MinAccountAgeForInvites = 720 * time.Hour // 30 days (1 month)
 		}
+	}
+
+	// User activity page defaults
+	if public.UserMessagesPageLimit == 0 {
+		public.UserMessagesPageLimit = 50
 	}
 }

@@ -86,6 +86,9 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	authRouter.Handle("/invites/generate", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.GenerateInvitePostHandler))).Methods("POST")
 	authRouter.HandleFunc("/invites/revoke", deps.Handler.RevokeInvitePostHandler).Methods("POST")
 
+	// Account page
+	authRouter.HandleFunc("/account", deps.Handler.AccountGetHandler).Methods("GET")
+
 	// Board routes with specific rate limits
 	// GetBoard: 10 RPS per user
 	authRouter.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.BoardGetHandler))).Methods("GET")
