@@ -16,7 +16,7 @@ import (
 // === Board Methods ===
 
 func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
-	var boards []domain.Board
+	var response api.BoardListResponse
 	resp, err := c.do("GET", "/v1/boards", nil, r.Cookies()...)
 	if err != nil {
 		return nil, err
@@ -26,9 +26,19 @@ func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("backend returned status %d", resp.StatusCode)
 	}
-	if err := utils.Decode(resp.Body, &boards); err != nil {
+	if err := utils.Decode(resp.Body, &response); err != nil {
 		return nil, fmt.Errorf("cannot decode boards response: %w", err)
 	}
+
+	// Convert BoardMetadataResponse to Board
+	boards := make([]domain.Board, len(response.Boards))
+	for i, boardMeta := range response.Boards {
+		boards[i] = domain.Board{
+			BoardMetadata: boardMeta.BoardMetadata,
+			Threads:       []*domain.Thread{}, // Empty threads for list view
+		}
+	}
+
 	return boards, nil
 }
 

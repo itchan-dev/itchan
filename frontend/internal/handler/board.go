@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
 	"html/template"
-
 	"net/http"
 	"strconv"
 
@@ -11,21 +9,18 @@ import (
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
+		CommonTemplateData
 		Board       *frontend_domain.Board
-		Error       template.HTML
-		User        *domain.User
 		CurrentPage int
-		Validation  ValidationData
 	}
-	templateData.User = mw.GetUserFromContext(r)
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 	shortName := mux.Vars(r)["board"]
-	templateData.Error, _ = parseMessagesFromQuery(r)
 
 	page := 1
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
@@ -42,7 +37,6 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templateData.Board = RenderBoard(board)
-	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "board.html", templateData)
 }
@@ -63,7 +57,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if message has either text OR attachments (align with backend validation)
 	hasAttachments := r.MultipartForm != nil && r.MultipartForm.File != nil && len(r.MultipartForm.File["attachments"]) > 0
 	if !hasPayload && !hasAttachments {
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Message must contain either text or attachments."})
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, "Message must contain either text or attachments.")
 		return
 	}
 
@@ -78,7 +72,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	newThreadID, err := h.APIClient.CreateThread(r, shortName, backendData, r.MultipartForm)
 	if err != nil {
 		logger.Log.Error("creating thread via API", "error", err)
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 
@@ -93,7 +87,7 @@ func (h *Handler) BoardDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteBoard(r, shortName)
 	if err != nil {
 		logger.Log.Error("deleting board via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 

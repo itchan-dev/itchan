@@ -1,58 +1,105 @@
 package handler
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
+	"encoding/base64"
 	"fmt"
 	"html/template"
-
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/itchan-dev/itchan/shared/domain"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/validation"
 )
 
-// redirectWithParams correctly redirects to a target URL after adding the given
-// query parameters. It safely handles existing query params and URL fragments (anchors).
+// Flash message constants
+const (
+	flashCookieError   = "flash_error"
+	flashCookieSuccess = "flash_success"
+)
+
+// setFlash sets a flash message cookie that will be displayed once and then deleted.
+// The message is stored as an HTTP-only cookie with a 5-minute expiration.
+// Uses base64 encoding to safely store HTML and special characters.
+func (h *Handler) setFlash(w http.ResponseWriter, flashType, message string) {
+	// Base64 encode the message to safely store HTML and special characters in cookies
+	encodedMessage := base64.StdEncoding.EncodeToString([]byte(message))
+
+	cookie := &http.Cookie{
+		Name:     flashType,
+		Value:    encodedMessage,
+		Path:     "/",
+		MaxAge:   300, // 5 minutes (enough time for redirect)
+		HttpOnly: true,
+		Secure:   h.Public.SecureCookies,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, cookie)
+}
+
+// getFlash reads a flash message cookie and immediately deletes it.
+// Returns empty string if no flash cookie exists.
+func (h *Handler) getFlash(w http.ResponseWriter, r *http.Request, flashType string) template.HTML {
+	cookie, err := r.Cookie(flashType)
+	if err != nil {
+		return ""
+	}
+
+	// Delete the cookie immediately
+	deleteCookie := &http.Cookie{
+		Name:     flashType,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1, // Delete immediately
+		HttpOnly: true,
+		Secure:   h.Public.SecureCookies,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, deleteCookie)
+
+	// Base64 decode the message
+	decodedBytes, err := base64.StdEncoding.DecodeString(cookie.Value)
+	if err != nil {
+		return ""
+	}
+
+	return template.HTML(decodedBytes)
+}
+
+// getFlashes reads both error and success flash messages and deletes them.
+// This is a convenience function for handlers that need both types.
+func (h *Handler) getFlashes(w http.ResponseWriter, r *http.Request) (errMsg template.HTML, successMsg template.HTML) {
+	errMsg = h.getFlash(w, r, flashCookieError)
+	successMsg = h.getFlash(w, r, flashCookieSuccess)
+	return
+}
+
+// redirectWithFlash redirects to a URL with a flash message.
+// The flash message will be displayed once on the target page and then deleted.
+func (h *Handler) redirectWithFlash(w http.ResponseWriter, r *http.Request, targetURL, flashType, message string) {
+	h.setFlash(w, flashType, message)
+	http.Redirect(w, r, targetURL, http.StatusSeeOther)
+}
+
+// redirectWithParams redirects to a target URL after adding the given query parameters.
+// It safely handles existing query params and URL fragments (anchors).
+// Use this for non-message query params (e.g., email pre-filling).
+// For error/success messages, use setFlash() + redirectWithParams() or redirectWithFlash().
 func redirectWithParams(w http.ResponseWriter, r *http.Request, targetURL string, params map[string]string) {
-	// 1. Parse the base URL to separate path, query, and fragment.
 	u, err := url.Parse(targetURL)
 	if err != nil {
-		// If parsing fails, it's a server-side programming error.
-		// Log it and fall back to a simple redirect to a safe URL.
-		logger.Log.Error(": Failed to parse redirect URL '%s': %v", targetURL, err)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
-	// 2. Get the existing query values from the URL.
 	query := u.Query()
-
-	// 3. Add the new parameters, overwriting any existing keys.
 	for key, value := range params {
 		query.Set(key, value)
 	}
-
-	// 4. Encode the modified query and assign it back to the URL object.
 	u.RawQuery = query.Encode()
 
-	// 5. Perform the redirect using the reassembled URL string.
-	// The u.String() method correctly combines the path, new query, and original fragment.
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
-}
-
-// parseMessagesFromQuery extracts and decodes error/success messages from URL query parameters.
-// Note: Does NOT escape HTML - the caller must use template.HTMLEscapeString if needed.
-func parseMessagesFromQuery(r *http.Request) (errMsg template.HTML, successMsg template.HTML) {
-	if errorParam, err := url.QueryUnescape(r.URL.Query().Get("error")); err == nil && errorParam != "" {
-		errMsg = template.HTML(errorParam)
-	}
-
-	if successParam, err := url.QueryUnescape(r.URL.Query().Get("success")); err == nil && successParam != "" {
-		successMsg = template.HTML(successParam)
-	}
-	return
 }
 
 // splitAndTrim splits a comma-separated string into a slice of trimmed strings.
@@ -105,11 +152,20 @@ func (h *Handler) parseAndValidateMultipartForm(w http.ResponseWriter, r *http.R
 	if err := validation.ValidateAndParseMultipart(r, w, maxRequestSize); err != nil {
 		maxSizeMB := validation.FormatSizeMB(h.Public.MaxTotalAttachmentSize)
 		errorMsg := fmt.Sprintf("Total attachment size exceeds the limit of %.0f MB. Please reduce the number or size of files.", maxSizeMB)
-		redirectWithParams(w, r, errorRedirectURL, map[string]string{"error": errorMsg})
+		h.redirectWithFlash(w, r, errorRedirectURL, flashCookieError, errorMsg)
 		return false
 	}
 
 	return true
+}
+
+// CommonTemplateData holds fields that are common to all page templates.
+// Embed this struct in page-specific template data to ensure consistency.
+type CommonTemplateData struct {
+	Error      template.HTML
+	Success    template.HTML
+	User       *domain.User
+	Validation ValidationData
 }
 
 // ValidationData holds all validation constants needed by templates.
@@ -157,4 +213,17 @@ func (h *Handler) NewValidationData() ValidationData {
 		AllowedVideoMimeTypes:    h.Public.AllowedVideoMimeTypes,
 		UserMessagesPageLimit:    h.Public.UserMessagesPageLimit,
 	}
+}
+
+// InitCommonTemplateData initializes common template data fields from the request.
+// Call this in GET handlers to populate Error, Success, User, and Validation fields.
+// Flash messages are automatically read and deleted from cookies.
+func (h *Handler) InitCommonTemplateData(w http.ResponseWriter, r *http.Request) CommonTemplateData {
+	common := CommonTemplateData{
+		User:       mw.GetUserFromContext(r),
+		Validation: h.NewValidationData(),
+	}
+	// Automatically populate flash messages (and delete them)
+	common.Error, common.Success = h.getFlashes(w, r)
+	return common
 }
