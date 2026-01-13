@@ -94,6 +94,9 @@ func New(deps *setup.Dependencies) *mux.Router {
 	loggedIn.Use(authMw.NeedAuth())                                 // Enforce JWT authentication with blacklist check
 	loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
 
+	// User activity endpoint
+	loggedIn.HandleFunc("/users/me/activity", h.GetUserActivity).Methods("GET")
+
 	// Invite management routes (authenticated users only)
 	invites := loggedIn.PathPrefix("/invites").Subrouter() // Require JWT auth
 

@@ -15,16 +15,18 @@ type Handler struct {
 	board        service.BoardService
 	thread       service.ThreadService
 	message      service.MessageService
+	userActivity service.UserActivityService
 	mediaStorage fs.MediaStorage
 	cfg          *config.Config
 }
 
-func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, mediaStorage fs.MediaStorage, cfg *config.Config) *Handler {
+func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, userActivity service.UserActivityService, mediaStorage fs.MediaStorage, cfg *config.Config) *Handler {
 	return &Handler{
 		auth:         auth,
 		board:        board,
 		thread:       thread,
 		message:      message,
+		userActivity: userActivity,
 		mediaStorage: mediaStorage,
 		cfg:          cfg,
 	}

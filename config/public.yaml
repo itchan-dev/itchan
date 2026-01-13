@@ -16,3 +16,6 @@ invite_code_length: 12
 invite_code_ttl: 720h                 # 30 days
 max_invites_per_user: 5               # 0 = unlimited
 min_account_age_for_invites: 720h    # 30 days (1 month)
+
+# User activity page settings
+user_messages_page_limit: 50          # Number of messages/replies shown on account page

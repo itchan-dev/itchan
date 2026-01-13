@@ -81,13 +81,14 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	board := service.NewBoard(storage, utils.New(&cfg.Public), mediaStorage)
 	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public}, mediaStorage, &cfg.Public)
 	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, message, mediaStorage)
+	userActivity := service.NewUserActivity(storage, &cfg.Public)
 
 	// Initialize garbage collector for old threads
 	// Cleanup interval: runs every 5 minutes to keep boards at MaxThreadCount
 	threadGC := service.NewThreadGarbageCollector(storage, thread, cfg.Public.MaxThreadCount)
 	threadGC.StartBackgroundCleanup(ctx, 5*time.Minute)
 
-	h := handler.New(auth, board, thread, message, mediaStorage, cfg)
+	h := handler.New(auth, board, thread, message, userActivity, mediaStorage, cfg)
 
 	return &Dependencies{
 		Storage:        storage,

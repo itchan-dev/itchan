@@ -1,0 +1,32 @@
+{{define "title"}}Account{{end}}
+{{define "content"}}
+<h1>Account Activity</h1>
+
+{{template "error-message" .}}
+{{template "success-message" .}}
+
+<!-- User info -->
+<div class="account-info">
+    <p><strong>Email:</strong> {{.User.Email}}</p>
+    <p><strong>Admin:</strong> {{if .User.Admin}}Yes{{else}}No{{end}}</p>
+    <p><strong>Member since:</strong> {{.User.CreatedAt.Format "2006-01-02 15:04"}}</p>
+</div>
+
+<hr>
+
+<!-- Recent activity feed -->
+<h2>My Recent Posts (Last {{.Validation.UserMessagesPageLimit}})</h2>
+{{if .ActivityMessages}}
+<div class="activity-feed">
+    {{range .ActivityMessages}}
+        {{/* Render using standard post template */}}
+        {{template "post" dict "Message" . "User" $.User}}
+    {{end}}
+</div>
+{{else}}
+<p>No messages yet. <a href="/">Browse boards</a> to start posting!</p>
+{{end}}
+
+{{template "popup-reply-form" .}}
+
+{{end}}
