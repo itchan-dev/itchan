@@ -48,7 +48,8 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, board)
+	response := api.BoardResponse{Board: board}
+	writeJSON(w, response)
 }
 
 func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
@@ -75,5 +76,12 @@ func (h *Handler) GetBoards(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, boards)
+	// Convert to response DTOs (metadata only for list view)
+	boardMetadata := make([]api.BoardMetadataResponse, len(boards))
+	for i, board := range boards {
+		boardMetadata[i] = api.BoardMetadataResponse{BoardMetadata: board.BoardMetadata}
+	}
+
+	response := api.BoardListResponse{Boards: boardMetadata}
+	writeJSON(w, response)
 }
