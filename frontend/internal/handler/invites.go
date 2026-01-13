@@ -8,28 +8,19 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
 
 // InvitesGetHandler displays the invites page with user's invite codes
 func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		User             *domain.User
+		CommonTemplateData
 		Invites          []domain.InviteCode
 		RemainingInvites int
 		AccountAgeDays   int
 		RequiredAgeDays  int
 		IsEligibleByAge  bool
-		Error            template.HTML
-		Success          template.HTML
-		Validation       ValidationData
 	}
-
-	// Get user from context
-	templateData.User = mw.GetUserFromContext(r)
-
-	// Parse error/success messages from query params
-	templateData.Error, templateData.Success = parseMessagesFromQuery(r)
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 
 	// Fetch user's invites from API
 	invites, err := h.APIClient.GetMyInvites(r)
@@ -69,9 +60,6 @@ func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user is eligible by age
 	templateData.IsEligibleByAge = templateData.User.Admin || accountAge >= requiredAge
 
-	// Add validation data
-	templateData.Validation = h.NewValidationData()
-
 	// Render template
 	h.renderTemplate(w, "invites.html", templateData)
 }
@@ -89,13 +77,13 @@ func (h *Handler) GenerateInvitePostHandler(w http.ResponseWriter, r *http.Reque
 	invite, err := h.APIClient.GenerateInvite(r)
 	if err != nil {
 		logger.Log.Error("generating invite via API", "error", err)
-		redirectWithParams(w, r, "/invites", map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, "/invites", flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 
 	// Success - redirect with the plain code in success message (escape the code for safety)
 	successMsg := fmt.Sprintf("Invite code generated: %s (save this now, it won't be shown again)", template.HTMLEscapeString(invite.PlainCode))
-	redirectWithParams(w, r, "/invites", map[string]string{"success": successMsg})
+	h.redirectWithFlash(w, r, "/invites", flashCookieSuccess, successMsg)
 }
 
 // RevokeInvitePostHandler revokes (deletes) an unused invite code
@@ -118,10 +106,10 @@ func (h *Handler) RevokeInvitePostHandler(w http.ResponseWriter, r *http.Request
 	err := h.APIClient.RevokeInvite(r, codeHash)
 	if err != nil {
 		logger.Log.Error("revoking invite via API", "error", err)
-		redirectWithParams(w, r, "/invites", map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, "/invites", flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 
 	// Success - redirect with success message
-	redirectWithParams(w, r, "/invites", map[string]string{"success": "Invite revoked successfully"})
+	h.redirectWithFlash(w, r, "/invites", flashCookieSuccess, "Invite revoked successfully")
 }

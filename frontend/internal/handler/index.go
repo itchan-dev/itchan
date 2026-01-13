@@ -1,25 +1,20 @@
 package handler
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
 	"html/template"
-
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Boards     []domain.Board
-		Error      template.HTML
-		User       *domain.User
-		Validation ValidationData
+		CommonTemplateData
+		Boards []domain.Board
 	}
-	templateData.User = mw.GetUserFromContext(r)
-	templateData.Error, _ = parseMessagesFromQuery(r)
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 
 	boards, err := h.APIClient.GetBoards(r)
 	if err != nil {
@@ -27,7 +22,6 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.Error = template.HTML(template.HTMLEscapeString(err.Error()))
 	}
 	templateData.Boards = boards
-	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "index.html", templateData)
 }
@@ -36,7 +30,7 @@ func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {
 	targetURL := "/" // Redirect back to the index page on success or error
 
 	if err := r.ParseForm(); err != nil {
-		redirectWithParams(w, r, targetURL, map[string]string{"error": "Invalid form data."})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, "Invalid form data.")
 		return
 	}
 
@@ -59,7 +53,7 @@ func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.CreateBoard(r, backendData)
 	if err != nil {
 		logger.Log.Error("creating board via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 

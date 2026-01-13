@@ -4,24 +4,16 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-
-	"github.com/itchan-dev/itchan/shared/logger"
-
 	"net/http"
 
-	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 func (h *Handler) RegisterGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Error      template.HTML
-		User       *domain.User
-		Validation ValidationData
+		CommonTemplateData
 	}
-	templateData.User = mw.GetUserFromContext(r)
-	templateData.Error, _ = parseMessagesFromQuery(r)
-	templateData.Validation = h.NewValidationData()
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 
 	h.renderTemplate(w, "register.html", templateData)
 }
@@ -36,7 +28,7 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.APIClient.Register(email, password)
 	if err != nil {
 		logger.Log.Error("during registration API call", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": "Internal error: backend unavailable."})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, "Internal error: backend unavailable.")
 		return
 	}
 	defer resp.Body.Close()
@@ -48,12 +40,13 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 		// Safely construct message without XSS risk - use template escaping
 		msg := template.HTMLEscapeString(string(bodyBytes)) + " Please check your email or use the confirmation page."
 		// Redirect to confirmation page with email pre-filled and error message
-		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"error": msg, "email": email})
+		h.setFlash(w, flashCookieError, msg)
+		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email})
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(string(bodyBytes))})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(string(bodyBytes)))
 		return
 	}
 
@@ -63,16 +56,11 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Error            template.HTML
-		Success          template.HTML
+		CommonTemplateData
 		EmailPlaceholder string
-		User             *domain.User
-		Validation       ValidationData
 	}
-	templateData.User = mw.GetUserFromContext(r)
-	templateData.EmailPlaceholder = parseEmail(r)                        // Get email from query param
-	templateData.Error, templateData.Success = parseMessagesFromQuery(r) // Get messages
-	templateData.Validation = h.NewValidationData()
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
+	templateData.EmailPlaceholder = parseEmail(r) // Get email from query param
 
 	h.renderTemplate(w, "check_confirmation_code.html", templateData)
 }
@@ -84,29 +72,26 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 	err := h.APIClient.ConfirmEmail(email, code)
 	if err != nil {
 		logger.Log.Error("confirming email via API", "error", err)
-		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email, "error": template.HTMLEscapeString(err.Error())})
+		h.setFlash(w, flashCookieError, template.HTMLEscapeString(err.Error()))
+		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email})
 		return
 	}
 
-	redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email, "success": `Success! You can now <a href="/login">login</a>.`})
+	h.setFlash(w, flashCookieSuccess, `Success! You can now <a href="/login">login</a>.`)
+	redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email})
 }
 
 func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Error            template.HTML
-		Success          template.HTML
-		User             *domain.User
+		CommonTemplateData
 		EmailPlaceholder string
-		Validation       ValidationData
 	}
-	templateData.User = mw.GetUserFromContext(r)
-	templateData.Error, templateData.Success = parseMessagesFromQuery(r) // Get error and success messages
-	templateData.EmailPlaceholder = r.URL.Query().Get("email")           // Pre-fill email if redirected with it
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
+	templateData.EmailPlaceholder = r.URL.Query().Get("email") // Pre-fill email if redirected with it
 	if templateData.EmailPlaceholder == "" {
 		// Fallback if not passed in query
 		templateData.EmailPlaceholder = parseEmail(r)
 	}
-	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "login.html", templateData)
 }
@@ -118,14 +103,16 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.APIClient.Login(email, password)
 	if err != nil {
 		logger.Log.Error("during login API call", "error", err)
-		redirectWithParams(w, r, "/login", map[string]string{"email": email, "error": "Internal error: backend unavailable."})
+		h.setFlash(w, flashCookieError, "Internal error: backend unavailable.")
+		redirectWithParams(w, r, "/login", map[string]string{"email": email})
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		redirectWithParams(w, r, "/login", map[string]string{"email": email, "error": template.HTMLEscapeString(string(bodyBytes))})
+		h.setFlash(w, flashCookieError, template.HTMLEscapeString(string(bodyBytes)))
+		redirectWithParams(w, r, "/login", map[string]string{"email": email})
 		return
 	}
 
@@ -156,13 +143,9 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) RegisterInviteGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Error      template.HTML
-		User       *domain.User
-		Validation ValidationData
+		CommonTemplateData
 	}
-	templateData.User = mw.GetUserFromContext(r)
-	templateData.Error, _ = parseMessagesFromQuery(r)
-	templateData.Validation = h.NewValidationData()
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 
 	h.renderTemplate(w, "register_invite.html", templateData)
 }
@@ -176,12 +159,13 @@ func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Reque
 	email, err := h.APIClient.RegisterWithInvite(inviteCode, password)
 	if err != nil {
 		logger.Log.Error("during invite registration API call", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 
 	// Success: Redirect to login page with generated email pre-filled and success message
 	// Note: HTML tags are intentional, but escape the email value for safety
 	successMsg := fmt.Sprintf("<strong>Registration successful!</strong> Your email is: <strong>%s</strong><br>Please save this - it cannot be recovered!", template.HTMLEscapeString(email))
-	redirectWithParams(w, r, "/login", map[string]string{"success": successMsg, "email": email})
+	h.setFlash(w, flashCookieSuccess, successMsg)
+	redirectWithParams(w, r, "/login", map[string]string{"email": email})
 }

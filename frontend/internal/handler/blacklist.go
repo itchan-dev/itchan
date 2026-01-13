@@ -35,10 +35,10 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.BlacklistUser(r, userID, reason)
 	if err != nil {
 		logger.Log.Error("blacklisting user via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 
 	// Success - redirect with success message
-	redirectWithParams(w, r, targetURL, map[string]string{"success": "User blacklisted successfully"})
+	h.redirectWithFlash(w, r, targetURL, flashCookieSuccess, "User blacklisted successfully")
 }

@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
 	"fmt"
 	"html/template"
-
 	"net/http"
 	"strconv"
 
@@ -12,22 +10,19 @@ import (
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		Thread     *frontend_domain.Thread
-		Error      template.HTML
-		User       *domain.User
-		Validation ValidationData
+		CommonTemplateData
+		Thread *frontend_domain.Thread
 	}
-	templateData.User = mw.GetUserFromContext(r)
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 	vars := mux.Vars(r)
 	shortName := vars["board"]
 	threadId := vars["thread"]
-	templateData.Error, _ = parseMessagesFromQuery(r)
 
 	thread, err := h.APIClient.GetThread(r, shortName, threadId)
 	if err != nil {
@@ -36,7 +31,6 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	templateData.Thread = RenderThread(thread)
-	templateData.Validation = h.NewValidationData()
 
 	h.renderTemplate(w, "thread.html", templateData)
 }
@@ -52,7 +46,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	threadId, err := strconv.Atoi(threadIdStr)
 	if err != nil {
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Invalid thread ID."})
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, "Invalid thread ID.")
 		return
 	}
 
@@ -70,7 +64,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if message has either text OR attachments (align with backend validation)
 	hasAttachments := r.MultipartForm != nil && r.MultipartForm.File != nil && len(r.MultipartForm.File["attachments"]) > 0
 	if !hasPayload && !hasAttachments {
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": "Message must contain either text or attachments."})
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, "Message must contain either text or attachments.")
 		return
 	}
 
@@ -82,7 +76,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	err = h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)
 	if err != nil {
 		logger.Log.Error("posting reply via API", "error", err)
-		redirectWithParams(w, r, errorTargetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 
@@ -99,7 +93,7 @@ func (h *Handler) ThreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteThread(r, boardShortName, threadId)
 	if err != nil {
 		logger.Log.Error("deleting thread via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 

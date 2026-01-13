@@ -22,7 +22,7 @@ func (h *Handler) MessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteMessage(r, boardShortName, threadId, messageId)
 	if err != nil {
 		logger.Log.Error("deleting message via API", "error", err)
-		redirectWithParams(w, r, targetURL, map[string]string{"error": template.HTMLEscapeString(err.Error())})
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 

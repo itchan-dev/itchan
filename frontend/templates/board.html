@@ -5,8 +5,6 @@
         <hr>
     </div>
 
-    {{template "error-message" .}}
-
     <!-- New Thread Form -->
     <div class="post-form-container">
         <form action="/{{ .Board.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">

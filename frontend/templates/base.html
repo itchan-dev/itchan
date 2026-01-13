@@ -28,6 +28,14 @@
     </header>
 
     <main class="content">
+        {{/* Global flash messages - displayed once and automatically removed on page load */}}
+        {{if .Error}}
+        <div class="error-message">{{.Error}}</div>
+        {{end}}
+        {{if .Success}}
+        <div class="success-message">{{.Success}}</div>
+        {{end}}
+
         {{template "content" .}}
     </main>
 
