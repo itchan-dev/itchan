@@ -70,7 +70,8 @@ func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, thread)
+	response := api.ThreadResponse{Thread: thread}
+	writeJSON(w, response)
 }
 
 func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {

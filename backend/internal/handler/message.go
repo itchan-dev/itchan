@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -60,9 +59,9 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return the created message ID
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{"id": msgId})
+	response := api.CreateMessageResponse{Id: int64(msgId)}
+	writeJSON(w, response)
 }
 
 func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +79,8 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, msg)
+	response := api.MessageResponse{Message: msg}
+	writeJSON(w, response)
 }
 
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
