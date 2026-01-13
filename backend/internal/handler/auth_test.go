@@ -152,7 +152,7 @@ func TestRegisterHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "The confirmation code has been sent by email", rr.Body.String())
+		assert.JSONEq(t, `{"message":"The confirmation code has been sent by email"}`, rr.Body.String())
 	})
 
 	t.Run("validation error", func(t *testing.T) {
@@ -256,7 +256,7 @@ func TestAuthLoginHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "You logged in", rr.Body.String())
+		assert.JSONEq(t, `{"message":"You logged in"}`, rr.Body.String())
 
 		cookies := rr.Result().Cookies()
 		require.Len(t, cookies, 1)
@@ -311,7 +311,7 @@ func TestAuthLogoutHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Empty(t, rr.Body.String())
+		assert.JSONEq(t, `{"message":"You logged out"}`, rr.Body.String())
 
 		cookies := rr.Result().Cookies()
 		require.Len(t, cookies, 1)

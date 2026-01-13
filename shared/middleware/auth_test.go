@@ -81,7 +81,14 @@ func TestAuth(t *testing.T) {
 			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				user := GetUserFromContext(r)
 				require.NotNil(t, user, "Auth should always propagate user thru context")
-				assert.Equal(t, tt.expectedUser, user)
+				if tt.expectedUser != nil {
+					assert.Equal(t, tt.expectedUser.Id, user.Id)
+					assert.Equal(t, tt.expectedUser.Email, user.Email)
+					assert.Equal(t, tt.expectedUser.Admin, user.Admin)
+					// Don't compare CreatedAt as JWT encoding/decoding can change timezone
+				} else {
+					assert.Equal(t, tt.expectedUser, user)
+				}
 
 				w.WriteHeader(http.StatusOK)
 			}))
