@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/itchan-dev/itchan/backend/internal/service"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
@@ -271,10 +272,13 @@ func TestGetBoardsHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var actualBoards []domain.Board
-		err := json.Unmarshal(rr.Body.Bytes(), &actualBoards)
+		var response api.BoardListResponse
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Equal(t, expectedBoards, actualBoards)
+		assert.Len(t, response.Boards, len(expectedBoards))
+		for i, boardMeta := range response.Boards {
+			assert.Equal(t, expectedBoards[i].BoardMetadata, boardMeta.BoardMetadata)
+		}
 	})
 
 	t.Run("unauthorized access", func(t *testing.T) {
