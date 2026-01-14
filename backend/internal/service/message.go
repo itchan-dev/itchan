@@ -126,6 +126,9 @@ func (b *Message) saveAndAttachFiles(
 				return err
 			}
 
+			// Extract thumbnail from temp file before move (while we have full path)
+			videoThumbnail, _ := svcutils.ExtractVideoThumbnail(sanitizedVideo.TempFilePath)
+
 			// Move temp file to final destination
 			filePath, err = b.mediaStorage.MoveFile(
 				sanitizedVideo.TempFilePath,
@@ -145,6 +148,16 @@ func (b *Message) saveAndAttachFiles(
 			// Track saved file immediately after saving
 			savedFiles = append(savedFiles, filePath)
 			sanitizedMetadata = sanitizedVideo.FileCommonMetadata
+
+			// Save video thumbnail if extraction succeeded
+			if videoThumbnail != nil {
+				thumbPath, err := b.mediaStorage.SaveThumbnail(videoThumbnail, filePath)
+				if err == nil {
+					savedFiles = append(savedFiles, thumbPath)
+					thumbnailPath = &thumbPath
+				}
+				// Note: Don't fail upload if thumbnail save fails
+			}
 
 		} else if pendingFile.IsImage() {
 			sanitizedImage, err := svcutils.SanitizeImage(pendingFile)
