@@ -61,7 +61,11 @@ func New(ctx context.Context, cfg *config.Config) (*Storage, error) {
 	logger.Log.Info("successfully connected to database")
 
 	storage := &Storage{db, cfg}
-	storage.StartPeriodicViewRefresh(ctx, cfg.Public.BoardPreviewRefreshInterval*time.Second)
+	storage.StartPeriodicViewRefresh(
+		ctx,
+		cfg.Public.BoardPreviewRefreshInterval*time.Second,
+		cfg.Public.BoardActivityWindow*time.Second,
+	)
 
 	return storage, nil
 }
