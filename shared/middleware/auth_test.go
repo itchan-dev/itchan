@@ -163,9 +163,9 @@ func TestAuthWithBlacklist(t *testing.T) {
 			shouldSetUser:  false,
 		},
 		{
-			name:   "User with valid token and nil blacklist cache",
-			cookie: &http.Cookie{Name: "accessToken", Value: token},
-			blacklist: nil,
+			name:           "User with valid token and nil blacklist cache",
+			cookie:         &http.Cookie{Name: "accessToken", Value: token},
+			blacklist:      nil,
 			expectedStatus: http.StatusOK,
 			shouldSetUser:  true,
 		},

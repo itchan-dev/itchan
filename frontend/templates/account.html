@@ -17,7 +17,7 @@
 <div class="activity-feed">
     {{range .ActivityMessages}}
         {{/* Render using standard post template */}}
-        {{template "post" dict "Message" . "User" $.User}}
+        {{template "post" dict "Message" . "User" $.User "CSRFToken" $.CSRFToken}}
     {{end}}
 </div>
 {{else}}

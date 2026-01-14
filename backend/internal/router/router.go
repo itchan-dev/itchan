@@ -47,6 +47,7 @@ func New(deps *setup.Dependencies) *mux.Router {
 	// Admin routes
 	admin := v1.PathPrefix("/admin").Subrouter()
 	admin.Use(authMw.AdminOnly())
+
 	admin.HandleFunc("/boards", h.CreateBoard).Methods("POST")
 	admin.HandleFunc("/{board}", h.DeleteBoard).Methods("DELETE")
 	admin.HandleFunc("/{board}/{thread}", h.DeleteThread).Methods("DELETE")

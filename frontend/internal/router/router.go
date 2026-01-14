@@ -29,6 +29,13 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 		"form-action 'self'"
 	r.Use(mw.SecurityHeadersWithCSP(deps.Public.SecureCookies, frontendCSP))
 
+	// CSRF token generation for all routes (if enabled)
+	if deps.Public.CSRFEnabled {
+		r.Use(frontend_mw.GenerateCSRFToken(frontend_mw.CSRFConfig{
+			SecureCookies: deps.Public.SecureCookies,
+		}))
+	}
+
 	// Public routes (GET endpoints - no rate limiting needed)
 	r.HandleFunc("/favicon.ico", handler.FaviconHandler)
 	r.HandleFunc("/login", deps.Handler.LoginGetHandler).Methods("GET")
@@ -59,6 +66,12 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	// Admin-only routes (register before generic path patterns to avoid conflicts)
 	adminRouter := r.NewRoute().Subrouter()
 	adminRouter.Use(authMw.AdminOnly())
+
+	// Add CSRF validation for admin operations
+	if deps.Public.CSRFEnabled {
+		adminRouter.Use(frontend_mw.ValidateCSRFToken())
+	}
+
 	adminRouter.HandleFunc("/blacklist/user", deps.Handler.BlacklistUserHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/delete", deps.Handler.BoardDeleteHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler).Methods("POST")
@@ -69,6 +82,11 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	authRouter.Use(authMw.NeedAuth())
 	authRouter.Use(mw.RestrictBoardAccess(deps.AccessData))           // Enforce board access restrictions
 	authRouter.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
+
+	// Add CSRF validation for authenticated state-changing operations
+	if deps.Public.CSRFEnabled {
+		authRouter.Use(frontend_mw.ValidateCSRFToken())
+	}
 
 	// Media file server - serve files from shared media directory
 	mediaPath := deps.Handler.MediaPath

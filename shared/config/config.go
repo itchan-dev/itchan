@@ -26,6 +26,7 @@ type Public struct {
 
 	// Security settings
 	SecureCookies bool `yaml:"secure_cookies"` // Enable Secure flag on cookies (requires HTTPS)
+	CSRFEnabled   bool `yaml:"csrf_enabled"`   // Enable CSRF protection (default: true)
 
 	// Logging settings
 	LogLevel  string `yaml:"log_level"`  // Log level: debug, info, warn, error (default: info)
@@ -48,11 +49,11 @@ type Public struct {
 	AllowedVideoMimeTypes    []string `yaml:"allowed_video_mime_types"`
 
 	// Invite system configuration
-	InviteEnabled            bool          `yaml:"invite_enabled"`
-	InviteCodeLength         int           `yaml:"invite_code_length"`
-	InviteCodeTTL            time.Duration `yaml:"invite_code_ttl"`
-	MaxInvitesPerUser        int           `yaml:"max_invites_per_user"`
-	MinAccountAgeForInvites  time.Duration `yaml:"min_account_age_for_invites"`
+	InviteEnabled           bool          `yaml:"invite_enabled"`
+	InviteCodeLength        int           `yaml:"invite_code_length"`
+	InviteCodeTTL           time.Duration `yaml:"invite_code_ttl"`
+	MaxInvitesPerUser       int           `yaml:"max_invites_per_user"`
+	MinAccountAgeForInvites time.Duration `yaml:"min_account_age_for_invites"`
 
 	// User activity page settings
 	UserMessagesPageLimit int `yaml:"user_messages_page_limit"` // Number of messages/replies shown on account page
@@ -210,5 +211,10 @@ func applyValidationDefaults(public *Public) {
 	// User activity page defaults
 	if public.UserMessagesPageLimit == 0 {
 		public.UserMessagesPageLimit = 50
+	}
+
+	// CSRF protection default (enabled by default for security)
+	if !public.CSRFEnabled {
+		public.CSRFEnabled = true
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 
+	frontend_mw "github.com/itchan-dev/itchan/frontend/internal/middleware"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/validation"
@@ -166,6 +167,7 @@ type CommonTemplateData struct {
 	Success    template.HTML
 	User       *domain.User
 	Validation ValidationData
+	CSRFToken  string // CSRF token for form submissions
 }
 
 // ValidationData holds all validation constants needed by templates.
@@ -222,6 +224,7 @@ func (h *Handler) InitCommonTemplateData(w http.ResponseWriter, r *http.Request)
 	common := CommonTemplateData{
 		User:       mw.GetUserFromContext(r),
 		Validation: h.NewValidationData(),
+		CSRFToken:  frontend_mw.GetCSRFTokenFromContext(r),
 	}
 	// Automatically populate flash messages (and delete them)
 	common.Error, common.Success = h.getFlashes(w, r)
