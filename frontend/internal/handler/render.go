@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
 	"bytes"
 	"fmt"
 	"html/template"
+
+	"github.com/itchan-dev/itchan/shared/logger"
 
 	"net/http"
 

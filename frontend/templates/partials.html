@@ -1,3 +1,8 @@
+{{/* CSRF token hidden field - include in all state-changing forms */}}
+{{define "csrf-field"}}
+<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+{{end}}
+
 {{/* Error message display */}}
 {{define "error-message"}}
 {{if .Error}}
@@ -39,6 +44,7 @@
 <div class="popup-reply-container post-form-container" style="display: none;">
     <button class="popup-close-btn" aria-label="Close">&times;</button>
     <form method="post" enctype="multipart/form-data"> {{/* Action will be set by JS */}}
+        {{template "csrf-field" .}}
         <input type="hidden" name="form_action" value="reply">
         <table class="form-table">
             <tbody>
@@ -78,8 +84,8 @@
     {{end}}
     {{if .User}}
         {{if .User.Admin}}
-            {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete"}}
-            {{template "blacklist-button" dict "UserId" .Message.Author.Id "Referer" (printf "/%s/%d" $.Message.Board $.Message.ThreadId)}}
+            {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete" "CSRFToken" $.CSRFToken}}
+            {{template "blacklist-button" dict "UserId" .Message.Author.Id "Referer" (printf "/%s/%d" $.Message.Board $.Message.ThreadId) "CSRFToken" $.CSRFToken}}
         {{end}}
     {{end}}
 </div>
@@ -166,6 +172,7 @@
 {{/* Generic delete button form */}}
 {{define "delete-button"}}
 <form method="POST" action="{{.Action}}" class="delete-form" onsubmit="return confirm('{{.ConfirmMessage}}');">
+    {{template "csrf-field" .}}
     [<button type="submit" class="delete-button">{{.ButtonText}}</button>]
 </form>
 {{end}}
@@ -173,6 +180,7 @@
 {{/* Blacklist button form */}}
 {{define "blacklist-button"}}
 <form method="POST" action="/blacklist/user" class="blacklist-form" onsubmit="return promptBlacklistReason(event);">
+    {{template "csrf-field" .}}
     <input type="hidden" name="userId" value="{{.UserId}}">
     <input type="hidden" name="reason" value="">
     <input type="hidden" name="referer" value="{{.Referer}}">

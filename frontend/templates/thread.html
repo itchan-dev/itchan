@@ -11,10 +11,11 @@
 
     <div class="posts-container">
         {{ range $index, $message := .Thread.Messages }}
-            {{/* Context already populated by RenderThread - just pass Message + User! */}}
+            {{/* Context already populated by RenderThread - just pass Message + User + CSRFToken! */}}
             {{template "post" (dict
                 "Message" $message
                 "User" $.User
+                "CSRFToken" $.CSRFToken
             )}}
         {{ end }}
     </div><!-- End posts-container -->
@@ -25,6 +26,7 @@
     <!-- Reply Form (Bottom) -->
      <div class="post-form-container" id="reply-form-bottom">
         <form action="/{{ .Thread.Board }}/{{ .Thread.Id }}" method="post" enctype="multipart/form-data">
+             {{template "csrf-field" .}}
              <input type="hidden" name="form_action" value="reply">
              <table class="form-table">
                  <tbody>

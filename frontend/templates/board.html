@@ -8,6 +8,7 @@
     <!-- New Thread Form -->
     <div class="post-form-container">
         <form action="/{{ .Board.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
+             {{template "csrf-field" .}}
              <input type="hidden" name="form_action" value="new_thread">
              <table class="form-table">
                  <tbody>
@@ -46,6 +47,7 @@
                     {{template "post" (dict
                         "Message" $opMessage
                         "User" $.User
+                        "CSRFToken" $.CSRFToken
                     )}}
 
                     {{/* Display Reply Previews (rest of the messages) */}}
@@ -55,6 +57,7 @@
                         {{template "post" (dict
                             "Message" $reply
                             "User" $.User
+                            "CSRFToken" $.CSRFToken
                         )}}
                     {{ end }}
 

@@ -7,7 +7,7 @@
     <li>
         <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
         {{if $.User.Admin}}
-        {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete"}}
+        {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.CSRFToken}}
         {{end}}
     </li>
     {{end}}
@@ -21,6 +21,7 @@
 <div class="admin-panel">
     <h2>Create New Board</h2>
     <form method="POST" action="/">
+        {{template "csrf-field" .}}
         <table class="form-table">
             <tbody>
                 <tr>

@@ -17,6 +17,7 @@
 
 <!-- Generate form -->
 <form method="POST" action="/invites/generate">
+    {{template "csrf-field" .}}
     {{if and (not .User.Admin) (not .IsEligibleByAge)}}
     <input type="submit" value="Generate New Invite" disabled title="Account too young">
     {{else if and (not .User.Admin) (eq .RemainingInvites 0)}}
@@ -57,6 +58,7 @@
             <td>
                 {{if not .UsedBy}}
                 <form method="POST" action="/invites/revoke" style="display:inline;">
+                    {{template "csrf-field" $}}
                     <input type="hidden" name="codeHash" value="{{.CodeHash}}">
                     <input type="submit" value="Revoke" onclick="return confirm('Revoke this invite?')">
                 </form>
