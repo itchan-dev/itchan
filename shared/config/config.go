@@ -22,6 +22,7 @@ type Public struct {
 	NLastMsg                    int           `yaml:"n_last_msg" validate:"required"` // number of last messages shown in board preview (materialized view)
 	BumpLimit                   int           `yaml:"bump_limit" validate:"required"` // if thread have more messages it will not get "bumped"
 	BoardPreviewRefreshInterval time.Duration `yaml:"board_preview_refresh_internval" validate:"required"`
+	BoardActivityWindow         time.Duration `yaml:"board_activity_window"` // How far back to check for board activity (should be > refresh interval)
 	BlacklistCacheInterval      int           `yaml:"blacklist_cache_interval" validate:"required"` // Interval in seconds to refresh blacklist cache
 
 	// Security settings
@@ -211,6 +212,11 @@ func applyValidationDefaults(public *Public) {
 	// User activity page defaults
 	if public.UserMessagesPageLimit == 0 {
 		public.UserMessagesPageLimit = 50
+	}
+
+	// Board activity window default (6x the refresh interval for reliability)
+	if public.BoardActivityWindow == 0 {
+		public.BoardActivityWindow = public.BoardPreviewRefreshInterval * 6
 	}
 
 	// CSRF protection default (enabled by default for security)

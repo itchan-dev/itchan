@@ -16,19 +16,23 @@ import (
 // without blocking user requests.
 //
 // The refresh process:
-//  1. Runs on a ticker interval (configured via cfg.Public.BoardPreviewRefreshInterval)
-//  2. Identifies boards with recent activity within the interval period
+//  1. Runs on a ticker (refreshInterval)
+//  2. Identifies boards with recent activity within the activityWindow period
 //  3. Concurrently refreshes each active board's materialized view
 //  4. Stops gracefully when the context is canceled
 //
+// The activityWindow should be larger than refreshInterval to ensure boards don't
+// "fall out" of the active window between refresh cycles. For example, with a 5s refresh
+// and 30s activity window, a board gets up to 6 refresh opportunities after each post.
+//
 // This is called once during application initialization from New().
-func (s *Storage) StartPeriodicViewRefresh(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
+func (s *Storage) StartPeriodicViewRefresh(ctx context.Context, refreshInterval, activityWindow time.Duration) {
+	ticker := time.NewTicker(refreshInterval)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				boards, err := s.GetActiveBoards(interval)
+				boards, err := s.GetActiveBoards(activityWindow)
 				if err != nil {
 					logger.Log.Error("failed to fetch active boards", "error", err)
 					continue
@@ -38,7 +42,7 @@ func (s *Storage) StartPeriodicViewRefresh(ctx context.Context, interval time.Du
 					wg.Add(1)
 					go func(b domain.Board) {
 						defer wg.Done()
-						if err := s.refreshMaterializedViewConcurrent(b.ShortName, interval); err != nil {
+						if err := s.refreshMaterializedViewConcurrent(b.ShortName, refreshInterval); err != nil {
 							logger.Log.Error("materialized view refresh failed",
 								"board", b.ShortName,
 								"error", err)
