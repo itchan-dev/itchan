@@ -116,8 +116,13 @@
                     </div>
                 </div>
             {{else if .File.IsVideo}}
+                {{$thumbnailUrl := ""}}
+                {{if .File.ThumbnailPath}}
+                    {{$thumb := derefStr .File.ThumbnailPath}}
+                    {{$thumbnailUrl = printf "/media/%s" $thumb}}
+                {{end}}
                 <div class="attachment-item">
-                    <video controls class="attachment-thumbnail">
+                    <video controls preload="none" {{if $thumbnailUrl}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail">
                         <source src="{{$mediaUrl}}" type="{{.File.MimeType}}">
                         Your browser does not support the video tag.
                     </video>

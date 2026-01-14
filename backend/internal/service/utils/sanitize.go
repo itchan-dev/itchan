@@ -99,6 +99,50 @@ func SanitizeImage(pendingFile *domain.PendingFile) (*domain.SanitizedImage, err
 	}, nil
 }
 
+// ExtractVideoThumbnail extracts the first frame from a video file as an image.
+// Uses ffmpeg to extract the frame. Returns nil if extraction fails (non-fatal).
+func ExtractVideoThumbnail(videoPath string) (image.Image, error) {
+	// Create temp file for thumbnail output
+	tmpFile, err := os.CreateTemp("", "video_thumb_*.jpg")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp thumbnail file: %w", err)
+	}
+	outputPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(outputPath) // Always clean up temp file
+
+	// Extract first frame using ffmpeg
+	cmd := exec.Command("ffmpeg",
+		"-i", videoPath,
+		"-ss", "00:00:00", // Seek to start
+		"-vframes", "1", // Extract 1 frame
+		"-f", "image2", // Output as image
+		"-y", // Overwrite output
+		outputPath,
+	)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("ffmpeg thumbnail extraction failed: %w (stderr: %s)", err, stderr.String())
+	}
+
+	// Read and decode the extracted frame
+	thumbFile, err := os.Open(outputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open extracted thumbnail: %w", err)
+	}
+	defer thumbFile.Close()
+
+	img, _, err := image.Decode(thumbFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode extracted thumbnail: %w", err)
+	}
+
+	return img, nil
+}
+
 // SanitizeVideo sanitizes a video file by stripping metadata using ffmpeg.
 // Returns a SanitizedVideo with path to temp file on disk (caller must move/delete it).
 func SanitizeVideo(pendingFile *domain.PendingFile) (*domain.SanitizedVideo, error) {
