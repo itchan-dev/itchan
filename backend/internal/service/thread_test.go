@@ -44,11 +44,12 @@ func (m *MockMessageService) Delete(board domain.BoardShortName, id domain.MsgId
 
 // MockThreadStorage mocks the ThreadStorage interface.
 type MockThreadStorage struct {
-	createThreadFunc  func(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error)
-	getThreadFunc     func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
-	deleteThreadFunc  func(board domain.BoardShortName, id domain.ThreadId) error
-	threadCountFunc   func(board domain.BoardShortName) (int, error)
-	lastThreadIdFunc  func(board domain.BoardShortName) (domain.ThreadId, error)
+	createThreadFunc       func(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error)
+	getThreadFunc          func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	deleteThreadFunc       func(board domain.BoardShortName, id domain.ThreadId) error
+	threadCountFunc        func(board domain.BoardShortName) (int, error)
+	lastThreadIdFunc       func(board domain.BoardShortName) (domain.ThreadId, error)
+	toggleStickyStatusFunc func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
 
 	mu                 sync.Mutex
 	deleteThreadCalled bool
@@ -119,6 +120,13 @@ func (m *MockThreadStorage) LastThreadId(board domain.BoardShortName) (domain.Th
 	}
 	// Default success returns an arbitrary old ID (e.g., 0)
 	return 0, nil
+}
+
+func (m *MockThreadStorage) ToggleStickyStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+	if m.toggleStickyStatusFunc != nil {
+		return m.toggleStickyStatusFunc(board, threadId)
+	}
+	return true, nil // Default success, returns new sticky status
 }
 
 // MockThreadValidator mocks the ThreadValidator interface.

@@ -225,7 +225,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	// ViewTableName returns an already quoted identifier
 	rows, err := q.Query(
 		fmt.Sprintf(`
-            SELECT thread_title, message_count, last_bumped_at, thread_id,
+            SELECT thread_title, message_count, last_bumped_at, thread_id, is_sticky,
                    msg_id, author_id, author_email, author_is_admin,
                    text, created_at, is_op, ordinal
             FROM %s
@@ -248,6 +248,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		NMessages     int
 		LastBumpTs    time.Time
 		ThreadID      domain.ThreadId
+		IsSticky      bool
 		MsgID         domain.MsgId
 		AuthorID      domain.UserId
 		AuthorEmail   domain.Email
@@ -267,7 +268,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	for rows.Next() {
 		var row rowData
 		if err := rows.Scan(
-			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.MsgID,
+			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.IsSticky, &row.MsgID,
 			&row.AuthorID, &row.AuthorEmail, &row.AuthorIsAdmin,
 			&row.Text, &row.CreatedAt, &row.IsOp, &row.Ordinal,
 		); err != nil {
@@ -292,6 +293,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 					Board:        shortName, // Board shortName from the outer scope
 					MessageCount: row.NMessages,
 					LastBumped:   row.LastBumpTs,
+					IsSticky:     row.IsSticky,
 				},
 				Messages: []*domain.Message{},
 			}

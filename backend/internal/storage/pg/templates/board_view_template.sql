@@ -8,6 +8,7 @@ CREATE MATERIALIZED VIEW %[1]s AS
 			t.message_count as message_count,
 			t.last_bumped_at as last_bumped_at,
 			t.id as thread_id,
+			t.is_sticky as is_sticky,
 			m.id as msg_id,
 			m.author_id as author_id,
 			u.email as author_email,
@@ -27,6 +28,6 @@ CREATE MATERIALIZED VIEW %[1]s AS
 	)
 	SELECT
 		*
-		,dense_rank() over(order by last_bumped_at desc, thread_id) as thread_order -- for pagination
+		,dense_rank() over(order by is_sticky desc, last_bumped_at desc, thread_id) as thread_order -- sticky first, then by bump time
 	FROM data;
 CREATE UNIQUE INDEX ON %[1]s (msg_id);

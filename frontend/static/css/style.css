@@ -173,6 +173,38 @@ blockquote {
     text-decoration: underline;
 }
 
+/* Sticky indicator - visible to all users */
+.sticky-indicator {
+    color: #ff6600;
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+/* Sticky toggle form - inline with other buttons */
+.sticky-form {
+    display: inline;
+    margin: 0;
+    padding: 0;
+}
+
+/* Sticky toggle button */
+.sticky-button {
+    background: none;
+    border: none;
+    color: #ff6600;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    font-size: 10pt;
+    font-family: inherit;
+}
+
+.sticky-button:hover {
+    color: #ff9900;
+    text-decoration: underline;
+}
+
 /* ==========================================
    General Form Styles (Tables)
    ========================================== */
