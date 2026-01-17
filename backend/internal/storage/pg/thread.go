@@ -55,16 +55,16 @@ func (s *Storage) DeleteThread(board domain.BoardShortName, id domain.MsgId) err
 	})
 }
 
-// ToggleStickyStatus is the public entry point for toggling a thread's sticky status.
-// It wraps the update in a transaction and returns the new sticky status.
-func (s *Storage) ToggleStickyStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+// TogglePinnedStatus is the public entry point for toggling a thread's pinned status.
+// It wraps the update in a transaction and returns the new pinned status.
+func (s *Storage) TogglePinnedStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	var newStatus bool
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		var err error
-		newStatus, err = s.toggleStickyStatus(tx, board, threadId)
+		newStatus, err = s.togglePinnedStatus(tx, board, threadId)
 		return err
 	})
 	return newStatus, err
@@ -111,13 +111,13 @@ func (s *Storage) createThread(q Querier, creationData domain.ThreadCreationData
 	partitionName := PartitionName(creationData.Board, "threads")
 	err = q.QueryRow(
 		fmt.Sprintf(`
-	           INSERT INTO %s (title, board, is_sticky, created_at)
+	           INSERT INTO %s (title, board, is_pinned, created_at)
 	           VALUES ($1, $2, $3, $4)
 	           RETURNING id, created_at
 	       `, partitionName),
 		creationData.Title,
 		creationData.Board,
-		creationData.IsSticky,
+		creationData.IsPinned,
 		createdAt,
 	).Scan(&id, &createdTs)
 	if err != nil {
@@ -135,13 +135,13 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	var metadata domain.ThreadMetadata
 	err := q.QueryRow(`
 	       	SELECT
-				id, title, board, message_count, last_bumped_at, is_sticky
+				id, title, board, message_count, last_bumped_at, is_pinned
 	       	FROM threads
 		   	WHERE board = $1 AND id = $2`,
 		board, id,
 	).Scan(
 		&metadata.Id, &metadata.Title, &metadata.Board,
-		&metadata.MessageCount, &metadata.LastBumped, &metadata.IsSticky,
+		&metadata.MessageCount, &metadata.LastBumped, &metadata.IsPinned,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -271,9 +271,9 @@ func (s *Storage) deleteThread(q Querier, board domain.BoardShortName, id domain
 	return nil
 }
 
-// toggleStickyStatus contains the core logic for toggling a thread's sticky status.
-// It uses NOT is_sticky to atomically toggle the value and returns the new status.
-func (s *Storage) toggleStickyStatus(q Querier, board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+// togglePinnedStatus contains the core logic for toggling a thread's pinned status.
+// It uses NOT is_pinned to atomically toggle the value and returns the new status.
+func (s *Storage) togglePinnedStatus(q Querier, board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
 	// Update the board's last_activity timestamp.
 	_, err := q.Exec(`
         UPDATE boards SET last_activity_at = NOW() AT TIME ZONE 'utc'
@@ -281,20 +281,20 @@ func (s *Storage) toggleStickyStatus(q Querier, board domain.BoardShortName, thr
 		board,
 	)
 	if err != nil {
-		return false, fmt.Errorf("failed to update board activity on sticky toggle: %w", err)
+		return false, fmt.Errorf("failed to update board activity on pin toggle: %w", err)
 	}
 
-	// Toggle the thread's sticky status and return the new value.
+	// Toggle the thread's pinned status and return the new value.
 	var newStatus bool
 	err = q.QueryRow(
-		"UPDATE threads SET is_sticky = NOT is_sticky WHERE board = $1 AND id = $2 RETURNING is_sticky",
+		"UPDATE threads SET is_pinned = NOT is_pinned WHERE board = $1 AND id = $2 RETURNING is_pinned",
 		board, threadId,
 	).Scan(&newStatus)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
 		}
-		return false, fmt.Errorf("failed to toggle thread sticky status: %w", err)
+		return false, fmt.Errorf("failed to toggle thread pinned status: %w", err)
 	}
 
 	return newStatus, nil

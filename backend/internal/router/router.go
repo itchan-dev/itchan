@@ -51,7 +51,7 @@ func New(deps *setup.Dependencies) *mux.Router {
 	admin.HandleFunc("/boards", h.CreateBoard).Methods("POST")
 	admin.HandleFunc("/{board}", h.DeleteBoard).Methods("DELETE")
 	admin.HandleFunc("/{board}/{thread}", h.DeleteThread).Methods("DELETE")
-	admin.HandleFunc("/{board}/{thread}/sticky", h.ToggleStickyThread).Methods("POST")
+	admin.HandleFunc("/{board}/{thread}/pin", h.TogglePinnedThread).Methods("POST")
 	admin.HandleFunc("/{board}/{thread}/{message}", h.DeleteMessage).Methods("DELETE")
 
 	// Admin blacklist routes

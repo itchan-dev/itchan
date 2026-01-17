@@ -71,8 +71,8 @@
 {{define "post-header"}}
 <div class="post-header">
     <input type="checkbox" name="delete" value="{{.Message.Id}}">
-    {{/* Show sticky indicator for OP messages */}}
-    {{if and .Message.Op .Message.Context.IsSticky}}<span class="sticky-indicator" title="Sticky thread">[Sticky]</span>{{end}}
+    {{/* Show pinned indicator for OP messages */}}
+    {{if and .Message.Op .Message.Context.IsPinned}}<span class="pinned-indicator" title="Pinned thread">[Pinned]</span>{{end}}
     {{if .Message.Context.Subject}}<span class="post-subject">{{.Message.Context.Subject}}</span>{{end}}
     <span class="post-author">{{if and .User .User.Admin}}{{.Message.Author.Email}}{{if .Message.Author.Admin}} <span class="admin-badge">[admin]</span>{{end}}{{else}}Anonymous{{end}}</span>
     <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
@@ -86,9 +86,9 @@
     {{end}}
     {{if .User}}
         {{if .User.Admin}}
-            {{/* Show sticky toggle for OP messages */}}
+            {{/* Show pin toggle for OP messages */}}
             {{if .Message.Op}}
-                {{template "sticky-toggle-button" dict "Action" (printf "/%s/%d/sticky" $.Message.Board $.Message.ThreadId) "IsSticky" .Message.Context.IsSticky "CSRFToken" $.CSRFToken}}
+                {{template "pin-toggle-button" dict "Action" (printf "/%s/%d/pin" $.Message.Board $.Message.ThreadId) "IsPinned" .Message.Context.IsPinned "CSRFToken" $.CSRFToken}}
             {{end}}
             {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete" "CSRFToken" $.CSRFToken}}
             {{template "blacklist-button" dict "UserId" .Message.Author.Id "CSRFToken" $.CSRFToken}}
@@ -198,11 +198,11 @@
 </form>
 {{end}}
 
-{{/* Sticky toggle button form */}}
-{{define "sticky-toggle-button"}}
-<form method="POST" action="{{.Action}}" class="sticky-form">
+{{/* Pin toggle button form */}}
+{{define "pin-toggle-button"}}
+<form method="POST" action="{{.Action}}" class="pin-form">
     {{template "csrf-field" .}}
-    [<button type="submit" class="sticky-button">{{if .IsSticky}}unsticky{{else}}sticky{{end}}</button>]
+    [<button type="submit" class="pin-button">{{if .IsPinned}}unpin{{else}}pin{{end}}</button>]
 </form>
 {{end}}
 

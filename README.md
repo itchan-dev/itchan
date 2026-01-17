@@ -33,7 +33,7 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 - **Attachments-Only Messages**: Post messages with only attachments (text is optional)
 - **Markdown Support**: Rich text formatting using a custom markdown parser
 - **Thread Bumping**: Automatic bump-to-top with configurable bump limits
-- **Sticky Threads**: Pin important threads to the top of boards
+- **Pinned Threads**: Pin important threads to the top of boards
 - **Pagination**: Efficient board browsing with configurable threads per page
 
 ### Authentication & Authorization
@@ -345,7 +345,7 @@ The database uses PostgreSQL's **table partitioning** for scalability. Each boar
 - **confirmation_data**: Email confirmation codes for registration
 - **boards**: Board metadata (name, short_name, activity timestamps)
 - **board_permissions**: Domain-based access control (email domain allowlist per board)
-- **threads**: Thread metadata (title, message count, bump time, sticky flag) - **partitioned by board**
+- **threads**: Thread metadata (title, message count, bump time, pinned flag) - **partitioned by board**
 - **messages**: Individual posts (text, author, timestamps, ordinal) - **partitioned by board**
 - **attachments**: Links messages to uploaded files - **partitioned by board**
 - **files**: File metadata with both original and sanitized filenames/MIME types (path, size, dimensions, thumbnail path)

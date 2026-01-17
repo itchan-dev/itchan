@@ -32,7 +32,7 @@ func (r *Reply) HTMLLinkFrom() template.HTML {
 type RenderContext struct {
 	ExtraClasses string // CSS classes: "op-post", "reply-post", "message-preview"
 	Subject      string // Subject line (thread title for OP messages)
-	IsSticky     bool   // Whether the parent thread is sticky (only relevant for OP messages)
+	IsPinned     bool   // Whether the parent thread is pinned (only relevant for OP messages)
 }
 
 type Message struct {

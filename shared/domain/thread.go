@@ -8,7 +8,7 @@ import (
 type ThreadCreationData struct {
 	Title     ThreadTitle
 	Board     BoardShortName
-	IsSticky  bool
+	IsPinned  bool
 	OpMessage MessageCreationData
 }
 
@@ -18,7 +18,7 @@ type ThreadMetadata struct {
 	Board        BoardShortName
 	MessageCount int
 	LastBumped   time.Time
-	IsSticky     bool
+	IsPinned     bool
 }
 
 type Thread struct {

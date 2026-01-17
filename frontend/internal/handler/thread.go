@@ -100,7 +100,7 @@ func (h *Handler) ThreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, targetURL, http.StatusSeeOther)
 }
 
-func (h *Handler) ThreadToggleStickyHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ThreadTogglePinnedHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	boardShortName := vars["board"]
 	threadId := vars["thread"]
@@ -111,9 +111,9 @@ func (h *Handler) ThreadToggleStickyHandler(w http.ResponseWriter, r *http.Reque
 		referer = fmt.Sprintf("/%s/%s", boardShortName, threadId)
 	}
 
-	_, err := h.APIClient.ToggleStickyThread(r, boardShortName, threadId)
+	_, err := h.APIClient.TogglePinnedThread(r, boardShortName, threadId)
 	if err != nil {
-		logger.Log.Error("toggling sticky via API", "error", err)
+		logger.Log.Error("toggling pin via API", "error", err)
 		h.redirectWithFlash(w, r, referer, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}

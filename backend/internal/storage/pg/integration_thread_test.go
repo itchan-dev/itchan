@@ -80,16 +80,16 @@ func TestThreadOperations(t *testing.T) {
 			requireNotFoundError(t, err)
 		})
 
-		t.Run("CreateStickyThread", func(t *testing.T) {
+		t.Run("CreatePinnedThread", func(t *testing.T) {
 			opMsg := domain.MessageCreationData{
 				Board:  boardShortName,
 				Author: domain.User{Id: userID},
-				Text:   "Sticky Post",
+				Text:   "Pinned Post",
 			}
 			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
-				Title:     "Sticky Thread",
-				Board:     boardShortName,
-				IsSticky:  true,
+				Title:    "Pinned Thread",
+				Board:    boardShortName,
+				IsPinned: true,
 				OpMessage: opMsg,
 			})
 			require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestThreadOperations(t *testing.T) {
 
 			thread, err := storage.getThread(tx, boardShortName, threadID)
 			require.NoError(t, err)
-			assert.True(t, thread.IsSticky)
+			assert.True(t, thread.IsPinned)
 		})
 	})
 

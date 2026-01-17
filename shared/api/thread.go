@@ -8,7 +8,7 @@ import (
 
 type CreateThreadRequest struct {
 	Title     string               `json:"title" validate:"required"`
-	IsSticky  bool                 `json:"is_sticky,omitempty"`
+	IsPinned  bool                 `json:"is_pinned,omitempty"`
 	OpMessage CreateMessageRequest `json:"op_message"`
 }
 

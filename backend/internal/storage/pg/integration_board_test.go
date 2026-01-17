@@ -421,7 +421,7 @@ func TestBoardOperations(t *testing.T) {
 
 	// =========================================================================
 	// Test: LastThreadId
-	// Verifies finding the ID of the least recently bumped (oldest) non-sticky thread.
+	// Verifies finding the ID of the least recently bumped (oldest) non-pinned thread.
 	// =========================================================================
 	t.Run("LastThreadId", func(t *testing.T) {
 		t.Run("fails for empty board", func(t *testing.T) {
@@ -486,7 +486,7 @@ func TestBoardOperations(t *testing.T) {
 			assert.Equal(t, threadIDs[0], lastID, "Should return oldest thread ID")
 		})
 
-		t.Run("ignores sticky threads", func(t *testing.T) {
+		t.Run("ignores pinned threads", func(t *testing.T) {
 			tx, cleanup := beginTx(t)
 			defer cleanup()
 
@@ -495,13 +495,13 @@ func TestBoardOperations(t *testing.T) {
 			userID := createTestUser(t, tx, generateString(t)+"@example.com")
 
 			tID1, _ := createTestThread(t, tx, domain.ThreadCreationData{
-				Title:    "Sticky Thread",
+				Title:    "Pinned Thread",
 				Board:    boardA,
-				IsSticky: true,
+				IsPinned: true,
 				OpMessage: domain.MessageCreationData{
 					Board:  boardA,
 					Author: domain.User{Id: userID},
-					Text:   "OP Sticky",
+					Text:   "OP Pinned",
 				},
 			})
 			time.Sleep(20 * time.Millisecond)
@@ -518,9 +518,9 @@ func TestBoardOperations(t *testing.T) {
 
 			lastID, err := storage.lastThreadId(tx, boardA)
 			require.NoError(t, err)
-			assert.Equal(t, tID2, lastID, "Should ignore sticky thread and return non-sticky thread")
+			assert.Equal(t, tID2, lastID, "Should ignore pinned thread and return non-pinned thread")
 
-			_, err = tx.Exec("UPDATE threads SET is_sticky = TRUE WHERE id = $1 AND board = $2", tID2, boardA)
+			_, err = tx.Exec("UPDATE threads SET is_pinned = TRUE WHERE id = $1 AND board = $2", tID2, boardA)
 			require.NoError(t, err)
 
 			_, err = storage.lastThreadId(tx, boardA)

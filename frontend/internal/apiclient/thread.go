@@ -169,8 +169,8 @@ func (c *APIClient) DeleteThread(r *http.Request, shortName, threadID string) er
 	return nil
 }
 
-func (c *APIClient) ToggleStickyThread(r *http.Request, shortName, threadID string) (bool, error) {
-	path := fmt.Sprintf("/v1/admin/%s/%s/sticky", shortName, threadID)
+func (c *APIClient) TogglePinnedThread(r *http.Request, shortName, threadID string) (bool, error) {
+	path := fmt.Sprintf("/v1/admin/%s/%s/pin", shortName, threadID)
 	resp, err := c.do("POST", path, nil, r.Cookies()...)
 	if err != nil {
 		return false, err
@@ -179,14 +179,14 @@ func (c *APIClient) ToggleStickyThread(r *http.Request, shortName, threadID stri
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return false, fmt.Errorf("failed to toggle sticky: %s", string(bodyBytes))
+		return false, fmt.Errorf("failed to toggle pin: %s", string(bodyBytes))
 	}
 
 	var result struct {
-		IsSticky bool `json:"is_sticky"`
+		IsPinned bool `json:"is_pinned"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return false, fmt.Errorf("failed to decode sticky response: %w", err)
+		return false, fmt.Errorf("failed to decode pin response: %w", err)
 	}
-	return result.IsSticky, nil
+	return result.IsPinned, nil
 }
