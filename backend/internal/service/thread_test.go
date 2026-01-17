@@ -49,7 +49,7 @@ type MockThreadStorage struct {
 	deleteThreadFunc       func(board domain.BoardShortName, id domain.ThreadId) error
 	threadCountFunc        func(board domain.BoardShortName) (int, error)
 	lastThreadIdFunc       func(board domain.BoardShortName) (domain.ThreadId, error)
-	toggleStickyStatusFunc func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
+	togglePinnedStatusFunc func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
 
 	mu                 sync.Mutex
 	deleteThreadCalled bool
@@ -122,11 +122,11 @@ func (m *MockThreadStorage) LastThreadId(board domain.BoardShortName) (domain.Th
 	return 0, nil
 }
 
-func (m *MockThreadStorage) ToggleStickyStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
-	if m.toggleStickyStatusFunc != nil {
-		return m.toggleStickyStatusFunc(board, threadId)
+func (m *MockThreadStorage) TogglePinnedStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+	if m.togglePinnedStatusFunc != nil {
+		return m.togglePinnedStatusFunc(board, threadId)
 	}
-	return true, nil // Default success, returns new sticky status
+	return true, nil // Default success, returns new pinned status
 }
 
 // MockThreadValidator mocks the ThreadValidator interface.

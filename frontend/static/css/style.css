@@ -173,22 +173,22 @@ blockquote {
     text-decoration: underline;
 }
 
-/* Sticky indicator - visible to all users */
-.sticky-indicator {
+/* Pinned indicator - visible to all users */
+.pinned-indicator {
     color: #ff6600;
     font-weight: bold;
     margin-right: 5px;
 }
 
-/* Sticky toggle form - inline with other buttons */
-.sticky-form {
+/* Pin toggle form - inline with other buttons */
+.pin-form {
     display: inline;
     margin: 0;
     padding: 0;
 }
 
-/* Sticky toggle button */
-.sticky-button {
+/* Pin toggle button */
+.pin-button {
     background: none;
     border: none;
     color: #ff6600;
@@ -200,7 +200,7 @@ blockquote {
     font-family: inherit;
 }
 
-.sticky-button:hover {
+.pin-button:hover {
     color: #ff9900;
     text-decoration: underline;
 }

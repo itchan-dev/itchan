@@ -36,7 +36,7 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	creation := domain.ThreadCreationData{
 		Title:    domain.ThreadTitle(body.Title),
 		Board:    board,
-		IsSticky: body.IsSticky,
+		IsPinned: body.IsPinned,
 		OpMessage: domain.MessageCreationData{
 			Author:       *user,
 			Text:         domain.MsgText(body.OpMessage.Text),
@@ -91,7 +91,7 @@ func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *Handler) ToggleStickyThread(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) TogglePinnedThread(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
 	threadIdStr := mux.Vars(r)["thread"]
 	threadId, err := parseIntParam(threadIdStr, "thread ID")
@@ -100,7 +100,7 @@ func (h *Handler) ToggleStickyThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newStatus, err := h.thread.ToggleSticky(board, domain.ThreadId(threadId))
+	newStatus, err := h.thread.TogglePinned(board, domain.ThreadId(threadId))
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -108,5 +108,5 @@ func (h *Handler) ToggleStickyThread(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"is_sticky": %t}`, newStatus)
+	fmt.Fprintf(w, `{"is_pinned": %t}`, newStatus)
 }

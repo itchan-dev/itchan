@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS threads (
 	message_count    int NOT NULL default 0,
 	last_bumped_at   timestamp NOT NULL default (now() at time zone 'utc'),
     created_at       timestamp NOT NULL default (now() at time zone 'utc'),
-    is_sticky        boolean NOT NULL default false,
+    is_pinned        boolean NOT NULL default false,
     PRIMARY KEY (board, id)
 ) PARTITION BY LIST (board);
 CREATE INDEX IF NOT EXISTS threads_last_bumped_at_index ON threads (board, last_bumped_at DESC);

@@ -62,7 +62,7 @@ func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 		// Enrich OP messages with thread-specific context
 		if msg.Op {
 			renderedThread.Messages[i].Context.Subject = thread.Title
-			renderedThread.Messages[i].Context.IsSticky = thread.IsSticky
+			renderedThread.Messages[i].Context.IsPinned = thread.IsPinned
 		}
 	}
 	return &renderedThread

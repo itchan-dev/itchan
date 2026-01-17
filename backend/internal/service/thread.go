@@ -12,7 +12,7 @@ type ThreadService interface {
 	Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
 	Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
 	Delete(board domain.BoardShortName, id domain.ThreadId) error
-	ToggleSticky(board domain.BoardShortName, id domain.ThreadId) (bool, error)
+	TogglePinned(board domain.BoardShortName, id domain.ThreadId) (bool, error)
 }
 
 type Thread struct {
@@ -28,7 +28,7 @@ type ThreadStorage interface {
 	DeleteThread(board domain.BoardShortName, id domain.ThreadId) error
 	ThreadCount(board domain.BoardShortName) (int, error)
 	LastThreadId(board domain.BoardShortName) (domain.ThreadId, error)
-	ToggleStickyStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
+	TogglePinnedStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
 }
 
 type ThreadValidator interface {
@@ -100,6 +100,6 @@ func (b *Thread) Delete(board domain.BoardShortName, id domain.MsgId) error {
 	return nil
 }
 
-func (b *Thread) ToggleSticky(board domain.BoardShortName, id domain.ThreadId) (bool, error) {
-	return b.storage.ToggleStickyStatus(board, id)
+func (b *Thread) TogglePinned(board domain.BoardShortName, id domain.ThreadId) (bool, error) {
+	return b.storage.TogglePinnedStatus(board, id)
 }

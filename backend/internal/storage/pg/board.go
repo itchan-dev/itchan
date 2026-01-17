@@ -83,7 +83,7 @@ func (s *Storage) ThreadCount(board domain.BoardShortName) (int, error) {
 }
 
 // LastThreadId is a public, read-only utility method to find the least recently
-// bumped non-sticky thread, often used for pruning.
+// bumped non-pinned thread, often used for pruning.
 func (s *Storage) LastThreadId(board domain.BoardShortName) (domain.MsgId, error) {
 	return s.lastThreadId(s.db, board)
 }
@@ -225,7 +225,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	// ViewTableName returns an already quoted identifier
 	rows, err := q.Query(
 		fmt.Sprintf(`
-            SELECT thread_title, message_count, last_bumped_at, thread_id, is_sticky,
+            SELECT thread_title, message_count, last_bumped_at, thread_id, is_pinned,
                    msg_id, author_id, author_email, author_is_admin,
                    text, created_at, is_op, ordinal
             FROM %s
@@ -248,7 +248,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		NMessages     int
 		LastBumpTs    time.Time
 		ThreadID      domain.ThreadId
-		IsSticky      bool
+		IsPinned      bool
 		MsgID         domain.MsgId
 		AuthorID      domain.UserId
 		AuthorEmail   domain.Email
@@ -268,7 +268,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	for rows.Next() {
 		var row rowData
 		if err := rows.Scan(
-			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.IsSticky, &row.MsgID,
+			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.IsPinned, &row.MsgID,
 			&row.AuthorID, &row.AuthorEmail, &row.AuthorIsAdmin,
 			&row.Text, &row.CreatedAt, &row.IsOp, &row.Ordinal,
 		); err != nil {
@@ -293,7 +293,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 					Board:        shortName, // Board shortName from the outer scope
 					MessageCount: row.NMessages,
 					LastBumped:   row.LastBumpTs,
-					IsSticky:     row.IsSticky,
+					IsPinned:     row.IsPinned,
 				},
 				Messages: []*domain.Message{},
 			}
@@ -479,14 +479,14 @@ func (s *Storage) lastThreadId(q Querier, board domain.BoardShortName) (domain.M
 	var id int64
 	err := q.QueryRow(`
 	SELECT id FROM threads
-	WHERE board = $1 AND is_sticky = FALSE
+	WHERE board = $1 AND is_pinned = FALSE
 	ORDER BY last_bumped_at ASC, id LIMIT 1`,
 		board,
 	).Scan(&id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return -1, &internal_errors.ErrorWithStatusCode{
-				Message: fmt.Sprintf("No non-sticky threads found on board '%s'", board), StatusCode: http.StatusNotFound,
+				Message: fmt.Sprintf("No non-pinned threads found on board '%s'", board), StatusCode: http.StatusNotFound,
 			}
 		}
 		return -1, fmt.Errorf("failed to get last thread ID for board '%s': %w", board, err)
