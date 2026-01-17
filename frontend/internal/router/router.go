@@ -75,6 +75,7 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	adminRouter.HandleFunc("/blacklist/user", deps.Handler.BlacklistUserHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/delete", deps.Handler.BoardDeleteHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler).Methods("POST")
+	adminRouter.HandleFunc("/{board}/{thread}/sticky", deps.Handler.ThreadToggleStickyHandler).Methods("POST")
 	adminRouter.HandleFunc("/{board}/{thread}/{message}/delete", deps.Handler.MessageDeleteHandler).Methods("POST")
 
 	// Authenticated routes

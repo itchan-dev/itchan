@@ -90,3 +90,23 @@ func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 }
+
+func (h *Handler) ToggleStickyThread(w http.ResponseWriter, r *http.Request) {
+	board := mux.Vars(r)["board"]
+	threadIdStr := mux.Vars(r)["thread"]
+	threadId, err := parseIntParam(threadIdStr, "thread ID")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	newStatus, err := h.thread.ToggleSticky(board, domain.ThreadId(threadId))
+	if err != nil {
+		utils.WriteErrorAndStatusCode(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `{"is_sticky": %t}`, newStatus)
+}

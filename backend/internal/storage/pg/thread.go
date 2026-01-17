@@ -55,6 +55,21 @@ func (s *Storage) DeleteThread(board domain.BoardShortName, id domain.MsgId) err
 	})
 }
 
+// ToggleStickyStatus is the public entry point for toggling a thread's sticky status.
+// It wraps the update in a transaction and returns the new sticky status.
+func (s *Storage) ToggleStickyStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var newStatus bool
+	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		newStatus, err = s.toggleStickyStatus(tx, board, threadId)
+		return err
+	})
+	return newStatus, err
+}
+
 // =========================================================================
 // Internal Methods (Core Database Logic)
 // These methods accept a Querier and are transaction-agnostic.
@@ -233,7 +248,7 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 func (s *Storage) deleteThread(q Querier, board domain.BoardShortName, id domain.MsgId) error {
 	// Update the board's last_activity timestamp.
 	result, err := q.Exec(`
-        UPDATE boards SET last_activity_at = NOW() AT TIME ZONE 'utc' 
+        UPDATE boards SET last_activity_at = NOW() AT TIME ZONE 'utc'
         WHERE short_name = $1`,
 		board,
 	)
@@ -254,4 +269,33 @@ func (s *Storage) deleteThread(q Querier, board domain.BoardShortName, id domain
 	}
 
 	return nil
+}
+
+// toggleStickyStatus contains the core logic for toggling a thread's sticky status.
+// It uses NOT is_sticky to atomically toggle the value and returns the new status.
+func (s *Storage) toggleStickyStatus(q Querier, board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+	// Update the board's last_activity timestamp.
+	_, err := q.Exec(`
+        UPDATE boards SET last_activity_at = NOW() AT TIME ZONE 'utc'
+        WHERE short_name = $1`,
+		board,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to update board activity on sticky toggle: %w", err)
+	}
+
+	// Toggle the thread's sticky status and return the new value.
+	var newStatus bool
+	err = q.QueryRow(
+		"UPDATE threads SET is_sticky = NOT is_sticky WHERE board = $1 AND id = $2 RETURNING is_sticky",
+		board, threadId,
+	).Scan(&newStatus)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
+		}
+		return false, fmt.Errorf("failed to toggle thread sticky status: %w", err)
+	}
+
+	return newStatus, nil
 }

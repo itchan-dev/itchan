@@ -18,17 +18,16 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	userID := r.FormValue("userId")
 	reason := r.FormValue("reason")
-	referer := r.FormValue("referer")
 
 	if userID == "" {
 		http.Error(w, "Missing userId", http.StatusBadRequest)
 		return
 	}
 
-	// Default redirect target
-	targetURL := "/"
-	if referer != "" {
-		targetURL = referer
+	// Use HTTP Referer header for redirect, fallback to home
+	targetURL := r.Header.Get("Referer")
+	if targetURL == "" {
+		targetURL = "/"
 	}
 
 	// Call API client

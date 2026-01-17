@@ -19,9 +19,10 @@ import (
 )
 
 type MockThreadService struct {
-	MockCreate func(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
-	MockGet    func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
-	MockDelete func(board domain.BoardShortName, id domain.ThreadId) error
+	MockCreate       func(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
+	MockGet          func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	MockDelete       func(board domain.BoardShortName, id domain.ThreadId) error
+	MockToggleSticky func(board domain.BoardShortName, id domain.ThreadId) (bool, error)
 }
 
 func (m *MockThreadService) Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
@@ -43,6 +44,13 @@ func (m *MockThreadService) Delete(board domain.BoardShortName, id domain.Thread
 		return m.MockDelete(board, id)
 	}
 	return nil
+}
+
+func (m *MockThreadService) ToggleSticky(board domain.BoardShortName, id domain.ThreadId) (bool, error) {
+	if m.MockToggleSticky != nil {
+		return m.MockToggleSticky(board, id)
+	}
+	return true, nil
 }
 
 func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *mux.Router) {
