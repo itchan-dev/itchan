@@ -64,7 +64,15 @@ func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	thread, err := h.thread.Get(board, domain.ThreadId(threadId))
+	// Parse page parameter (default to 1)
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if parsedPage, err := parseIntParam(pageStr, "page"); err == nil && parsedPage > 0 {
+			page = parsedPage
+		}
+	}
+
+	thread, err := h.thread.Get(board, domain.ThreadId(threadId), page)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

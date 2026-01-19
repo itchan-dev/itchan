@@ -144,6 +144,16 @@ func (e *MessageValidator) validateFileMeta(mimeType string, size int64, allowed
 	return nil
 }
 
+// CalculatePage returns the page number for a given ordinal.
+// Uses 1-based indexing for both ordinal and page.
+// Returns 1 if inputs are invalid (ordinal <= 0 or perPage <= 0).
+func CalculatePage(ordinal, perPage int) int {
+	if ordinal <= 0 || perPage <= 0 {
+		return 1
+	}
+	return (ordinal-1)/perPage + 1
+}
+
 // GenerateThumbnail creates a thumbnail of the given image with a maximum size.
 // It maintains the aspect ratio and returns a new image that fits within maxSize x maxSize.
 func GenerateThumbnail(src image.Image, maxSize int) image.Image {

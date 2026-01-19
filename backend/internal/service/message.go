@@ -18,7 +18,7 @@ import (
 )
 
 type MessageService interface {
-	Create(creationData domain.MessageCreationData) (domain.MsgId, error)
+	Create(creationData domain.MessageCreationData) (msgId domain.MsgId, ordinal int, err error)
 	Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
 	Delete(board domain.BoardShortName, id domain.MsgId) error
 }
@@ -31,7 +31,7 @@ type Message struct {
 }
 
 type MessageStorage interface {
-	CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error)
+	CreateMessage(creationData domain.MessageCreationData) (msgId domain.MsgId, ordinal int, err error)
 	GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
 	DeleteMessage(board domain.BoardShortName, id domain.MsgId) error
 	AddAttachments(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error
@@ -51,14 +51,14 @@ func NewMessage(storage MessageStorage, validator MessageValidator, mediaStorage
 	}
 }
 
-func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
+func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 	// Determine what content we have
 	hasFiles := len(creationData.PendingFiles) > 0
 	hasText := len(strings.TrimSpace(string(creationData.Text))) > 0
 
 	// Business rule: must have EITHER text OR files
 	if !hasText && !hasFiles {
-		return 0, &errors.ErrorWithStatusCode{
+		return 0, 0, &errors.ErrorWithStatusCode{
 			Message:    "message must contain either text or attachments",
 			StatusCode: 400,
 		}
@@ -67,14 +67,14 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 	// Validate text only if text is provided
 	if hasText {
 		if err := b.validator.Text(creationData.Text); err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 	}
 
 	// Validate files only if files are provided
 	if hasFiles {
 		if err := b.validator.PendingFiles(creationData.PendingFiles); err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 	}
 
@@ -82,9 +82,9 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 	creationDataWithoutFiles := creationData
 	creationDataWithoutFiles.PendingFiles = nil
 
-	msgID, err := b.storage.CreateMessage(creationDataWithoutFiles)
+	msgID, ordinal, err := b.storage.CreateMessage(creationDataWithoutFiles)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	// Then handle files if present
@@ -92,11 +92,11 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 		if err := b.saveAndAttachFiles(creationData.Board, msgID, creationData.ThreadId, creationData.PendingFiles); err != nil {
 			// Cleanup: delete the message since we failed to save attachments
 			b.storage.DeleteMessage(creationData.Board, msgID)
-			return 0, err
+			return 0, 0, err
 		}
 	}
 
-	return msgID, nil
+	return msgID, ordinal, nil
 }
 
 // saveAndAttachFiles saves files to storage and adds them as attachments to a message.

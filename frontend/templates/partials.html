@@ -76,12 +76,12 @@
     {{if .Message.Context.Subject}}<span class="post-subject">{{.Message.Context.Subject}}</span>{{end}}
     <span class="post-author">{{if and .User .User.Admin}}{{.Message.Author.Email}}{{if .Message.Author.Admin}} <span class="admin-badge">[admin]</span>{{end}}{{else}}Anonymous{{end}}</span>
     <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
-    <span class="post-id"><a href="{{printf "/%s/%d" .Message.Board .Message.ThreadId}}" class="thread-link">No.</a><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-link">{{.Message.Id}}</a></span>
-    <span class="post-reply"><a href="{{printf "/%s/%d#reply-%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-reply-link">[reply]</a></span>
-    <span class="post-reply-popup"><a href="{{printf "/%s/%d#p%d" .Message.Board .Message.ThreadId .Message.Id}}" class="post-reply-popup-link">[popup-reply]</a></span>
+    <span class="post-id"><a href="/{{.Message.Board}}/{{.Message.ThreadId}}" class="thread-link">No.</a>{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-link" "Text" .Message.Id)}}</span>
+    <span class="post-reply">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Anchor" "reply-" "Class" "post-reply-link" "Text" "[reply]")}}</span>
+    <span class="post-reply-popup">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-reply-popup-link" "Text" "[popup-reply]")}}</span>
     {{if .Message.Replies}}
         {{range .Message.Replies}}
-            <span class="reply-link">{{.HTMLLinkFrom}}</span>
+            <span class="reply-link">{{template "message-link" (dict "Board" .Board "ThreadId" .FromThreadId "MessageId" .From "Page" .FromPage)}}</span>
         {{end}}
     {{end}}
     {{if .User}}
@@ -204,5 +204,27 @@
     {{template "csrf-field" .}}
     [<button type="submit" class="pin-button">{{if .IsPinned}}unpin{{else}}pin{{end}}</button>]
 </form>
+{{end}}
+
+{{/* Message link - expects Board, ThreadId, MessageId, Page, and optionally Anchor (default "p"), Class (extra classes), Text */}}
+{{/* Base class is always "message-link". If no Class provided, also adds "message-link-preview" for hover behavior */}}
+{{define "message-link"}}
+{{- $pageParam := ""}}{{if gt .Page 1}}{{$pageParam = printf "?page=%d" .Page}}{{end}}
+{{- $anchor := .Anchor}}{{if not $anchor}}{{$anchor = "p"}}{{end}}
+{{- $class := "message-link"}}{{if .Class}}{{$class = printf "message-link %s" .Class}}{{else}}{{$class = "message-link message-link-preview"}}{{end}}
+{{- $text := .Text}}{{if not $text}}{{$text = printf ">>%d/%d" .ThreadId .MessageId}}{{end}}
+<a href="/{{.Board}}/{{.ThreadId}}{{$pageParam}}#{{$anchor}}{{.MessageId}}" class="{{$class}}" data-board="{{.Board}}" data-message-id="{{.MessageId}}" data-thread-id="{{.ThreadId}}">{{$text}}</a>
+{{- end}}
+
+{{/* Thread pagination - expects Pagination with CurrentPage, TotalPages */}}
+{{define "thread-pagination"}}
+{{if and .Pagination (gt .Pagination.TotalPages 1)}}
+{{$p := .Pagination}}
+<div class="pagination">
+    {{if gt $p.CurrentPage 1}}<a href="?page={{sub $p.CurrentPage 1}}">&lt;&lt; prev</a>{{end}}
+    <form class="page-form" method="get" action=""><input type="number" class="page-input" name="page" value="{{$p.CurrentPage}}" min="1" max="{{$p.TotalPages}}"> / {{$p.TotalPages}}</form>
+    {{if lt $p.CurrentPage $p.TotalPages}}<a href="?page={{add $p.CurrentPage 1}}">next &gt;&gt;</a>{{end}}
+</div>
+{{end}}
 {{end}}
 

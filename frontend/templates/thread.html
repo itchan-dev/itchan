@@ -9,6 +9,8 @@
         <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
     </div>
 
+    {{template "thread-pagination" .Thread}}
+
     <div class="posts-container">
         {{ range $index, $message := .Thread.Messages }}
             {{/* Context already populated by RenderThread - just pass Message + User + CSRFToken! */}}
@@ -20,6 +22,8 @@
         {{ end }}
     </div><!-- End posts-container -->
     <br clear="left"> <!-- Clear floats/inline-blocks -->
+
+    {{template "thread-pagination" .Thread}}
 
     <hr class="post-separator"> <!-- Separator before bottom reply form -->
 

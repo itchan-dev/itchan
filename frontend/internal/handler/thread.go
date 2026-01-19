@@ -24,7 +24,15 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 	shortName := vars["board"]
 	threadId := vars["thread"]
 
-	thread, err := h.APIClient.GetThread(r, shortName, threadId)
+	// Parse page parameter (default to 1)
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
+			page = parsedPage
+		}
+	}
+
+	thread, err := h.APIClient.GetThread(r, shortName, threadId, page)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -40,8 +48,6 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	shortName := vars["board"]
 	threadIdStr := vars["thread"]
 
-	// Preserve the anchor for both success and error redirects
-	targetURL := fmt.Sprintf("/%s/%s#bottom", shortName, threadIdStr)
 	errorTargetURL := fmt.Sprintf("/%s/%s#top", shortName, threadIdStr)
 
 	threadId, err := strconv.Atoi(threadIdStr)
@@ -73,14 +79,15 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 		ReplyTo: domainReplies,
 	}
 
-	err = h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)
+	page, err := h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)
 	if err != nil {
 		logger.Log.Error("posting reply via API", "error", err)
 		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
 		return
 	}
 
-	// Success, redirect back to the thread, which will show the new message
+	// Success, redirect to the page where the new message is
+	targetURL := fmt.Sprintf("/%s/%s?page=%d#bottom", shortName, threadIdStr, page)
 	http.Redirect(w, r, targetURL, http.StatusSeeOther)
 }
 

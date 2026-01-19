@@ -134,14 +134,7 @@ func (h *Handler) processMessageText(text string, msgMetadata domain.MessageMeta
 		MessageMetadata: msgMetadata,
 	})
 
-	var domainReplies domain.Replies
-	for _, rep := range replyTo {
-		if rep != nil {
-			domainReplies = append(domainReplies, &rep.Reply)
-		}
-	}
-
-	return processedText, &domainReplies, hasPayload
+	return processedText, &replyTo, hasPayload
 }
 
 // parseAndValidateMultipartForm validates request size and parses the multipart form.

@@ -1,5 +1,6 @@
 jwt_ttl: 168h
 threads_per_page: 50
+messages_per_thread_page: 5   # Number of messages per thread page
 n_last_msg: 3
 bump_limit: 500
 board_preview_refresh_internval: 5

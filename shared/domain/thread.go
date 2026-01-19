@@ -21,7 +21,14 @@ type ThreadMetadata struct {
 	IsPinned     bool
 }
 
+type ThreadPagination struct {
+	CurrentPage int `json:"current_page"`
+	TotalPages  int `json:"total_pages"`
+	TotalCount  int `json:"total_count"` // Total message count
+}
+
 type Thread struct {
 	ThreadMetadata
-	Messages []*Message // Change from []Message to []*Message
+	Messages   []*Message        `json:"messages"`
+	Pagination *ThreadPagination `json:"pagination,omitempty"`
 }

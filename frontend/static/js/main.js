@@ -29,7 +29,7 @@ class MessagePreview {
 
     setupEventListeners() {
         document.addEventListener('mouseover', (e) => {
-            if (e.target.classList.contains('message-link')) {
+            if (e.target.classList.contains('message-link-preview')) {
                 this.handleLinkMouseOver(e.target);
             } else if (e.target.closest('.message-preview')) {
                 this.handlePreviewMouseOver(e.target.closest('.message-preview'));
@@ -39,7 +39,7 @@ class MessagePreview {
         });
 
         document.addEventListener('mouseout', (e) => {
-            if (e.target.classList.contains('message-link') || e.target.closest('.message-preview') || e.target.closest('.popup-reply-container')) {
+            if (e.target.classList.contains('message-link-preview') || e.target.closest('.message-preview') || e.target.closest('.popup-reply-container')) {
                 this.handleChainMouseOut();
             }
         });
@@ -48,7 +48,7 @@ class MessagePreview {
             let preview = e.target.closest('.message-preview');
             if (preview) {
                 this.hideAllSuccessors(preview.dataset.key);
-            } else if (!e.target.closest('.message-link, .popup-reply-container')) {
+            } else if (!e.target.closest('.message-link-preview, .popup-reply-container')) {
                 this.hideAllPreviews();
             }
         });
