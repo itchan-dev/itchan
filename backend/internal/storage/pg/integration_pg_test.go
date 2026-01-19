@@ -117,6 +117,7 @@ func mustSetup(ctx context.Context) (testcontainers.Container, error) {
 			NLastMsg:                    3,
 			BumpLimit:                   15,
 			BoardPreviewRefreshInterval: 60, // Use a longer interval for tests
+			MessagesPerThreadPage:       10,
 		},
 		Private: config.Private{
 			Pg: config.Pg{
@@ -188,7 +189,7 @@ func createTestThread(t *testing.T, q Querier, data domain.ThreadCreationData) (
 	data.OpMessage.CreatedAt = &createdTs
 	data.OpMessage.Board = data.Board
 
-	opMsgID, err := storage.createMessage(q, data.OpMessage)
+	opMsgID, _, err := storage.createMessage(q, data.OpMessage)
 	require.NoError(t, err)
 	return threadID, opMsgID
 }
@@ -196,7 +197,7 @@ func createTestThread(t *testing.T, q Querier, data domain.ThreadCreationData) (
 // createTestMessage creates a message within the given transaction.
 func createTestMessage(t *testing.T, q Querier, data domain.MessageCreationData) domain.MsgId {
 	t.Helper()
-	msgID, err := storage.createMessage(q, data)
+	msgID, _, err := storage.createMessage(q, data)
 	require.NoError(t, err)
 	return msgID
 }

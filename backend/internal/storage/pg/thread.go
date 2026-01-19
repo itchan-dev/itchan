@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 )
@@ -38,8 +39,9 @@ func (s *Storage) CreateThread(creationData domain.ThreadCreationData) (domain.T
 // messages, replies, and attachments. As a read-only operation, it does not
 // need to manage a transaction and can delegate directly to the internal method
 // using the main database connection pool for efficiency.
-func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
-	return s.getThread(s.db, board, id)
+// The page parameter controls pagination (1-based). Page 0 or 1 returns the first page.
+func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
+	return s.getThread(s.db, board, id, page)
 }
 
 // DeleteThread is the public entry point for deleting a thread. It wraps the core
@@ -131,7 +133,12 @@ func (s *Storage) createThread(q Querier, creationData domain.ThreadCreationData
 // single thread. It queries multiple tables and assembles the data into a
 // cohesive `domain.Thread` object. It accepts a Querier to be testable and
 // usable within or outside a transaction.
-func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
+// The page parameter controls pagination (1-based). Page 0 or 1 returns the first page.
+func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
+	if page < 1 {
+		page = 1
+	}
+
 	var metadata domain.ThreadMetadata
 	err := q.QueryRow(`
 	       	SELECT
@@ -150,7 +157,39 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		return domain.Thread{}, fmt.Errorf("failed to fetch thread metadata: %w", err)
 	}
 
-	// Fetch all messages for the thread.
+	messagesPerPage := s.cfg.Public.MessagesPerThreadPage
+	offset := (page - 1) * messagesPerPage
+
+	var messages []*domain.Message
+	msgIDMap := make(map[domain.MsgId]*domain.Message)
+
+	// For pages > 1, first fetch the OP message separately so it's always visible
+	if page > 1 {
+		opRow := q.QueryRow(`
+			SELECT
+				m.id, m.author_id, m.text, m.created_at, m.thread_id, m.ordinal,
+				m.updated_at, m.is_op, m.board,
+				u.email, u.is_admin
+			FROM messages m
+			JOIN users u ON m.author_id = u.id
+			WHERE m.board = $1 AND m.thread_id = $2 AND m.is_op = true`,
+			board, id,
+		)
+		var opMsg domain.Message
+		if err := opRow.Scan(
+			&opMsg.Id, &opMsg.Author.Id, &opMsg.Text, &opMsg.CreatedAt,
+			&opMsg.ThreadId, &opMsg.Ordinal, &opMsg.ModifiedAt, &opMsg.Op, &opMsg.Board,
+			&opMsg.Author.Email, &opMsg.Author.Admin,
+		); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return domain.Thread{}, fmt.Errorf("failed to fetch OP message: %w", err)
+		} else if err == nil {
+			opMsg.Page = utils.CalculatePage(opMsg.Ordinal, messagesPerPage)
+			messages = append(messages, &opMsg)
+			msgIDMap[opMsg.Id] = &opMsg
+		}
+	}
+
+	// Fetch paginated messages for the thread
 	msgRows, err := q.Query(`
 		SELECT
 			m.id, m.author_id, m.text, m.created_at, m.thread_id, m.ordinal,
@@ -159,16 +198,15 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		FROM messages m
 		JOIN users u ON m.author_id = u.id
 		WHERE m.board = $1 AND m.thread_id = $2
-		ORDER BY m.created_at`,
-		board, id,
+		ORDER BY m.ordinal
+		LIMIT $3 OFFSET $4`,
+		board, id, messagesPerPage, offset,
 	)
 	if err != nil {
 		return domain.Thread{}, fmt.Errorf("failed to fetch thread messages: %w", err)
 	}
 	defer msgRows.Close()
 
-	var messages []*domain.Message
-	msgIDMap := make(map[domain.MsgId]*domain.Message)
 	for msgRows.Next() {
 		var msg domain.Message
 		if err := msgRows.Scan(
@@ -178,20 +216,24 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)
 		}
+		msg.Page = utils.CalculatePage(msg.Ordinal, messagesPerPage)
 		messages = append(messages, &msg)
-		msgIDMap[msg.Id] = &msg // Store a pointer to the message for easy lookup.
+		msgIDMap[msg.Id] = &msg
 	}
 	if err = msgRows.Err(); err != nil {
 		return domain.Thread{}, fmt.Errorf("error iterating message rows: %w", err)
 	}
 
 	// Fetch all reply relationships for the entire thread in a single query for efficiency.
+	// JOIN with messages to get FromOrdinal for page calculation.
 	replyRows, err := q.Query(`
         SELECT
-			board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created_at
-        FROM message_replies
-		WHERE board = $1 AND receiver_thread_id = $2
-		ORDER BY created_at`,
+			mr.board, mr.sender_message_id, mr.sender_thread_id, mr.receiver_message_id, mr.receiver_thread_id,
+			m.ordinal, mr.created_at
+        FROM message_replies mr
+		JOIN messages m ON mr.board = m.board AND mr.sender_message_id = m.id
+		WHERE mr.board = $1 AND mr.receiver_thread_id = $2
+		ORDER BY mr.created_at`,
 		board, id,
 	)
 	if err != nil {
@@ -200,9 +242,10 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	defer replyRows.Close()
 	for replyRows.Next() {
 		var reply domain.Reply
-		if err := replyRows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
+		if err := replyRows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.FromOrdinal, &reply.CreatedAt); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan reply row: %w", err)
 		}
+		reply.FromPage = utils.CalculatePage(reply.FromOrdinal, messagesPerPage)
 		// Attach the reply to the correct message using the map.
 		if msg, ok := msgIDMap[reply.To]; ok {
 			msg.Replies = append(msg.Replies, &reply)
@@ -241,7 +284,18 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		}
 	}
 
-	return domain.Thread{ThreadMetadata: metadata, Messages: messages}, nil
+	// Calculate pagination info
+	totalPages := max((metadata.MessageCount+messagesPerPage-1)/messagesPerPage, 1)
+
+	return domain.Thread{
+		ThreadMetadata: metadata,
+		Messages:       messages,
+		Pagination: &domain.ThreadPagination{
+			CurrentPage: page,
+			TotalPages:  totalPages,
+			TotalCount:  metadata.MessageCount,
+		},
+	}, nil
 }
 
 // deleteThread contains the core logic for removing a thread record.

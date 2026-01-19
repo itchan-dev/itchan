@@ -20,7 +20,7 @@ import (
 
 type MockThreadService struct {
 	MockCreate       func(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
-	MockGet          func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	MockGet          func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
 	MockDelete       func(board domain.BoardShortName, id domain.ThreadId) error
 	MockTogglePinned func(board domain.BoardShortName, id domain.ThreadId) (bool, error)
 }
@@ -32,9 +32,9 @@ func (m *MockThreadService) Create(creationData domain.ThreadCreationData) (doma
 	return 1, 1, nil
 }
 
-func (m *MockThreadService) Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
+func (m *MockThreadService) Get(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
 	if m.MockGet != nil {
-		return m.MockGet(board, id)
+		return m.MockGet(board, id, page)
 	}
 	return domain.Thread{Messages: []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: domain.MsgId(id)}}}}, nil
 }
@@ -213,9 +213,10 @@ func TestGetThreadHandler(t *testing.T) {
 
 	t.Run("successful get", func(t *testing.T) {
 		mockService := &MockThreadService{
-			MockGet: func(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error) {
-				assert.Equal(t, threadID, id)
-				assert.Equal(t, boardName, board)
+			MockGet: func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
+				assert.Equal(t, domain.ThreadId(threadID), id)
+				assert.Equal(t, domain.BoardShortName(boardName), board)
+				assert.Equal(t, 1, page)
 				return expectedThread, nil
 			},
 		}
@@ -249,7 +250,7 @@ func TestGetThreadHandler(t *testing.T) {
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("thread not found")
 		mockService := &MockThreadService{
-			MockGet: func(board domain.BoardShortName, id domain.MsgId) (domain.Thread, error) {
+			MockGet: func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
 				return domain.Thread{}, mockErr
 			},
 		}

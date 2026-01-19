@@ -18,6 +18,7 @@ type Public struct {
 	JwtTTL                      time.Duration `yaml:"jwt_ttl" validate:"required"`
 	ConfirmationCodeTTL         time.Duration `yaml:"confirmation_code_ttl"` // Time until confirmation code expires
 	ThreadsPerPage              int           `yaml:"threads_per_page" validate:"required"`
+	MessagesPerThreadPage       int           `yaml:"messages_per_thread_page"` // number of messages per thread page (0 = all)
 	MaxThreadCount              *int          `yaml:"max_thread_count"`
 	NLastMsg                    int           `yaml:"n_last_msg" validate:"required"` // number of last messages shown in board preview (materialized view)
 	BumpLimit                   int           `yaml:"bump_limit" validate:"required"` // if thread have more messages it will not get "bumped"
@@ -212,6 +213,11 @@ func applyValidationDefaults(public *Public) {
 	// User activity page defaults
 	if public.UserMessagesPageLimit == 0 {
 		public.UserMessagesPageLimit = 50
+	}
+
+	// Thread pagination defaults
+	if public.MessagesPerThreadPage == 0 {
+		public.MessagesPerThreadPage = 1000
 	}
 
 	// Board activity window default (6x the refresh interval for reliability)

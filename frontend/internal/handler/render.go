@@ -31,14 +31,9 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, name string, data interf
 	_, _ = buf.WriteTo(w)
 }
 
-// RenderReply transforms a domain.Reply into a frontend-specific view model.
-func RenderReply(reply domain.Reply) *frontend_domain.Reply {
-	return &frontend_domain.Reply{Reply: reply}
-}
-
 // RenderMessage transforms a domain.Message into a frontend-specific view model.
 func RenderMessage(message domain.Message) *frontend_domain.Message {
-	renderedMessage := frontend_domain.Message{Message: message, Replies: make(frontend_domain.Replies, len(message.Replies))}
+	renderedMessage := frontend_domain.Message{Message: message}
 	renderedMessage.Text = template.HTML(message.Text)
 
 	if renderedMessage.Op {
@@ -47,13 +42,11 @@ func RenderMessage(message domain.Message) *frontend_domain.Message {
 		renderedMessage.Context.ExtraClasses = "reply-post"
 	}
 
-	for i, reply := range message.Replies {
-		renderedMessage.Replies[i] = RenderReply(*reply)
-	}
 	return &renderedMessage
 }
 
 // RenderThread transforms a domain.Thread into a frontend-specific view model.
+// Page values are already calculated by the backend.
 func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 	renderedThread := frontend_domain.Thread{Thread: thread, Messages: make([]*frontend_domain.Message, len(thread.Messages))}
 	for i, msg := range thread.Messages {
@@ -69,6 +62,7 @@ func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 }
 
 // RenderBoard transforms a domain.Board into a frontend-specific view model.
+// Page values are already calculated by the backend.
 func RenderBoard(board domain.Board) *frontend_domain.Board {
 	renderedBoard := frontend_domain.Board{Board: board, Threads: make([]*frontend_domain.Thread, len(board.Threads))}
 	for i, thread := range board.Threads {

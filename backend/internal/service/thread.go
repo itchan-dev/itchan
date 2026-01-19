@@ -10,7 +10,7 @@ import (
 
 type ThreadService interface {
 	Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
-	Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	Get(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
 	Delete(board domain.BoardShortName, id domain.ThreadId) error
 	TogglePinned(board domain.BoardShortName, id domain.ThreadId) (bool, error)
 }
@@ -24,7 +24,7 @@ type Thread struct {
 
 type ThreadStorage interface {
 	CreateThread(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error)
-	GetThread(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	GetThread(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
 	DeleteThread(board domain.BoardShortName, id domain.ThreadId) error
 	ThreadCount(board domain.BoardShortName) (int, error)
 	LastThreadId(board domain.BoardShortName) (domain.ThreadId, error)
@@ -64,7 +64,7 @@ func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId
 	opMessageData.CreatedAt = &createdAt // Same timestamp as thread
 
 	// Step 3: Create OP message using Message service (handles files automatically)
-	opMessageID, err := b.messageService.Create(opMessageData)
+	opMessageID, _, err := b.messageService.Create(opMessageData)
 	if err != nil {
 		// Cleanup: delete the thread since OP message creation failed
 		b.storage.DeleteThread(creationData.Board, threadID)
@@ -75,8 +75,8 @@ func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId
 	return threadID, opMessageID, nil
 }
 
-func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
-	thread, err := b.storage.GetThread(board, id)
+func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
+	thread, err := b.storage.GetThread(board, id, page)
 	if err != nil {
 		return domain.Thread{}, err
 	}

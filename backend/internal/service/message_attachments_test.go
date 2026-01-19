@@ -257,7 +257,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 		assert.NoError(t, err)
 	})
 
@@ -289,7 +289,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			PendingFiles: files,
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "too many attachments")
 	})
@@ -319,7 +319,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported file type")
 	})
@@ -349,7 +349,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "file too large")
 	})
@@ -399,7 +399,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "total attachments size too large")
 	})
@@ -429,7 +429,7 @@ func TestValidatePendingFiles(t *testing.T) {
 				},
 			}
 
-			_, err := service.Create(creationData)
+			_, _, err := service.Create(creationData)
 			assert.NoError(t, err, "Should accept "+mimeType)
 		}
 	})
@@ -460,7 +460,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 		assert.NoError(t, err, "Should accept "+mimeType)
 	})
 }
@@ -475,10 +475,10 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		var createdMessageID domain.MsgId = 42
 
 		// Mock storage to return a message ID
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 			// Should be called without PendingFiles
 			assert.Nil(t, creationData.PendingFiles)
-			return createdMessageID, nil
+			return createdMessageID, 1, nil
 		}
 
 		// Mock AddAttachments to succeed
@@ -518,7 +518,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		msgID, err := service.Create(creationData)
+		msgID, _, err := service.Create(creationData)
 
 		require.NoError(t, err)
 		assert.Equal(t, createdMessageID, msgID)
@@ -545,8 +545,8 @@ func TestCreateMessageWithFiles(t *testing.T) {
 
 		var createdMessageID domain.MsgId = 42
 
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
-			return createdMessageID, nil
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+			return createdMessageID, 1, nil
 		}
 
 		// Mock AddAttachments to fail
@@ -574,7 +574,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to save attachments to DB")
@@ -599,8 +599,8 @@ func TestCreateMessageWithFiles(t *testing.T) {
 
 		var createdMessageID domain.MsgId = 42
 
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
-			return createdMessageID, nil
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+			return createdMessageID, 1, nil
 		}
 
 		// First SaveImage succeeds, second fails
@@ -641,7 +641,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to save image file")
@@ -688,7 +688,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		_, err := service.Create(creationData)
+		_, _, err := service.Create(creationData)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "file too large")

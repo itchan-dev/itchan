@@ -620,6 +620,18 @@ blockquote {
     text-decoration: underline;
 }
 
+.pagination .page-form {
+    display: inline;
+}
+
+.pagination .page-input {
+    width: 3em;
+    text-align: center;
+    border: 1px solid #999;
+    font-size: inherit;
+    font-weight: inherit;
+}
+
 /* ==========================================
    End of Pagination Styles
    ========================================== */

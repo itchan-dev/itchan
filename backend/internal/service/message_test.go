@@ -29,7 +29,7 @@ func createDefaultTestConfig() *config.Public {
 
 // MockMessageStorage mocks the MessageStorage interface.
 type MockMessageStorage struct {
-	createMessageFunc  func(creationData domain.MessageCreationData) (domain.MsgId, error)
+	createMessageFunc  func(creationData domain.MessageCreationData) (domain.MsgId, int, error)
 	getMessageFunc     func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
 	deleteMessageFunc  func(board domain.BoardShortName, id domain.MsgId) error
 	addAttachmentsFunc func(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error
@@ -56,7 +56,7 @@ func (m *MockMessageStorage) ResetCallTracking() {
 	m.deleteMessageArgId = 0
 }
 
-func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error) {
+func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 	m.mu.Lock()
 	m.createMessageCalled = true
 	m.createMessageArg = creationData
@@ -65,8 +65,8 @@ func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationDa
 	if m.createMessageFunc != nil {
 		return m.createMessageFunc(creationData)
 	}
-	// Default success returns an arbitrary ID (e.g., 1)
-	return 1, nil
+	// Default success returns an arbitrary ID (e.g., 1) and ordinal 1
+	return 1, 1, nil
 }
 
 func (m *MockMessageStorage) GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
@@ -147,13 +147,13 @@ func TestMessageCreate(t *testing.T) {
 			assert.Equal(t, testCreationData.Text, text)
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 			assert.Equal(t, testCreationData, creationData)
-			return expectedCreatedId, nil // Storage create succeeds
+			return expectedCreatedId, 1, nil // Storage create succeeds
 		}
 
 		// Act
-		createdId, err := service.Create(testCreationData)
+		createdId, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -178,13 +178,13 @@ func TestMessageCreate(t *testing.T) {
 		validator.textFunc = func(text domain.MsgText) error {
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 			assert.Equal(t, testCreationData, creationData)
-			return 0, storageError // Storage create fails
+			return 0, 0, storageError // Storage create fails
 		}
 
 		// Act
-		_, err := service.Create(testCreationData)
+		_, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -213,7 +213,7 @@ func TestMessageCreate(t *testing.T) {
 		// storage.createMessageFunc is not set, so CreateMessage should not be called
 
 		// Act
-		_, err := service.Create(testCreationData)
+		_, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -396,7 +396,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, err := service.Create(testCreationData)
+		_, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -419,7 +419,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, err := service.Create(testCreationData)
+		_, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -442,7 +442,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		msgId, err := service.Create(testCreationData)
+		msgId, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -474,7 +474,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		msgId, err := service.Create(testCreationData)
+		msgId, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -506,7 +506,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		msgId, err := service.Create(testCreationData)
+		msgId, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -537,7 +537,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, err := service.Create(testCreationData)
+		_, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -577,7 +577,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, err := service.Create(testCreationData)
+		_, _, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)

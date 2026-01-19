@@ -47,7 +47,7 @@ func TestMessageOperations(t *testing.T) {
 				},
 			}
 
-			msgID, err := storage.createMessage(tx, creationData)
+			msgID, _, err := storage.createMessage(tx, creationData)
 			require.NoError(t, err)
 			require.Greater(t, msgID, int64(0))
 
@@ -68,7 +68,7 @@ func TestMessageOperations(t *testing.T) {
 		})
 
 		t.Run("updates thread metadata", func(t *testing.T) {
-			threadBefore, err := storage.getThread(tx, boardShortName, threadID)
+			threadBefore, err := storage.getThread(tx, boardShortName, threadID, 1)
 			require.NoError(t, err)
 
 			createTestMessage(t, tx, domain.MessageCreationData{
@@ -78,21 +78,21 @@ func TestMessageOperations(t *testing.T) {
 				ThreadId: threadID,
 			})
 
-			threadAfter, err := storage.getThread(tx, boardShortName, threadID)
+			threadAfter, err := storage.getThread(tx, boardShortName, threadID, 1)
 			require.NoError(t, err)
 			assert.Equal(t, threadBefore.MessageCount+1, threadAfter.MessageCount)
 			assert.True(t, threadAfter.LastBumped.After(threadBefore.LastBumped))
 		})
 
 		t.Run("fails on invalid board or thread", func(t *testing.T) {
-			_, err := storage.createMessage(tx, domain.MessageCreationData{
+			_, _, err := storage.createMessage(tx, domain.MessageCreationData{
 				Board:    "nonexistent",
 				Author:   domain.User{Id: userID},
 				ThreadId: threadID,
 			})
 			require.Error(t, err)
 
-			_, err = storage.createMessage(tx, domain.MessageCreationData{
+			_, _, err = storage.createMessage(tx, domain.MessageCreationData{
 				Board:    boardShortName,
 				Author:   domain.User{Id: userID},
 				ThreadId: -999,

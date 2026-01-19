@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
 )
@@ -21,17 +22,18 @@ import (
 // atomic database transaction. This ensures that all related database operations
 // (updating board/thread metadata, inserting the message, attachments, and replies)
 // either succeed together or fail together, maintaining data integrity.
-func (s *Storage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error) {
+func (s *Storage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var msgID domain.MsgId
+	var ordinal int
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		var err error
-		msgID, err = s.createMessage(tx, creationData)
+		msgID, ordinal, err = s.createMessage(tx, creationData)
 		return err
 	})
-	return msgID, err
+	return msgID, ordinal, err
 }
 
 // DeleteMessage is the public entry point for deleting a message.
@@ -64,7 +66,8 @@ func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (doma
 // createMessage contains the core logic for inserting a new message and its related data.
 // It's unexported and accepts a Querier, allowing it to be run within a transaction
 // managed by a public method (like CreateMessage or CreateThread) or in a test.
-func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationData) (domain.MsgId, error) {
+// Returns the message ID and ordinal (position in thread).
+func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 	// Determine the creation timestamp for all related records in this operation.
 	// Use the provided timestamp if available (useful for testing or migrations),
 	// otherwise generate the current UTC timestamp rounded to microseconds for consistency.
@@ -77,17 +80,17 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 
 	// Atomically update the parent board's last_activity timestamp.
 	result, err := q.Exec(`
-	       	UPDATE boards SET 
+	       	UPDATE boards SET
 				last_activity_at = GREATEST(last_activity_at, $1)
 	       	WHERE short_name = $2
 			`,
 		createdAt, creationData.Board,
 	)
 	if err != nil {
-		return -1, fmt.Errorf("failed to update board activity: %w", err)
+		return -1, 0, fmt.Errorf("failed to update board activity: %w", err)
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		return -1, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: http.StatusNotFound}
+		return -1, 0, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: http.StatusNotFound}
 	}
 
 	// Update the parent thread's metadata (reply count and bump timestamp) and get the
@@ -104,9 +107,9 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 	).Scan(&ordinal)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return -1, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
+			return -1, 0, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
 		}
-		return -1, fmt.Errorf("failed to update thread: %w", err)
+		return -1, 0, fmt.Errorf("failed to update thread: %w", err)
 	}
 
 	// Insert the message record into its board-specific partition.
@@ -119,7 +122,7 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 		creationData.Author.Id, creationData.Text, createdAt, creationData.ThreadId, ordinal, isOp, creationData.Board,
 	).Scan(&id)
 	if err != nil {
-		return -1, fmt.Errorf("failed to insert message: %w", err)
+		return -1, 0, fmt.Errorf("failed to insert message: %w", err)
 	}
 
 	// If this message is a reply to others, insert those relationships.
@@ -132,12 +135,12 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 				creationData.Board, id, creationData.ThreadId, reply.To, reply.ToThreadId, createdAt,
 			)
 			if err != nil {
-				return -1, fmt.Errorf("failed to insert message reply relationship: %w", err)
+				return -1, 0, fmt.Errorf("failed to insert message reply relationship: %w", err)
 			}
 		}
 	}
 
-	return id, nil
+	return id, int(ordinal), nil
 }
 
 // deleteMessage contains the core logic for removing a message record and updating
@@ -190,6 +193,9 @@ func (s *Storage) getMessage(q Querier, board domain.BoardShortName, id domain.M
 		return domain.Message{}, fmt.Errorf("failed to query message: %w", err)
 	}
 
+	// Calculate page from ordinal
+	msg.Page = utils.CalculatePage(msg.Ordinal, s.cfg.Public.MessagesPerThreadPage)
+
 	// Fetch and attach related data using helper functions.
 	attachments, err := s.getMessageAttachments(q, board, id)
 	if err != nil {
@@ -241,10 +247,11 @@ func (s *Storage) getMessageAttachments(q Querier, board domain.BoardShortName, 
 // getMessageRepliesTo fetches all reply relationships where the specified message is the *receiver*.
 func (s *Storage) getMessageRepliesTo(q Querier, board domain.BoardShortName, id domain.MsgId) (domain.Replies, error) {
 	rows, err := q.Query(`
-	       SELECT board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created_at
-	       FROM message_replies
-	       WHERE board = $1 AND receiver_message_id = $2
-	       ORDER BY created_at`,
+	       SELECT mr.board, mr.sender_message_id, mr.sender_thread_id, mr.receiver_message_id, mr.receiver_thread_id, m.ordinal, mr.created_at
+	       FROM message_replies mr
+	       JOIN messages m ON mr.board = m.board AND mr.sender_message_id = m.id
+	       WHERE mr.board = $1 AND mr.receiver_message_id = $2
+	       ORDER BY mr.created_at`,
 		board, id,
 	)
 	if err != nil {
@@ -255,9 +262,10 @@ func (s *Storage) getMessageRepliesTo(q Querier, board domain.BoardShortName, id
 	var replies domain.Replies
 	for rows.Next() {
 		var reply domain.Reply
-		if err := rows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
+		if err := rows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.FromOrdinal, &reply.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan reply row: %w", err)
 		}
+		reply.FromPage = utils.CalculatePage(reply.FromOrdinal, s.cfg.Public.MessagesPerThreadPage)
 		replies = append(replies, &reply)
 	}
 	return replies, rows.Err()

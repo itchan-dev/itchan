@@ -22,6 +22,7 @@ type MessageMetadata struct {
 	Author     User
 	Op         bool
 	Ordinal    int
+	Page       int // Page number where this message appears (calculated from Ordinal)
 	Replies    Replies
 	CreatedAt  time.Time
 	ModifiedAt time.Time
@@ -39,5 +40,7 @@ type Reply struct {
 	ToThreadId   ThreadId
 	From         MsgId
 	To           MsgId
+	FromOrdinal  int // Ordinal of the sender message
+	FromPage     int // Page where the sender message is located (calculated from FromOrdinal)
 	CreatedAt    time.Time
 }

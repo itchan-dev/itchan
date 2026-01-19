@@ -52,15 +52,21 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		ReplyTo:      body.ReplyTo,
 	}
 
-	msgId, err := h.message.Create(creation)
+	msgId, ordinal, err := h.message.Create(creation)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	// Return the created message ID
+	// Calculate page from ordinal dynamically
+	page := 1
+	if h.cfg.Public.MessagesPerThreadPage > 0 && ordinal > 0 {
+		page = (ordinal-1)/h.cfg.Public.MessagesPerThreadPage + 1
+	}
+
+	// Return the created message ID and page
 	w.WriteHeader(http.StatusCreated)
-	response := api.CreateMessageResponse{Id: int64(msgId)}
+	response := api.CreateMessageResponse{Id: int64(msgId), Page: page}
 	writeJSON(w, response)
 }
 

@@ -16,16 +16,16 @@ import (
 
 // MockMessageService mocks the MessageService interface.
 type MockMessageService struct {
-	createFunc func(creationData domain.MessageCreationData) (domain.MsgId, error)
+	createFunc func(creationData domain.MessageCreationData) (domain.MsgId, int, error)
 	getFunc    func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
 	deleteFunc func(board domain.BoardShortName, id domain.MsgId) error
 }
 
-func (m *MockMessageService) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
+func (m *MockMessageService) Create(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 	if m.createFunc != nil {
 		return m.createFunc(creationData)
 	}
-	return 1, nil // Default: return arbitrary ID
+	return 1, 1, nil // Default: return arbitrary ID and ordinal 1
 }
 
 func (m *MockMessageService) Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
@@ -45,7 +45,7 @@ func (m *MockMessageService) Delete(board domain.BoardShortName, id domain.MsgId
 // MockThreadStorage mocks the ThreadStorage interface.
 type MockThreadStorage struct {
 	createThreadFunc       func(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error)
-	getThreadFunc          func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error)
+	getThreadFunc          func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
 	deleteThreadFunc       func(board domain.BoardShortName, id domain.ThreadId) error
 	threadCountFunc        func(board domain.BoardShortName) (int, error)
 	lastThreadIdFunc       func(board domain.BoardShortName) (domain.ThreadId, error)
@@ -77,9 +77,9 @@ func (m *MockThreadStorage) CreateThread(creationData domain.ThreadCreationData)
 	return 1, time.Now().UTC(), nil
 }
 
-func (m *MockThreadStorage) GetThread(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
+func (m *MockThreadStorage) GetThread(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
 	if m.getThreadFunc != nil {
-		return m.getThreadFunc(board, id)
+		return m.getThreadFunc(board, id, page)
 	}
 	// Default success returns a basic thread matching the ID in the first message
 	return domain.Thread{Messages: []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: domain.MsgId(id)}}}}, nil
@@ -175,8 +175,8 @@ func TestThreadCreate(t *testing.T) {
 			assert.Equal(t, validCreationData, creationData)
 			return newThreadId, time.Now().UTC(), nil
 		}
-		messageService.createFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
-			return newMsgId, nil
+		messageService.createFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+			return newMsgId, 1, nil
 		}
 
 		// Act
@@ -268,14 +268,15 @@ func TestThreadGet(t *testing.T) {
 		}
 		getCalled := false
 
-		storage.getThreadFunc = func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
+		storage.getThreadFunc = func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
 			getCalled = true
 			assert.Equal(t, testId, id)
+			assert.Equal(t, 1, page)
 			return expectedThread, nil
 		}
 
 		// Act
-		thread, err := service.Get("test", testId)
+		thread, err := service.Get("test", testId, 1)
 
 		// Assert
 		require.NoError(t, err)
@@ -293,14 +294,14 @@ func TestThreadGet(t *testing.T) {
 		storageError := errors.New("mock GetThread error")
 		getCalled := false
 
-		storage.getThreadFunc = func(board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
+		storage.getThreadFunc = func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
 			getCalled = true
 			assert.Equal(t, testId, id)
 			return domain.Thread{}, storageError
 		}
 
 		// Act
-		_, err := service.Get("test", testId)
+		_, err := service.Get("test", testId, 1)
 
 		// Assert
 		require.Error(t, err)

@@ -20,7 +20,8 @@ type MessageResponse struct {
 	// Add extra API-specific fields here if needed in the future
 }
 
-// CreateMessageResponse returns the ID of the created message
+// CreateMessageResponse returns the ID of the created message and its page
 type CreateMessageResponse struct {
-	Id int64 `json:"id"`
+	Id   int64 `json:"id"`
+	Page int   `json:"page"` // Page number where the message appears
 }

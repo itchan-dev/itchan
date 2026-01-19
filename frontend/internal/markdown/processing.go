@@ -1,17 +1,16 @@
 package markdown
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
 	"bytes"
-
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"golang.org/x/net/html"
 
-	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -21,9 +20,13 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// var messageLinkRegex = regexp.MustCompile(`>>(\d+)/(\d+)`)
-
 var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
+
+// formatMessageLink generates HTML for a message link (used in markdown processing)
+func formatMessageLink(board domain.BoardShortName, threadId domain.ThreadId, messageId domain.MsgId) string {
+	return fmt.Sprintf(`<a href="/%s/%d#p%d" class="message-link" data-board="%[1]s" data-message-id="%[3]d" data-thread-id="%[2]d">>>%[2]d/%[3]d</a>`,
+		board, threadId, messageId)
+}
 
 type TextProcessor struct {
 	md goldmark.Markdown
@@ -63,7 +66,7 @@ func New() *TextProcessor {
 	return &TextProcessor{md: md}
 }
 
-func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, frontend_domain.Replies, bool) {
+func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, domain.Replies, bool) {
 	var err error
 	// Render md and escape html
 	message.Text, err = tp.renderText(message.Text)
@@ -85,8 +88,8 @@ func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, fronten
 
 // processMessageLinks finds >>N/M patterns and converts them to internal links.
 // It also returns a list of all matched strings found in the input.
-func (tp *TextProcessor) processMessageLinks(message domain.Message) (string, frontend_domain.Replies) {
-	var matches frontend_domain.Replies
+func (tp *TextProcessor) processMessageLinks(message domain.Message) (string, domain.Replies) {
+	var matches domain.Replies
 	seen := make(map[string]struct{})
 
 	processedText := messageLinkRegex.ReplaceAllStringFunc(message.Text, func(match string) string {
@@ -103,14 +106,14 @@ func (tp *TextProcessor) processMessageLinks(message domain.Message) (string, fr
 		if err != nil {
 			return match
 		}
-		reply := frontend_domain.Reply{Reply: domain.Reply{Board: message.Board, FromThreadId: message.ThreadId, ToThreadId: threadId, From: message.Id, To: messageId}}
-		linkTo := reply.LinkTo()
+		reply := domain.Reply{Board: message.Board, FromThreadId: message.ThreadId, ToThreadId: domain.ThreadId(threadId), From: message.Id, To: domain.MsgId(messageId)}
+		linkHTML := formatMessageLink(message.Board, domain.ThreadId(threadId), domain.MsgId(messageId))
 		// We dont want to add reply link twice
-		if _, ok := seen[linkTo]; !ok {
-			seen[linkTo] = struct{}{}
+		if _, ok := seen[linkHTML]; !ok {
+			seen[linkHTML] = struct{}{}
 			matches = append(matches, &reply)
 		}
-		return reply.LinkTo()
+		return linkHTML
 	})
 
 	return processedText, matches

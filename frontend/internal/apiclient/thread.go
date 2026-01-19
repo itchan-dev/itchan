@@ -23,9 +23,12 @@ func escapeQuotes(s string) string {
 
 // === Thread & Message Methods ===
 
-func (c *APIClient) GetThread(r *http.Request, shortName, threadID string) (domain.Thread, error) {
+func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page int) (domain.Thread, error) {
 	var thread domain.Thread
 	path := fmt.Sprintf("/v1/%s/%s", shortName, threadID)
+	if page > 1 {
+		path = fmt.Sprintf("%s?page=%d", path, page)
+	}
 	resp, err := c.do("GET", path, nil, r.Cookies()...)
 	if err != nil {
 		return thread, err
@@ -141,16 +144,22 @@ func (c *APIClient) CreateThread(r *http.Request, shortName string, data api.Cre
 	return string(bodyBytes), nil
 }
 
-func (c *APIClient) CreateReply(r *http.Request, shortName, threadID string, data api.CreateMessageRequest, multipartForm *multipart.Form) error {
+func (c *APIClient) CreateReply(r *http.Request, shortName, threadID string, data api.CreateMessageRequest, multipartForm *multipart.Form) (int, error) {
 	path := fmt.Sprintf("/v1/%s/%s", shortName, threadID)
 	bodyBytes, statusCode, err := c.postMultipartRequest(path, data, multipartForm, r.Cookies())
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if statusCode != http.StatusCreated {
-		return fmt.Errorf("failed to create reply: %s", string(bodyBytes))
+		return 0, fmt.Errorf("failed to create reply: %s", string(bodyBytes))
 	}
-	return nil
+
+	// Parse response to get the page number
+	var response api.CreateMessageResponse
+	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+		return 1, nil // Default to page 1 if parsing fails
+	}
+	return response.Page, nil
 }
 
 

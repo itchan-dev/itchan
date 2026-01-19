@@ -69,7 +69,7 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Convert to frontend domain types (adds HTMLLinkFrom method to Replies)
+	// Convert to frontend domain types (page already calculated by backend)
 	renderedMessage := RenderMessage(*messageData)
 
 	// Add message-preview class

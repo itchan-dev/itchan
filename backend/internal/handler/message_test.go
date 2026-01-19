@@ -20,16 +20,16 @@ import (
 )
 
 type MockMessageService struct {
-	MockCreate func(creationData domain.MessageCreationData) (domain.MsgId, error)
+	MockCreate func(creationData domain.MessageCreationData) (domain.MsgId, int, error)
 	MockGet    func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
 	MockDelete func(board domain.BoardShortName, id domain.MsgId) error
 }
 
-func (m *MockMessageService) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
+func (m *MockMessageService) Create(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
 	if m.MockCreate != nil {
 		return m.MockCreate(creationData)
 	}
-	return 0, nil
+	return 0, 1, nil
 }
 
 func (m *MockMessageService) Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
@@ -78,12 +78,12 @@ func TestCreateMessageHandler(t *testing.T) {
 	t.Run("successful request", func(t *testing.T) {
 		expectedMsgId := domain.MsgId(123)
 		mockService := &MockMessageService{
-			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, error) {
+			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, int, error) {
 				assert.Equal(t, domain.BoardShortName(board), data.Board)
 				assert.Equal(t, user, data.Author)
 				assert.Equal(t, domain.MsgText("test text"), data.Text)
 				assert.Equal(t, threadId, data.ThreadId)
-				return expectedMsgId, nil
+				return expectedMsgId, 1, nil
 			},
 		}
 		_, router := setupMessageTestHandler(mockService)
@@ -111,13 +111,13 @@ func TestCreateMessageHandler(t *testing.T) {
 	t.Run("successful request with replies", func(t *testing.T) {
 		expectedMsgId := domain.MsgId(123)
 		mockService := &MockMessageService{
-			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, error) {
+			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, int, error) {
 				require.NotNil(t, data.ReplyTo)
 				require.Len(t, *data.ReplyTo, 1)
 				reply := (*data.ReplyTo)[0]
 				assert.Equal(t, domain.MsgId(123), reply.To)
 				assert.Equal(t, domain.ThreadId(1), reply.ToThreadId)
-				return expectedMsgId, nil
+				return expectedMsgId, 1, nil
 			},
 		}
 		_, router := setupMessageTestHandler(mockService)
@@ -194,8 +194,8 @@ func TestCreateMessageHandler(t *testing.T) {
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("database insertion failed")
 		mockService := &MockMessageService{
-			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, error) {
-				return 0, mockErr
+			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, int, error) {
+				return 0, 0, mockErr
 			},
 		}
 		_, router := setupMessageTestHandler(mockService)

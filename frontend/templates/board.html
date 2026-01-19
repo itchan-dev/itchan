@@ -91,21 +91,7 @@
         {{ if gt $currentPage 1 }}
         <a href="?page={{ $prevPage }}">&lt;&lt; prev</a>
         {{ end }}
-        [
-        {{ if eq $currentPage 1 }}
-            <span>1</span> /
-            <a href="?page=2">2</a> /
-            <a href="?page=3">3</a>
-        {{ else if gt $currentPage 0 }}
-            {{ if gt $currentPage 2 }}
-            <a href="?page=1">1</a> /
-            <span>...</span> /
-            {{ end }}
-            <a href="?page={{ $prevPage }}">{{ $prevPage }}</a> /
-            <span>{{ $currentPage }}</span> /
-            <a href="?page={{ $nextPage }}">{{ $nextPage }}</a>
-        {{ end }}
-        ]
+        <form class="page-form" method="get" action=""><input type="number" class="page-input" name="page" value="{{ $currentPage }}" min="1"></form>
         <a href="?page={{ $nextPage }}">next &gt;&gt;</a>
     </div>
 
