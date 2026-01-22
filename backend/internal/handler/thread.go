@@ -45,7 +45,7 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	threadId, _, err := h.thread.Create(creation)
+	threadId, err := h.thread.Create(creation)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -91,7 +91,7 @@ func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.thread.Delete(board, int64(threadId)); err != nil {
+	if err := h.thread.Delete(board, domain.ThreadId(threadId)); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

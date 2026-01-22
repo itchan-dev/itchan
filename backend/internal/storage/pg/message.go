@@ -22,30 +22,29 @@ import (
 // atomic database transaction. This ensures that all related database operations
 // (updating board/thread metadata, inserting the message, attachments, and replies)
 // either succeed together or fail together, maintaining data integrity.
-func (s *Storage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+func (s *Storage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var msgID domain.MsgId
-	var ordinal int
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		var err error
-		msgID, ordinal, err = s.createMessage(tx, creationData)
+		msgID, err = s.createMessage(tx, creationData)
 		return err
 	})
-	return msgID, ordinal, err
+	return msgID, err
 }
 
 // DeleteMessage is the public entry point for deleting a message.
 // It manages the transaction for this operation, ensuring that the board's
 // last activity is updated and the message is deleted atomically. The cascading
 // deletion of related attachments and replies is handled by the database schema.
-func (s *Storage) DeleteMessage(board domain.BoardShortName, id domain.MsgId) error {
+func (s *Storage) DeleteMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		return s.deleteMessage(tx, board, id)
+		return s.deleteMessage(tx, board, threadId, id)
 	})
 }
 
@@ -53,9 +52,9 @@ func (s *Storage) DeleteMessage(board domain.BoardShortName, id domain.MsgId) er
 // attachments and replies. Since it doesn't modify data, it doesn't need to
 // create its own transaction. It can use the main database connection pool (s.db)
 // as the Querier, allowing for concurrent reads.
-func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+func (s *Storage) GetMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 	// Delegate to the internal method, passing the main DB connection pool.
-	return s.getMessage(s.db, board, id)
+	return s.getMessage(s.db, board, threadId, id)
 }
 
 // =========================================================================
@@ -66,8 +65,8 @@ func (s *Storage) GetMessage(board domain.BoardShortName, id domain.MsgId) (doma
 // createMessage contains the core logic for inserting a new message and its related data.
 // It's unexported and accepts a Querier, allowing it to be run within a transaction
 // managed by a public method (like CreateMessage or CreateThread) or in a test.
-// Returns the message ID and ordinal (position in thread).
-func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+// Returns the message ID (which is per-thread sequential: 1, 2, 3...).
+func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationData) (domain.MsgId, error) {
 	// Determine the creation timestamp for all related records in this operation.
 	// Use the provided timestamp if available (useful for testing or migrations),
 	// otherwise generate the current UTC timestamp rounded to microseconds for consistency.
@@ -87,15 +86,15 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 		createdAt, creationData.Board,
 	)
 	if err != nil {
-		return -1, 0, fmt.Errorf("failed to update board activity: %w", err)
+		return -1, fmt.Errorf("failed to update board activity: %w", err)
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
-		return -1, 0, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: http.StatusNotFound}
+		return -1, &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: http.StatusNotFound}
 	}
 
 	// Update the parent thread's metadata (reply count and bump timestamp) and get the
-	// new message's ordinal number in return.
-	var ordinal int64
+	// new message's ID (which equals message_count after increment).
+	var msgId int64
 	err = q.QueryRow(`
 	       UPDATE threads SET
 	           message_count = message_count + 1,
@@ -104,25 +103,24 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 		   RETURNING message_count
 		   `,
 		s.cfg.Public.BumpLimit, createdAt, creationData.Board, creationData.ThreadId,
-	).Scan(&ordinal)
+	).Scan(&msgId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return -1, 0, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
+			return -1, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
 		}
-		return -1, 0, fmt.Errorf("failed to update thread: %w", err)
+		return -1, fmt.Errorf("failed to update thread: %w", err)
 	}
 
 	// Insert the message record into its board-specific partition.
-	var id int64
+	// The message ID is per-thread sequential (1, 2, 3...) - id=1 is always OP.
 	partitionName := PartitionName(creationData.Board, "messages")
-	isOp := ordinal == 1
-	err = q.QueryRow(fmt.Sprintf(`
-	       INSERT INTO %s (author_id, text, created_at, thread_id, ordinal, updated_at, is_op, board)
-	       VALUES ($1, $2, $3, $4, $5, $3, $6, $7) RETURNING id`, partitionName),
-		creationData.Author.Id, creationData.Text, createdAt, creationData.ThreadId, ordinal, isOp, creationData.Board,
-	).Scan(&id)
+	_, err = q.Exec(fmt.Sprintf(`
+	       INSERT INTO %s (id, author_id, text, created_at, thread_id, updated_at, board)
+	       VALUES ($1, $2, $3, $4, $5, $4, $6)`, partitionName),
+		msgId, creationData.Author.Id, creationData.Text, createdAt, creationData.ThreadId, creationData.Board,
+	)
 	if err != nil {
-		return -1, 0, fmt.Errorf("failed to insert message: %w", err)
+		return -1, fmt.Errorf("failed to insert message: %w", err)
 	}
 
 	// If this message is a reply to others, insert those relationships.
@@ -132,20 +130,20 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 			_, err := q.Exec(fmt.Sprintf(`
 			             INSERT INTO %s (board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created_at)
 			             VALUES ($1, $2, $3, $4, $5, $6)`, replyPartitionName),
-				creationData.Board, id, creationData.ThreadId, reply.To, reply.ToThreadId, createdAt,
+				creationData.Board, msgId, creationData.ThreadId, reply.To, reply.ToThreadId, createdAt,
 			)
 			if err != nil {
-				return -1, 0, fmt.Errorf("failed to insert message reply relationship: %w", err)
+				return -1, fmt.Errorf("failed to insert message reply relationship: %w", err)
 			}
 		}
 	}
 
-	return id, int(ordinal), nil
+	return msgId, nil
 }
 
 // deleteMessage contains the core logic for removing a message record and updating
 // parent metadata. It is unexported and accepts a Querier.
-func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, id domain.MsgId) error {
+func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
 	// Update the board's last_activity timestamp to reflect the deletion.
 	deletedTs := time.Now().UTC().Round(time.Microsecond)
 	result, err := q.Exec(`
@@ -162,7 +160,7 @@ func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, id domai
 
 	// Delete the message from its partition. Foreign key constraints with ON DELETE CASCADE
 	// will handle the automatic deletion of related attachments and replies.
-	result, err = q.Exec("DELETE FROM messages WHERE board = $1 AND id = $2", board, id)
+	result, err = q.Exec("DELETE FROM messages WHERE board = $1 AND thread_id = $2 AND id = $3", board, threadId, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete message: %w", err)
 	}
@@ -175,16 +173,16 @@ func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, id domai
 
 // getMessage contains the core logic for fetching a message and all its related data.
 // It composes several helper functions to build the complete domain.Message object.
-func (s *Storage) getMessage(q Querier, board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+func (s *Storage) getMessage(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 	var msg domain.Message
 	err := q.QueryRow(`
-	   SELECT id, author_id, text, created_at, thread_id, ordinal, updated_at, is_op, board
-	   FROM messages 
-	   WHERE board = $1 AND id = $2`,
-		board, id,
+	   SELECT id, author_id, text, created_at, thread_id, updated_at, board
+	   FROM messages
+	   WHERE board = $1 AND thread_id = $2 AND id = $3`,
+		board, threadId, id,
 	).Scan(
 		&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt, &msg.ThreadId,
-		&msg.Ordinal, &msg.ModifiedAt, &msg.Op, &msg.Board,
+		&msg.ModifiedAt, &msg.Board,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -193,17 +191,17 @@ func (s *Storage) getMessage(q Querier, board domain.BoardShortName, id domain.M
 		return domain.Message{}, fmt.Errorf("failed to query message: %w", err)
 	}
 
-	// Calculate page from ordinal
-	msg.Page = utils.CalculatePage(msg.Ordinal, s.cfg.Public.MessagesPerThreadPage)
+	// Calculate page from message ID (which is per-thread sequential)
+	msg.Page = utils.CalculatePage(int(msg.Id), s.cfg.Public.MessagesPerThreadPage)
 
 	// Fetch and attach related data using helper functions.
-	attachments, err := s.getMessageAttachments(q, board, id)
+	attachments, err := s.getMessageAttachments(q, board, threadId, id)
 	if err != nil {
 		return domain.Message{}, err
 	}
 	msg.Attachments = attachments
 
-	replies, err := s.getMessageRepliesTo(q, board, id) // Replies *to* this message
+	replies, err := s.getMessageRepliesTo(q, board, threadId, id) // Replies *to* this message
 	if err != nil {
 		return domain.Message{}, err
 	}
@@ -213,15 +211,15 @@ func (s *Storage) getMessage(q Querier, board domain.BoardShortName, id domain.M
 }
 
 // getMessageAttachments fetches all attachment records associated with a specific message.
-func (s *Storage) getMessageAttachments(q Querier, board domain.BoardShortName, id domain.MsgId) (domain.Attachments, error) {
+func (s *Storage) getMessageAttachments(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Attachments, error) {
 	rows, err := q.Query(`
-        SELECT a.id, a.board, a.message_id, a.file_id,
+        SELECT a.id, a.board, a.thread_id, a.message_id, a.file_id,
                f.file_path, f.filename, f.original_filename, f.file_size_bytes, f.mime_type, f.original_mime_type, f.image_width, f.image_height, f.thumbnail_path
         FROM attachments a
         JOIN files f ON a.file_id = f.id
-        WHERE a.board = $1 AND a.message_id = $2
+        WHERE a.board = $1 AND a.thread_id = $2 AND a.message_id = $3
         ORDER BY a.id`,
-		board, id,
+		board, threadId, id,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch message attachments: %w", err)
@@ -233,7 +231,7 @@ func (s *Storage) getMessageAttachments(q Querier, board domain.BoardShortName, 
 		var attachment domain.Attachment
 		var file domain.File
 		if err := rows.Scan(
-			&attachment.Id, &attachment.Board, &attachment.MessageId, &attachment.FileId,
+			&attachment.Id, &attachment.Board, &attachment.ThreadId, &attachment.MessageId, &attachment.FileId,
 			&file.FilePath, &file.Filename, &file.OriginalFilename, &file.SizeBytes, &file.MimeType, &file.OriginalMimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan attachment row: %w", err)
@@ -245,14 +243,13 @@ func (s *Storage) getMessageAttachments(q Querier, board domain.BoardShortName, 
 }
 
 // getMessageRepliesTo fetches all reply relationships where the specified message is the *receiver*.
-func (s *Storage) getMessageRepliesTo(q Querier, board domain.BoardShortName, id domain.MsgId) (domain.Replies, error) {
+func (s *Storage) getMessageRepliesTo(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Replies, error) {
 	rows, err := q.Query(`
-	       SELECT mr.board, mr.sender_message_id, mr.sender_thread_id, mr.receiver_message_id, mr.receiver_thread_id, m.ordinal, mr.created_at
+	       SELECT mr.board, mr.sender_message_id, mr.sender_thread_id, mr.receiver_message_id, mr.receiver_thread_id, mr.created_at
 	       FROM message_replies mr
-	       JOIN messages m ON mr.board = m.board AND mr.sender_message_id = m.id
-	       WHERE mr.board = $1 AND mr.receiver_message_id = $2
+	       WHERE mr.board = $1 AND mr.receiver_thread_id = $2 AND mr.receiver_message_id = $3
 	       ORDER BY mr.created_at`,
-		board, id,
+		board, threadId, id,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch message replies: %w", err)
@@ -262,23 +259,24 @@ func (s *Storage) getMessageRepliesTo(q Querier, board domain.BoardShortName, id
 	var replies domain.Replies
 	for rows.Next() {
 		var reply domain.Reply
-		if err := rows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.FromOrdinal, &reply.CreatedAt); err != nil {
+		if err := rows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan reply row: %w", err)
 		}
-		reply.FromPage = utils.CalculatePage(reply.FromOrdinal, s.cfg.Public.MessagesPerThreadPage)
+		// From (sender_message_id) is now the per-thread sequential ID, which is also the ordinal
+		reply.FromPage = utils.CalculatePage(int(reply.From), s.cfg.Public.MessagesPerThreadPage)
 		replies = append(replies, &reply)
 	}
 	return replies, rows.Err()
 }
 
 // getMessageRepliesFrom fetches all reply relationships where the specified message is the *sender*.
-func (s *Storage) getMessageRepliesFrom(q Querier, board domain.BoardShortName, id domain.MsgId) (domain.Replies, error) {
+func (s *Storage) getMessageRepliesFrom(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Replies, error) {
 	rows, err := q.Query(`
 	       SELECT board, sender_message_id, sender_thread_id, receiver_message_id, receiver_thread_id, created_at
 	       FROM message_replies
-	       WHERE board = $1 AND sender_message_id = $2
+	       WHERE board = $1 AND sender_thread_id = $2 AND sender_message_id = $3
 	       ORDER BY created_at`,
-		board, id,
+		board, threadId, id,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch message replies from: %w", err)
@@ -298,17 +296,17 @@ func (s *Storage) getMessageRepliesFrom(q Querier, board domain.BoardShortName, 
 
 // AddAttachments adds attachments to an existing message.
 // This is used when files are uploaded and saved after the message is created.
-func (s *Storage) AddAttachments(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+func (s *Storage) AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		return s.addAttachments(tx, board, messageID, attachments)
+		return s.addAttachments(tx, board, threadId, messageID, attachments)
 	})
 }
 
 // addAttachments is the internal method to add attachments within a transaction
-func (s *Storage) addAttachments(q Querier, board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+func (s *Storage) addAttachments(q Querier, board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
 	for _, attachment := range attachments {
 		// Insert file record
 		var fileId int64
@@ -325,8 +323,8 @@ func (s *Storage) addAttachments(q Querier, board domain.BoardShortName, message
 		// Insert attachment record
 		attachPartitionName := PartitionName(board, "attachments")
 		_, err = q.Exec(fmt.Sprintf(`
-            INSERT INTO %s (board, message_id, file_id) VALUES ($1, $2, $3)`, attachPartitionName),
-			board, messageID, fileId,
+            INSERT INTO %s (board, thread_id, message_id, file_id) VALUES ($1, $2, $3, $4)`, attachPartitionName),
+			board, threadId, messageID, fileId,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert attachment link: %w", err)

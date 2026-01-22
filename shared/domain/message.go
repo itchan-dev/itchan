@@ -18,14 +18,17 @@ type MessageCreationData struct {
 type MessageMetadata struct {
 	Board      BoardShortName
 	ThreadId   ThreadId
-	Id         MsgId
+	Id         MsgId // Per-thread sequential (1, 2, 3...) - id=1 is OP
 	Author     User
-	Op         bool
-	Ordinal    int
-	Page       int // Page number where this message appears (calculated from Ordinal)
+	Page       int // Page number where this message appears (calculated from Id)
 	Replies    Replies
 	CreatedAt  time.Time
 	ModifiedAt time.Time
+}
+
+// IsOp returns true if this message is the opening post (first message in thread)
+func (m *MessageMetadata) IsOp() bool {
+	return m.Id == 1
 }
 
 type Message struct {
@@ -38,9 +41,8 @@ type Reply struct {
 	Board        BoardShortName
 	FromThreadId ThreadId
 	ToThreadId   ThreadId
-	From         MsgId
+	From         MsgId // Per-thread sequential ID (also serves as ordinal)
 	To           MsgId
-	FromOrdinal  int // Ordinal of the sender message
-	FromPage     int // Page where the sender message is located (calculated from FromOrdinal)
+	FromPage     int // Page where the sender message is located (calculated from From)
 	CreatedAt    time.Time
 }

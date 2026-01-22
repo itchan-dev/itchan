@@ -16,28 +16,28 @@ import (
 
 // MockMessageService mocks the MessageService interface.
 type MockMessageService struct {
-	createFunc func(creationData domain.MessageCreationData) (domain.MsgId, int, error)
-	getFunc    func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
-	deleteFunc func(board domain.BoardShortName, id domain.MsgId) error
+	createFunc func(creationData domain.MessageCreationData) (domain.MsgId, error)
+	getFunc    func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error)
+	deleteFunc func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error
 }
 
-func (m *MockMessageService) Create(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+func (m *MockMessageService) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
 	if m.createFunc != nil {
 		return m.createFunc(creationData)
 	}
-	return 1, 1, nil // Default: return arbitrary ID and ordinal 1
+	return 1, nil // Default: return arbitrary ID (always 1 for OP)
 }
 
-func (m *MockMessageService) Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+func (m *MockMessageService) Get(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 	if m.getFunc != nil {
-		return m.getFunc(board, id)
+		return m.getFunc(board, threadId, id)
 	}
 	return domain.Message{}, nil
 }
 
-func (m *MockMessageService) Delete(board domain.BoardShortName, id domain.MsgId) error {
+func (m *MockMessageService) Delete(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
 	if m.deleteFunc != nil {
-		return m.deleteFunc(board, id)
+		return m.deleteFunc(board, threadId, id)
 	}
 	return nil
 }
@@ -154,7 +154,6 @@ func TestThreadCreate(t *testing.T) {
 		OpMessage: validOpMessage,
 	}
 	newThreadId := domain.ThreadId(10)
-	newMsgId := domain.MsgId(10)
 
 	t.Run("Successful creation", func(t *testing.T) {
 		// Arrange
@@ -175,17 +174,16 @@ func TestThreadCreate(t *testing.T) {
 			assert.Equal(t, validCreationData, creationData)
 			return newThreadId, time.Now().UTC(), nil
 		}
-		messageService.createFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
-			return newMsgId, 1, nil
+		messageService.createFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+			return 1, nil // OP message always has ID 1
 		}
 
 		// Act
-		threadId, msgId, err := service.Create(validCreationData)
+		threadId, err := service.Create(validCreationData)
 
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, newThreadId, threadId)
-		assert.Equal(t, newMsgId, msgId)
 		assert.True(t, createCalled, "Storage CreateThread should be called")
 		// Cleanup is now handled by background ThreadGarbageCollector
 		storage.mu.Lock()
@@ -217,7 +215,7 @@ func TestThreadCreate(t *testing.T) {
 		}
 
 		// Act
-		_, _, err := service.Create(validCreationData)
+		_, err := service.Create(validCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -242,7 +240,7 @@ func TestThreadCreate(t *testing.T) {
 		}
 
 		// Act
-		_, _, err := service.Create(validCreationData)
+		_, err := service.Create(validCreationData)
 
 		// Assert
 		require.Error(t, err)

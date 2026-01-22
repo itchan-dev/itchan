@@ -17,7 +17,7 @@ func (s *Storage) GetUserMessages(userId domain.UserId, limit int) ([]domain.Mes
 	// Step 1: Fetch messages with author data
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT
-			m.id, m.board, m.thread_id, m.text, m.created_at, m.ordinal, m.is_op,
+			m.id, m.board, m.thread_id, m.text, m.created_at,
 			u.id, u.email, u.is_admin
 		FROM messages m
 		JOIN users u ON m.author_id = u.id
@@ -38,7 +38,7 @@ func (s *Storage) GetUserMessages(userId domain.UserId, limit int) ([]domain.Mes
 		var msg domain.Message
 		var author domain.User
 		err := rows.Scan(
-			&msg.Id, &msg.Board, &msg.ThreadId, &msg.Text, &msg.CreatedAt, &msg.Ordinal, &msg.Op,
+			&msg.Id, &msg.Board, &msg.ThreadId, &msg.Text, &msg.CreatedAt,
 			&author.Id, &author.Email, &author.Admin,
 		)
 		if err != nil {
@@ -64,20 +64,21 @@ func (s *Storage) GetUserMessages(userId domain.UserId, limit int) ([]domain.Mes
 
 	// Step 2: Enrich board-by-board with board-specific maps
 	for board, boardMessages := range boardToMessages {
-		// Build board-specific map to avoid ID collisions across boards
-		idToMessage := make(map[domain.MsgId]*domain.Message)
-		messageIds := make([]domain.MsgId, 0, len(boardMessages))
+		// Build board-specific map using (threadId, msgId) as key
+		idToMessage := make(map[MsgKey]*domain.Message)
+		messageKeys := make([]MsgKey, 0, len(boardMessages))
 
 		for _, msg := range boardMessages {
-			idToMessage[msg.Id] = msg
-			messageIds = append(messageIds, msg.Id)
+			key := MsgKey{ThreadId: msg.ThreadId, MsgId: msg.Id}
+			idToMessage[key] = msg
+			messageKeys = append(messageKeys, key)
 		}
 
 		// Enrich with replies and attachments for this board only
-		if err := enrichMessagesWithReplies(s.db, board, messageIds, idToMessage); err != nil {
+		if err := enrichMessagesWithReplies(s.db, board, messageKeys, idToMessage, s.cfg.Public.MessagesPerThreadPage); err != nil {
 			return nil, fmt.Errorf("failed to enrich replies for board %s: %w", board, err)
 		}
-		if err := enrichMessagesWithAttachments(s.db, board, messageIds, idToMessage); err != nil {
+		if err := enrichMessagesWithAttachments(s.db, board, messageKeys, idToMessage); err != nil {
 			return nil, fmt.Errorf("failed to enrich attachments for board %s: %w", board, err)
 		}
 	}

@@ -48,7 +48,7 @@ func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId, pag
 // deletion logic in a transaction to ensure atomicity. The database schema's
 // foreign key constraints will cascade the delete from the thread to all of its
 // contained messages, attachments, and replies.
-func (s *Storage) DeleteThread(board domain.BoardShortName, id domain.MsgId) error {
+func (s *Storage) DeleteThread(board domain.BoardShortName, id domain.ThreadId) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -167,23 +167,23 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	if page > 1 {
 		opRow := q.QueryRow(`
 			SELECT
-				m.id, m.author_id, m.text, m.created_at, m.thread_id, m.ordinal,
-				m.updated_at, m.is_op, m.board,
+				m.id, m.author_id, m.text, m.created_at, m.thread_id,
+				m.updated_at, m.board,
 				u.email, u.is_admin
 			FROM messages m
 			JOIN users u ON m.author_id = u.id
-			WHERE m.board = $1 AND m.thread_id = $2 AND m.is_op = true`,
+			WHERE m.board = $1 AND m.thread_id = $2 AND m.id = 1`,
 			board, id,
 		)
 		var opMsg domain.Message
 		if err := opRow.Scan(
 			&opMsg.Id, &opMsg.Author.Id, &opMsg.Text, &opMsg.CreatedAt,
-			&opMsg.ThreadId, &opMsg.Ordinal, &opMsg.ModifiedAt, &opMsg.Op, &opMsg.Board,
+			&opMsg.ThreadId, &opMsg.ModifiedAt, &opMsg.Board,
 			&opMsg.Author.Email, &opMsg.Author.Admin,
 		); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return domain.Thread{}, fmt.Errorf("failed to fetch OP message: %w", err)
 		} else if err == nil {
-			opMsg.Page = utils.CalculatePage(opMsg.Ordinal, messagesPerPage)
+			opMsg.Page = utils.CalculatePage(int(opMsg.Id), messagesPerPage)
 			messages = append(messages, &opMsg)
 			msgIDMap[opMsg.Id] = &opMsg
 		}
@@ -192,13 +192,13 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	// Fetch paginated messages for the thread
 	msgRows, err := q.Query(`
 		SELECT
-			m.id, m.author_id, m.text, m.created_at, m.thread_id, m.ordinal,
-			m.updated_at, m.is_op, m.board,
+			m.id, m.author_id, m.text, m.created_at, m.thread_id,
+			m.updated_at, m.board,
 			u.email, u.is_admin
 		FROM messages m
 		JOIN users u ON m.author_id = u.id
 		WHERE m.board = $1 AND m.thread_id = $2
-		ORDER BY m.ordinal
+		ORDER BY m.id
 		LIMIT $3 OFFSET $4`,
 		board, id, messagesPerPage, offset,
 	)
@@ -211,12 +211,12 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		var msg domain.Message
 		if err := msgRows.Scan(
 			&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt,
-			&msg.ThreadId, &msg.Ordinal, &msg.ModifiedAt, &msg.Op, &msg.Board,
+			&msg.ThreadId, &msg.ModifiedAt, &msg.Board,
 			&msg.Author.Email, &msg.Author.Admin,
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)
 		}
-		msg.Page = utils.CalculatePage(msg.Ordinal, messagesPerPage)
+		msg.Page = utils.CalculatePage(int(msg.Id), messagesPerPage)
 		messages = append(messages, &msg)
 		msgIDMap[msg.Id] = &msg
 	}
@@ -225,13 +225,11 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	}
 
 	// Fetch all reply relationships for the entire thread in a single query for efficiency.
-	// JOIN with messages to get FromOrdinal for page calculation.
 	replyRows, err := q.Query(`
         SELECT
 			mr.board, mr.sender_message_id, mr.sender_thread_id, mr.receiver_message_id, mr.receiver_thread_id,
-			m.ordinal, mr.created_at
+			mr.created_at
         FROM message_replies mr
-		JOIN messages m ON mr.board = m.board AND mr.sender_message_id = m.id
 		WHERE mr.board = $1 AND mr.receiver_thread_id = $2
 		ORDER BY mr.created_at`,
 		board, id,
@@ -242,10 +240,11 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	defer replyRows.Close()
 	for replyRows.Next() {
 		var reply domain.Reply
-		if err := replyRows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.FromOrdinal, &reply.CreatedAt); err != nil {
+		if err := replyRows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan reply row: %w", err)
 		}
-		reply.FromPage = utils.CalculatePage(reply.FromOrdinal, messagesPerPage)
+		// From (sender_message_id) is the per-thread sequential ID, which is also the ordinal
+		reply.FromPage = utils.CalculatePage(int(reply.From), messagesPerPage)
 		// Attach the reply to the correct message using the map.
 		if msg, ok := msgIDMap[reply.To]; ok {
 			msg.Replies = append(msg.Replies, &reply)
@@ -255,12 +254,11 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	// Fetch all attachments for the entire thread in a single query.
 	attachRows, err := q.Query(`
         SELECT
-			a.id, a.board, a.message_id, a.file_id,
+			a.id, a.board, a.thread_id, a.message_id, a.file_id,
             f.file_path, f.filename, f.original_filename, f.file_size_bytes, f.mime_type, f.original_mime_type, f.image_width, f.image_height, f.thumbnail_path
         FROM attachments a
         JOIN files f ON a.file_id = f.id
-        JOIN messages m ON a.message_id = m.id AND a.board = m.board
-        WHERE a.board = $1 AND m.thread_id = $2
+        WHERE a.board = $1 AND a.thread_id = $2
         ORDER BY a.id`,
 		board, id,
 	)
@@ -272,7 +270,7 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		var attachment domain.Attachment
 		var file domain.File
 		if err := attachRows.Scan(
-			&attachment.Id, &attachment.Board, &attachment.MessageId, &attachment.FileId,
+			&attachment.Id, &attachment.Board, &attachment.ThreadId, &attachment.MessageId, &attachment.FileId,
 			&file.FilePath, &file.Filename, &file.OriginalFilename, &file.SizeBytes, &file.MimeType, &file.OriginalMimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan attachment row: %w", err)
@@ -299,7 +297,7 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 }
 
 // deleteThread contains the core logic for removing a thread record.
-func (s *Storage) deleteThread(q Querier, board domain.BoardShortName, id domain.MsgId) error {
+func (s *Storage) deleteThread(q Querier, board domain.BoardShortName, id domain.ThreadId) error {
 	// Update the board's last_activity timestamp.
 	result, err := q.Exec(`
         UPDATE boards SET last_activity_at = NOW() AT TIME ZONE 'utc'

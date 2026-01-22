@@ -18,9 +18,9 @@ import (
 )
 
 type MessageService interface {
-	Create(creationData domain.MessageCreationData) (msgId domain.MsgId, ordinal int, err error)
-	Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
-	Delete(board domain.BoardShortName, id domain.MsgId) error
+	Create(creationData domain.MessageCreationData) (msgId domain.MsgId, err error)
+	Get(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error)
+	Delete(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error
 }
 
 type Message struct {
@@ -31,10 +31,10 @@ type Message struct {
 }
 
 type MessageStorage interface {
-	CreateMessage(creationData domain.MessageCreationData) (msgId domain.MsgId, ordinal int, err error)
-	GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
-	DeleteMessage(board domain.BoardShortName, id domain.MsgId) error
-	AddAttachments(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error
+	CreateMessage(creationData domain.MessageCreationData) (msgId domain.MsgId, err error)
+	GetMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error)
+	DeleteMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error
+	AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error
 }
 
 type MessageValidator interface {
@@ -51,14 +51,14 @@ func NewMessage(storage MessageStorage, validator MessageValidator, mediaStorage
 	}
 }
 
-func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId, error) {
 	// Determine what content we have
 	hasFiles := len(creationData.PendingFiles) > 0
 	hasText := len(strings.TrimSpace(string(creationData.Text))) > 0
 
 	// Business rule: must have EITHER text OR files
 	if !hasText && !hasFiles {
-		return 0, 0, &errors.ErrorWithStatusCode{
+		return 0, &errors.ErrorWithStatusCode{
 			Message:    "message must contain either text or attachments",
 			StatusCode: 400,
 		}
@@ -67,14 +67,14 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 	// Validate text only if text is provided
 	if hasText {
 		if err := b.validator.Text(creationData.Text); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 	}
 
 	// Validate files only if files are provided
 	if hasFiles {
 		if err := b.validator.PendingFiles(creationData.PendingFiles); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 	}
 
@@ -82,29 +82,29 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 	creationDataWithoutFiles := creationData
 	creationDataWithoutFiles.PendingFiles = nil
 
-	msgID, ordinal, err := b.storage.CreateMessage(creationDataWithoutFiles)
+	msgID, err := b.storage.CreateMessage(creationDataWithoutFiles)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	// Then handle files if present
 	if len(creationData.PendingFiles) > 0 {
-		if err := b.saveAndAttachFiles(creationData.Board, msgID, creationData.ThreadId, creationData.PendingFiles); err != nil {
+		if err := b.saveAndAttachFiles(creationData.Board, creationData.ThreadId, msgID, creationData.PendingFiles); err != nil {
 			// Cleanup: delete the message since we failed to save attachments
-			b.storage.DeleteMessage(creationData.Board, msgID)
-			return 0, 0, err
+			b.storage.DeleteMessage(creationData.Board, creationData.ThreadId, msgID)
+			return 0, err
 		}
 	}
 
-	return msgID, ordinal, nil
+	return msgID, nil
 }
 
 // saveAndAttachFiles saves files to storage and adds them as attachments to a message.
 // It handles cleanup of saved files if any step fails.
 func (b *Message) saveAndAttachFiles(
 	board domain.BoardShortName,
-	messageID domain.MsgId,
 	threadID domain.ThreadId,
+	messageID domain.MsgId,
 	pendingFiles []*domain.PendingFile,
 ) error {
 	var attachments domain.Attachments
@@ -224,7 +224,7 @@ func (b *Message) saveAndAttachFiles(
 	}
 
 	// Add attachments to DB
-	err := b.storage.AddAttachments(board, messageID, attachments)
+	err := b.storage.AddAttachments(board, threadID, messageID, attachments)
 	if err != nil {
 		// Cleanup: delete saved files
 		for _, savedPath := range savedFiles {
@@ -236,23 +236,23 @@ func (b *Message) saveAndAttachFiles(
 	return nil
 }
 
-func (b *Message) Get(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
-	message, err := b.storage.GetMessage(board, id)
+func (b *Message) Get(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
+	message, err := b.storage.GetMessage(board, threadId, id)
 	if err != nil {
 		return domain.Message{}, err
 	}
 	return message, nil
 }
 
-func (b *Message) Delete(board domain.BoardShortName, id domain.MsgId) error {
+func (b *Message) Delete(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
 	// First, get the message to find its attachments
-	msg, err := b.storage.GetMessage(board, id)
+	msg, err := b.storage.GetMessage(board, threadId, id)
 	if err != nil {
 		return err
 	}
 
 	// Delete the message from storage (DB will cascade delete attachments records)
-	err = b.storage.DeleteMessage(board, id)
+	err = b.storage.DeleteMessage(board, threadId, id)
 	if err != nil {
 		return err
 	}

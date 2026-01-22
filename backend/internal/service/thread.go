@@ -9,7 +9,8 @@ import (
 )
 
 type ThreadService interface {
-	Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
+	// Create returns only ThreadId - OP message always has Id=1
+	Create(creationData domain.ThreadCreationData) (domain.ThreadId, error)
 	Get(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
 	Delete(board domain.BoardShortName, id domain.ThreadId) error
 	TogglePinned(board domain.BoardShortName, id domain.ThreadId) (bool, error)
@@ -44,17 +45,17 @@ func NewThread(storage ThreadStorage, validator ThreadValidator, messageService 
 	}
 }
 
-func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId, error) {
 	// Validate title
 	err := b.validator.Title(creationData.Title)
 	if err != nil {
-		return -1, -1, err
+		return -1, err
 	}
 
 	// Step 1: Create the thread record (just metadata)
 	threadID, createdAt, err := b.storage.CreateThread(creationData)
 	if err != nil {
-		return -1, -1, err
+		return -1, err
 	}
 
 	// Step 2: Prepare OP message creation data
@@ -64,15 +65,16 @@ func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId
 	opMessageData.CreatedAt = &createdAt // Same timestamp as thread
 
 	// Step 3: Create OP message using Message service (handles files automatically)
-	opMessageID, _, err := b.messageService.Create(opMessageData)
+	// OP message always gets Id=1 (first message in thread)
+	_, err = b.messageService.Create(opMessageData)
 	if err != nil {
 		// Cleanup: delete the thread since OP message creation failed
 		b.storage.DeleteThread(creationData.Board, threadID)
-		return -1, -1, fmt.Errorf("failed to create OP message: %w", err)
+		return -1, fmt.Errorf("failed to create OP message: %w", err)
 	}
 
 	// Thread cleanup is now handled by ThreadGarbageCollector in the background
-	return threadID, opMessageID, nil
+	return threadID, nil
 }
 
 func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
@@ -83,7 +85,7 @@ func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId, page int) 
 	return thread, nil
 }
 
-func (b *Thread) Delete(board domain.BoardShortName, id domain.MsgId) error {
+func (b *Thread) Delete(board domain.BoardShortName, id domain.ThreadId) error {
 	// Delete the thread from storage (DB will cascade delete all messages and attachments)
 	err := b.storage.DeleteThread(board, id)
 	if err != nil {

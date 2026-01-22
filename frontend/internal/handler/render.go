@@ -36,7 +36,7 @@ func RenderMessage(message domain.Message) *frontend_domain.Message {
 	renderedMessage := frontend_domain.Message{Message: message}
 	renderedMessage.Text = template.HTML(message.Text)
 
-	if renderedMessage.Op {
+	if renderedMessage.IsOp() {
 		renderedMessage.Context.ExtraClasses = "op-post"
 	} else {
 		renderedMessage.Context.ExtraClasses = "reply-post"
@@ -52,8 +52,8 @@ func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 	for i, msg := range thread.Messages {
 		renderedThread.Messages[i] = RenderMessage(*msg)
 
-		// Enrich OP messages with thread-specific context
-		if msg.Op {
+		// Enrich OP messages (id=1) with thread-specific context
+		if msg.IsOp() {
 			renderedThread.Messages[i].Context.Subject = thread.Title
 			renderedThread.Messages[i].Context.IsPinned = thread.IsPinned
 		}

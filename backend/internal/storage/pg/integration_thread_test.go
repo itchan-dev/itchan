@@ -45,7 +45,7 @@ func TestThreadOperations(t *testing.T) {
 			opMsg.ThreadId = threadID
 			opMsg.CreatedAt = &createdAt
 			opMsg.Board = boardShortName
-			_, _, err = storage.createMessage(tx, opMsg)
+			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
 			createdThread, err := storage.getThread(tx, boardShortName, threadID, 1)
@@ -97,7 +97,7 @@ func TestThreadOperations(t *testing.T) {
 			opMsg.ThreadId = threadID
 			opMsg.CreatedAt = &createdAt
 			opMsg.Board = boardShortName
-			_, _, err = storage.createMessage(tx, opMsg)
+			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
 			thread, err := storage.getThread(tx, boardShortName, threadID, 1)
@@ -131,13 +131,13 @@ func TestThreadOperations(t *testing.T) {
 			opMsg.ThreadId = threadID
 			opMsg.CreatedAt = &createdAt
 			opMsg.Board = boardShortName
-			_, _, err = storage.createMessage(tx, opMsg)
+			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
 			user2 := createTestUser(t, tx, generateString(t)+"@example.com")
 			user3 := createTestUser(t, tx, generateString(t)+"@example.com")
 
-			msgID1, _, err := storage.createMessage(tx, domain.MessageCreationData{
+			msgID1, err := storage.createMessage(tx, domain.MessageCreationData{
 				Board:    boardShortName,
 				Author:   domain.User{Id: user2},
 				Text:     "Reply 1 Text",
@@ -146,7 +146,7 @@ func TestThreadOperations(t *testing.T) {
 			require.NoError(t, err)
 
 			time.Sleep(10 * time.Millisecond)
-			msgID2, _, err := storage.createMessage(tx, domain.MessageCreationData{
+			msgID2, err := storage.createMessage(tx, domain.MessageCreationData{
 				Board:    boardShortName,
 				Author:   domain.User{Id: user3},
 				Text:     "Reply 2 Text",
@@ -203,13 +203,13 @@ func TestThreadOperations(t *testing.T) {
 			opMsg.ThreadId = threadID
 			opMsg.CreatedAt = &createdAt
 			opMsg.Board = boardShortName
-			_, _, err = storage.createMessage(tx, opMsg)
+			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
 			user2 := createTestUser(t, tx, generateString(t)+"@example.com")
 			user3 := createTestUser(t, tx, generateString(t)+"@example.com")
 
-			msgID1, _, err := storage.createMessage(tx, domain.MessageCreationData{
+			msgID1, err := storage.createMessage(tx, domain.MessageCreationData{
 				Board:    boardShortName,
 				Author:   domain.User{Id: user2},
 				Text:     "First reply",
@@ -217,7 +217,7 @@ func TestThreadOperations(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			msgID2, _, err := storage.createMessage(tx, domain.MessageCreationData{
+			msgID2, err := storage.createMessage(tx, domain.MessageCreationData{
 				Board:    boardShortName,
 				Author:   domain.User{Id: user3},
 				Text:     "Reply to first reply",
@@ -268,7 +268,7 @@ func TestThreadOperations(t *testing.T) {
 			opMsg.ThreadId = threadID
 			opMsg.CreatedAt = &createdAt
 			opMsg.Board = boardShortName
-			_, _, err = storage.createMessage(tx, opMsg)
+			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
 			thread, err := storage.getThread(tx, boardShortName, threadID, 1)
@@ -318,7 +318,7 @@ func TestThreadOperations(t *testing.T) {
 			opMsg.ThreadId = threadID
 			opMsg.CreatedAt = &createdAt
 			opMsg.Board = boardShortName
-			_, _, err = storage.createMessage(tx, opMsg)
+			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
 			err = storage.deleteThread(tx, "nonexistentboard", threadID)
@@ -342,7 +342,7 @@ func TestThreadOperations(t *testing.T) {
 			opMsg.ThreadId = threadID
 			opMsg.CreatedAt = &createdAt
 			opMsg.Board = boardShortName
-			opMsgID, _, err := storage.createMessage(tx, opMsg)
+			opMsgID, err := storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
 			reply1 := createTestMessage(t, tx, domain.MessageCreationData{
@@ -371,19 +371,19 @@ func TestThreadOperations(t *testing.T) {
 			_, err = storage.getThread(tx, boardShortName, threadID, 1)
 			requireNotFoundError(t, err)
 
-			_, err = storage.getMessage(tx, boardShortName, opMsgID)
+			_, err = storage.getMessage(tx, boardShortName, threadID, opMsgID)
 			requireNotFoundError(t, err)
-			_, err = storage.getMessage(tx, boardShortName, reply1)
+			_, err = storage.getMessage(tx, boardShortName, threadID, reply1)
 			requireNotFoundError(t, err)
-			_, err = storage.getMessage(tx, boardShortName, reply2)
+			_, err = storage.getMessage(tx, boardShortName, threadID, reply2)
 			requireNotFoundError(t, err)
 
 			// Verify that cascading deletes removed related data
-			replies, err := storage.getMessageRepliesFrom(tx, boardShortName, opMsgID)
+			replies, err := storage.getMessageRepliesFrom(tx, boardShortName, threadID, opMsgID)
 			require.NoError(t, err)
 			assert.Empty(t, replies, "Replies should be deleted via cascade")
 
-			attachments, err := storage.getMessageAttachments(tx, boardShortName, opMsgID)
+			attachments, err := storage.getMessageAttachments(tx, boardShortName, threadID, opMsgID)
 			require.NoError(t, err)
 			assert.Empty(t, attachments, "Attachments should be deleted via cascade")
 		})
@@ -413,14 +413,14 @@ func TestThreadOperations(t *testing.T) {
 		opMsg.ThreadId = threadID
 		opMsg.CreatedAt = &createdAt
 		opMsg.Board = boardShortName
-		_, _, err = storage.createMessage(tx, opMsg)
+		_, err = storage.createMessage(tx, opMsg)
 		require.NoError(t, err)
 
 		bumpLimit := storage.cfg.Public.BumpLimit
 		require.Greater(t, bumpLimit, 0)
 
 		for i := 0; i < bumpLimit-1; i++ {
-			_, _, err := storage.createMessage(tx, domain.MessageCreationData{
+			_, err := storage.createMessage(tx, domain.MessageCreationData{
 				Board:    boardShortName,
 				Author:   domain.User{Id: userID},
 				Text:     fmt.Sprintf("Reply %d", i+1),
@@ -434,7 +434,7 @@ func TestThreadOperations(t *testing.T) {
 		require.Equal(t, bumpLimit, threadBefore.MessageCount)
 		lastBumpBefore := threadBefore.LastBumped
 
-		msgAtLimit, _, err := storage.createMessage(tx, domain.MessageCreationData{
+		msgAtLimit, err := storage.createMessage(tx, domain.MessageCreationData{
 			Board:    boardShortName,
 			Author:   domain.User{Id: userID},
 			Text:     fmt.Sprintf("Reply %d (at limit)", bumpLimit),
@@ -442,7 +442,7 @@ func TestThreadOperations(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		createdMsgAtLimit, err := storage.getMessage(tx, boardShortName, msgAtLimit)
+		createdMsgAtLimit, err := storage.getMessage(tx, boardShortName, threadID, msgAtLimit)
 		require.NoError(t, err)
 
 		threadAtLimit, err := storage.getThread(tx, boardShortName, threadID, 1)
