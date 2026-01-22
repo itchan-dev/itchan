@@ -19,17 +19,17 @@ import (
 )
 
 type MockThreadService struct {
-	MockCreate       func(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error)
+	MockCreate       func(creationData domain.ThreadCreationData) (domain.ThreadId, error)
 	MockGet          func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
 	MockDelete       func(board domain.BoardShortName, id domain.ThreadId) error
 	MockTogglePinned func(board domain.BoardShortName, id domain.ThreadId) (bool, error)
 }
 
-func (m *MockThreadService) Create(creationData domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+func (m *MockThreadService) Create(creationData domain.ThreadCreationData) (domain.ThreadId, error) {
 	if m.MockCreate != nil {
 		return m.MockCreate(creationData)
 	}
-	return 1, 1, nil
+	return 1, nil
 }
 
 func (m *MockThreadService) Get(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
@@ -80,17 +80,16 @@ func TestCreateThreadHandler(t *testing.T) {
 	route := "/" + boardName
 	testUser := domain.User{Id: 1, Email: "test@test.com"}
 	expectedThreadID := domain.ThreadId(42)
-	expectedOpMessageID := domain.MsgId(1)
 
 	t.Run("successful request", func(t *testing.T) {
 		mockService := &MockThreadService{
-			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, error) {
 				assert.Equal(t, "thread title", data.Title)
 				assert.Equal(t, boardName, data.Board)
 				assert.Equal(t, testUser, data.OpMessage.Author)
 				assert.Equal(t, "test text", data.OpMessage.Text)
 				assert.Nil(t, data.OpMessage.ReplyTo)
-				return expectedThreadID, expectedOpMessageID, nil
+				return expectedThreadID, nil
 			},
 		}
 		_, router := setupThreadTestHandler(mockService)
@@ -113,13 +112,13 @@ func TestCreateThreadHandler(t *testing.T) {
 
 	t.Run("successful request with replies", func(t *testing.T) {
 		mockService := &MockThreadService{
-			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
+			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, error) {
 				require.NotNil(t, data.OpMessage.ReplyTo)
 				require.Len(t, *data.OpMessage.ReplyTo, 1)
 				reply := (*data.OpMessage.ReplyTo)[0]
 				assert.Equal(t, domain.MsgId(123), reply.To)
 				assert.Equal(t, domain.ThreadId(1), reply.ToThreadId)
-				return expectedThreadID, expectedOpMessageID, nil
+				return expectedThreadID, nil
 			},
 		}
 		_, router := setupThreadTestHandler(mockService)
@@ -177,8 +176,8 @@ func TestCreateThreadHandler(t *testing.T) {
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("mock service error")
 		mockService := &MockThreadService{
-			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, domain.MsgId, error) {
-				return -1, -1, mockErr
+			MockCreate: func(data domain.ThreadCreationData) (domain.ThreadId, error) {
+				return -1, mockErr
 			},
 		}
 		_, router := setupThreadTestHandler(mockService)
@@ -271,9 +270,9 @@ func TestDeleteThreadHandler(t *testing.T) {
 
 	t.Run("successful deletion", func(t *testing.T) {
 		mockService := &MockThreadService{
-			MockDelete: func(board domain.BoardShortName, id domain.MsgId) error {
-				assert.Equal(t, boardName, board)
-				assert.Equal(t, threadID, id)
+			MockDelete: func(board domain.BoardShortName, id domain.ThreadId) error {
+				assert.Equal(t, domain.BoardShortName(boardName), board)
+				assert.Equal(t, domain.ThreadId(threadID), id)
 				return nil
 			},
 		}
@@ -302,7 +301,7 @@ func TestDeleteThreadHandler(t *testing.T) {
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("permission denied to delete")
 		mockService := &MockThreadService{
-			MockDelete: func(board domain.BoardShortName, id domain.MsgId) error {
+			MockDelete: func(board domain.BoardShortName, id domain.ThreadId) error {
 				return mockErr
 			},
 		}

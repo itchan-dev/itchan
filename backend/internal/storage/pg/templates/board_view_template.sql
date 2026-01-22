@@ -1,6 +1,6 @@
 -- Create materialized view to store op message and several last replies
 -- This is neccessary for fast access to board page, otherwise it would require complex queries every GetBoard request
--- This view store op message and several (value in config) last messages
+-- This view stores op message (id=1) and several (value in config) last messages
 CREATE MATERIALIZED VIEW %[1]s AS
 	WITH data AS (
 		SELECT
@@ -14,20 +14,18 @@ CREATE MATERIALIZED VIEW %[1]s AS
 			u.email as author_email,
 			u.is_admin as author_is_admin,
 			m.text as text,
-			m.created_at as created_at,
-			m.is_op as is_op,
-			m.ordinal as ordinal
+			m.created_at as created_at
 		FROM threads as t
 		JOIN messages as m
 			ON t.id = m.thread_id
 			AND t.board = m.board
 		JOIN users u ON m.author_id = u.id
 		WHERE
-		(m.is_op OR ((t.message_count - m.ordinal) < %[2]d)) -- op msg and last messages should be presented
+		(m.id = 1 OR ((t.message_count - m.id) < %[2]d)) -- op msg (id=1) and last messages should be presented
 		AND t.board = %[3]s
 	)
 	SELECT
 		*
 		,dense_rank() over(order by is_pinned desc, last_bumped_at desc, thread_id) as thread_order -- pinned first, then by bump time
 	FROM data;
-CREATE UNIQUE INDEX ON %[1]s (msg_id);
+CREATE UNIQUE INDEX ON %[1]s (thread_id, msg_id);

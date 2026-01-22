@@ -47,21 +47,21 @@ func TestMessageOperations(t *testing.T) {
 				},
 			}
 
-			msgID, _, err := storage.createMessage(tx, creationData)
+			msgID, err := storage.createMessage(tx, creationData)
 			require.NoError(t, err)
 			require.Greater(t, msgID, int64(0))
 
 			// Add attachments separately
-			err = storage.addAttachments(tx, boardShortName, msgID, attachments)
+			err = storage.addAttachments(tx, boardShortName, threadID, msgID, attachments)
 			require.NoError(t, err)
 
-			createdMsg, err := storage.getMessage(tx, boardShortName, msgID)
+			createdMsg, err := storage.getMessage(tx, boardShortName, threadID, msgID)
 			require.NoError(t, err)
 			assert.Equal(t, creationData.Text, createdMsg.Text)
 			require.Len(t, createdMsg.Attachments, 2)
 			assert.Equal(t, attachments[0].File.FilePath, createdMsg.Attachments[0].File.FilePath)
 
-			replies, err := storage.getMessageRepliesFrom(tx, boardShortName, msgID)
+			replies, err := storage.getMessageRepliesFrom(tx, boardShortName, threadID, msgID)
 			require.NoError(t, err)
 			require.Len(t, replies, 1)
 			assert.Equal(t, targetMsgID, replies[0].To)
@@ -85,14 +85,14 @@ func TestMessageOperations(t *testing.T) {
 		})
 
 		t.Run("fails on invalid board or thread", func(t *testing.T) {
-			_, _, err := storage.createMessage(tx, domain.MessageCreationData{
+			_, err := storage.createMessage(tx, domain.MessageCreationData{
 				Board:    "nonexistent",
 				Author:   domain.User{Id: userID},
 				ThreadId: threadID,
 			})
 			require.Error(t, err)
 
-			_, _, err = storage.createMessage(tx, domain.MessageCreationData{
+			_, err = storage.createMessage(tx, domain.MessageCreationData{
 				Board:    boardShortName,
 				Author:   domain.User{Id: userID},
 				ThreadId: -999,
@@ -126,7 +126,7 @@ func TestMessageOperations(t *testing.T) {
 
 		// Add attachments
 		attachments := getRandomAttachments(t)
-		err := storage.addAttachments(tx, boardShortName, msgID, attachments)
+		err := storage.addAttachments(tx, boardShortName, threadID, msgID, attachments)
 		require.NoError(t, err)
 
 		// Create a reply TO msgID
@@ -136,7 +136,7 @@ func TestMessageOperations(t *testing.T) {
 			ReplyTo: &domain.Replies{{To: msgID, ToThreadId: threadID}},
 		})
 
-		msg, err := storage.getMessage(tx, boardShortName, msgID)
+		msg, err := storage.getMessage(tx, boardShortName, threadID, msgID)
 		require.NoError(t, err)
 		assert.Equal(t, msgID, msg.Id)
 		assert.Equal(t, "Message to get", msg.Text)
@@ -144,7 +144,7 @@ func TestMessageOperations(t *testing.T) {
 		require.Len(t, msg.Replies, 1)
 		assert.Equal(t, msgID, msg.Replies[0].To)
 
-		_, err = storage.getMessage(tx, boardShortName, -999)
+		_, err = storage.getMessage(tx, boardShortName, threadID, -999)
 		requireNotFoundError(t, err)
 	})
 
@@ -175,7 +175,7 @@ func TestMessageOperations(t *testing.T) {
 
 		// Add attachments to message that will be deleted
 		attachments := getRandomAttachments(t)
-		err := storage.addAttachments(tx, boardShortName, msgToDelete, attachments)
+		err := storage.addAttachments(tx, boardShortName, threadID, msgToDelete, attachments)
 		require.NoError(t, err)
 
 		msgReplyingToDeleted := createTestMessage(t, tx, domain.MessageCreationData{
@@ -184,47 +184,47 @@ func TestMessageOperations(t *testing.T) {
 			ReplyTo: &domain.Replies{{To: msgToDelete, ToThreadId: threadID}},
 		})
 
-		_, err = storage.getMessage(tx, boardShortName, msgToDelete)
+		_, err = storage.getMessage(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
-		attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, msgToDelete)
+		attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 		require.NotEmpty(t, attachmentsBefore)
-		repliesToBefore, err := storage.getMessageRepliesTo(tx, boardShortName, msgToDelete)
+		repliesToBefore, err := storage.getMessageRepliesTo(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 		require.NotEmpty(t, repliesToBefore)
-		repliesFromBefore, err := storage.getMessageRepliesFrom(tx, boardShortName, msgToDelete)
+		repliesFromBefore, err := storage.getMessageRepliesFrom(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 		require.NotEmpty(t, repliesFromBefore)
 
-		err = storage.deleteMessage(tx, boardShortName, msgToDelete)
+		err = storage.deleteMessage(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 
-		_, err = storage.getMessage(tx, boardShortName, msgToDelete)
+		_, err = storage.getMessage(tx, boardShortName, threadID, msgToDelete)
 		requireNotFoundError(t, err)
 
-		attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, msgToDelete)
+		attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 		assert.Empty(t, attachmentsAfter)
 
-		repliesToAfter, err := storage.getMessageRepliesTo(tx, boardShortName, msgToDelete)
+		repliesToAfter, err := storage.getMessageRepliesTo(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 		assert.Empty(t, repliesToAfter)
 
-		repliesFromAfter, err := storage.getMessageRepliesFrom(tx, boardShortName, msgToDelete)
+		repliesFromAfter, err := storage.getMessageRepliesFrom(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 		assert.Empty(t, repliesFromAfter)
 
-		_, err = storage.getMessage(tx, boardShortName, msgBeingRepliedTo)
+		_, err = storage.getMessage(tx, boardShortName, threadID, msgBeingRepliedTo)
 		require.NoError(t, err)
 
-		_, err = storage.getMessage(tx, boardShortName, msgReplyingToDeleted)
+		_, err = storage.getMessage(tx, boardShortName, threadID, msgReplyingToDeleted)
 		require.NoError(t, err)
 
 		t.Run("fails on invalid board or message", func(t *testing.T) {
-			err := storage.deleteMessage(tx, "nonexistent", msgBeingRepliedTo)
+			err := storage.deleteMessage(tx, "nonexistent", threadID, msgBeingRepliedTo)
 			requireNotFoundError(t, err)
 
-			err = storage.deleteMessage(tx, boardShortName, -1)
+			err = storage.deleteMessage(tx, boardShortName, threadID, -1)
 			requireNotFoundError(t, err)
 		})
 	})
@@ -255,7 +255,7 @@ func TestMessageOperations(t *testing.T) {
 			})
 
 			// Verify no attachments initially
-			attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, threadID, msgID)
 			require.NoError(t, err)
 			assert.Empty(t, attachmentsBefore)
 
@@ -263,6 +263,7 @@ func TestMessageOperations(t *testing.T) {
 			attachments := domain.Attachments{
 				&domain.Attachment{
 					Board:     boardShortName,
+					ThreadId:  threadID,
 					MessageId: msgID,
 					File: &domain.File{
 						FileCommonMetadata: domain.FileCommonMetadata{
@@ -278,6 +279,7 @@ func TestMessageOperations(t *testing.T) {
 				},
 				&domain.Attachment{
 					Board:     boardShortName,
+					ThreadId:  threadID,
 					MessageId: msgID,
 					File: &domain.File{
 						FileCommonMetadata: domain.FileCommonMetadata{
@@ -293,11 +295,11 @@ func TestMessageOperations(t *testing.T) {
 				},
 			}
 
-			err = storage.addAttachments(tx, boardShortName, msgID, attachments)
+			err = storage.addAttachments(tx, boardShortName, threadID, msgID, attachments)
 			require.NoError(t, err)
 
 			// Verify attachments were added
-			attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, threadID, msgID)
 			require.NoError(t, err)
 			assert.Len(t, attachmentsAfter, 2)
 
@@ -325,17 +327,17 @@ func TestMessageOperations(t *testing.T) {
 			})
 
 			// Add initial attachments
-			err := storage.addAttachments(tx, boardShortName, msgID, initialAttachments)
+			err := storage.addAttachments(tx, boardShortName, threadID, msgID, initialAttachments)
 			require.NoError(t, err)
 			initialCount := len(initialAttachments)
 
 			// Create new attachments to add
 			newAttachments := getRandomAttachments(t)
-			err = storage.addAttachments(tx, boardShortName, msgID, newAttachments)
+			err = storage.addAttachments(tx, boardShortName, threadID, msgID, newAttachments)
 			require.NoError(t, err)
 
 			// Verify total attachments
-			attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			attachmentsAfter, err := storage.getMessageAttachments(tx, boardShortName, threadID, msgID)
 			require.NoError(t, err)
 			assert.Len(t, attachmentsAfter, initialCount+len(newAttachments))
 		})
@@ -351,6 +353,7 @@ func TestMessageOperations(t *testing.T) {
 			attachments := domain.Attachments{
 				&domain.Attachment{
 					Board:     boardShortName,
+					ThreadId:  threadID,
 					MessageId: msgID,
 					File: &domain.File{
 						FileCommonMetadata: domain.FileCommonMetadata{
@@ -366,10 +369,10 @@ func TestMessageOperations(t *testing.T) {
 				},
 			}
 
-			err := storage.addAttachments(tx, boardShortName, msgID, attachments)
+			err := storage.addAttachments(tx, boardShortName, threadID, msgID, attachments)
 			require.NoError(t, err)
 
-			retrieved, err := storage.getMessageAttachments(tx, boardShortName, msgID)
+			retrieved, err := storage.getMessageAttachments(tx, boardShortName, threadID, msgID)
 			require.NoError(t, err)
 			assert.Len(t, retrieved, 1)
 			assert.Nil(t, retrieved[0].File.ImageWidth)
@@ -380,6 +383,7 @@ func TestMessageOperations(t *testing.T) {
 			attachments := domain.Attachments{
 				&domain.Attachment{
 					Board:     boardShortName,
+					ThreadId:  threadID,
 					MessageId: -999,
 					File: &domain.File{
 						FileCommonMetadata: domain.FileCommonMetadata{
@@ -393,7 +397,7 @@ func TestMessageOperations(t *testing.T) {
 				},
 			}
 
-			err := storage.addAttachments(tx, boardShortName, -999, attachments)
+			err := storage.addAttachments(tx, boardShortName, threadID, -999, attachments)
 			require.Error(t, err)
 		})
 	})

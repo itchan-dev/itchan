@@ -60,23 +60,19 @@ CREATE TABLE IF NOT EXISTS threads (
 CREATE INDEX IF NOT EXISTS threads_last_bumped_at_index ON threads (board, last_bumped_at DESC);
 
 -- Represents a single message within a thread
+-- id is per-thread sequential (1, 2, 3...) - id=1 is always OP
 CREATE TABLE IF NOT EXISTS messages (
-    id          bigint NOT NULL,
+    id          int NOT NULL,
     board       varchar(10) NOT NULL REFERENCES boards(short_name) ON DELETE CASCADE,
-    thread_id   int NOT NULL,
+    thread_id   bigint NOT NULL,
     author_id   int NOT NULL REFERENCES users(id),
     text        text NOT NULL,
-    is_op       boolean NOT NULL default false,
-    ordinal     int NOT NULL default 0,
     created_at  timestamp NOT NULL default (now() at time zone 'utc'),
     updated_at  timestamp NOT NULL default (now() at time zone 'utc'),
 
-    PRIMARY KEY (board, id),
-    FOREIGN KEY (board, thread_id) REFERENCES threads(board, id) ON DELETE CASCADE,
-    UNIQUE (board, thread_id, id)
+    PRIMARY KEY (board, thread_id, id),
+    FOREIGN KEY (board, thread_id) REFERENCES threads(board, id) ON DELETE CASCADE
 ) PARTITION BY LIST (board);
--- Get all messages for certain thread
-CREATE INDEX IF NOT EXISTS messages_thread_id_index ON messages (board, thread_id);
 -- Get all messages by a user (for moderation, user history, etc.)
 CREATE INDEX IF NOT EXISTS idx_messages_author ON messages (author_id);
 
@@ -100,45 +96,43 @@ CREATE INDEX IF NOT EXISTS idx_files_thumbnail_path
 ON files (thumbnail_path) 
 WHERE thumbnail_path IS NOT NULL;
 
+-- Sequence for attachments (global, used across all board partitions)
+CREATE SEQUENCE IF NOT EXISTS attachments_id_seq;
+
 CREATE TABLE IF NOT EXISTS attachments (
-    id                bigint NOT NULL,
+    id                bigint NOT NULL DEFAULT nextval('attachments_id_seq'),
     board             varchar(10) NOT NULL REFERENCES boards(short_name) ON DELETE CASCADE,
+    thread_id         bigint NOT NULL,
     message_id        int NOT NULL,
     file_id           bigint NOT NULL REFERENCES files(id) ON DELETE CASCADE,
 
     PRIMARY KEY (board, id),
-    FOREIGN KEY (board, message_id) REFERENCES messages(board, id) ON DELETE CASCADE
+    FOREIGN KEY (board, thread_id, message_id) REFERENCES messages(board, thread_id, id) ON DELETE CASCADE
 ) PARTITION BY LIST (board);
 -- Create an index to quickly find all attachments for a given message
-CREATE INDEX IF NOT EXISTS attachments_message_id_index ON attachments (board, message_id);
+CREATE INDEX IF NOT EXISTS attachments_message_id_index ON attachments (board, thread_id, message_id);
 
 -- Stores the relationship between a message and a message it replies to
 CREATE TABLE IF NOT EXISTS message_replies (
     board               varchar(10) NOT NULL REFERENCES boards(short_name) ON DELETE CASCADE,
-    sender_thread_id    INT NOT NULL,
+    sender_thread_id    BIGINT NOT NULL,
     sender_message_id   INT NOT NULL,
-    receiver_thread_id  INT NOT NULL,
+    receiver_thread_id  BIGINT NOT NULL,
     receiver_message_id INT NOT NULL,
     created_at          timestamp NOT NULL default (now() at time zone 'utc'),
 
-    PRIMARY KEY (board, sender_message_id, receiver_message_id),
+    PRIMARY KEY (board, sender_thread_id, sender_message_id, receiver_thread_id, receiver_message_id),
 
-    -- This foreign key now works because of the UNIQUE constraint in the messages table
     FOREIGN KEY (board, sender_thread_id, sender_message_id)
         REFERENCES messages(board, thread_id, id) ON DELETE CASCADE,
 
-    -- This foreign key also works now
     FOREIGN KEY (board, receiver_thread_id, receiver_message_id)
         REFERENCES messages(board, thread_id, id) ON DELETE CASCADE
 ) PARTITION BY LIST (board);
 
--- Index to find all replies within a specific thread
-CREATE INDEX IF NOT EXISTS idx_message_replies_receiver_thread
-    ON message_replies (board, receiver_thread_id);
-
 -- Index to find all replies to a specific message
 CREATE INDEX IF NOT EXISTS idx_message_replies_receiver_msg
-    ON message_replies (board, receiver_message_id);
+    ON message_replies (board, receiver_thread_id, receiver_message_id);
 
 -- Stores invite codes (similar to confirmation_data)
 CREATE TABLE IF NOT EXISTS invite_codes (

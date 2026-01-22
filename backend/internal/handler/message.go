@@ -52,16 +52,16 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		ReplyTo:      body.ReplyTo,
 	}
 
-	msgId, ordinal, err := h.message.Create(creation)
+	msgId, err := h.message.Create(creation)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	// Calculate page from ordinal dynamically
+	// Calculate page from message ID (which is now per-thread sequential = ordinal)
 	page := 1
-	if h.cfg.Public.MessagesPerThreadPage > 0 && ordinal > 0 {
-		page = (ordinal-1)/h.cfg.Public.MessagesPerThreadPage + 1
+	if h.cfg.Public.MessagesPerThreadPage > 0 && msgId > 0 {
+		page = (int(msgId)-1)/h.cfg.Public.MessagesPerThreadPage + 1
 	}
 
 	// Return the created message ID and page
@@ -72,6 +72,12 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
+	threadIdStr := mux.Vars(r)["thread"]
+	threadId, err := parseIntParam(threadIdStr, "thread ID")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	msgIdStr := mux.Vars(r)["message"]
 	msgId, err := parseIntParam(msgIdStr, "message ID")
 	if err != nil {
@@ -79,7 +85,7 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.message.Get(board, domain.MsgId(msgId))
+	msg, err := h.message.Get(board, domain.ThreadId(threadId), domain.MsgId(msgId))
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -91,6 +97,12 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	board := mux.Vars(r)["board"]
+	threadIdStr := mux.Vars(r)["thread"]
+	threadId, err := parseIntParam(threadIdStr, "thread ID")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	msgIdStr := mux.Vars(r)["message"]
 	msgId, err := parseIntParam(msgIdStr, "message ID")
 	if err != nil {
@@ -98,7 +110,7 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.message.Delete(board, domain.MsgId(msgId)); err != nil {
+	if err := h.message.Delete(board, domain.ThreadId(threadId), domain.MsgId(msgId)); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

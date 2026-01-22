@@ -171,7 +171,7 @@ func TestBoardOperations(t *testing.T) {
 			_, err = storage.getThread(tx, boardShortName, threadID, 1)
 			requireNotFoundError(t, err)
 
-			_, err = storage.getMessage(tx, boardShortName, messageID)
+			_, err = storage.getMessage(tx, boardShortName, threadID, messageID)
 			requireNotFoundError(t, err)
 
 			err = tx.QueryRow("SELECT EXISTS (SELECT FROM pg_matviews WHERE matviewname = $1)", unquotedViewName).Scan(&exists)
@@ -731,7 +731,7 @@ func TestBoardViewWorkflow(t *testing.T) {
 
 				// Verify OP is first
 				if len(thread.Messages) > 0 {
-					assert.True(t, thread.Messages[0].Op, "First message must be OP on page %d", page)
+					assert.True(t, thread.Messages[0].IsOp(), "First message must be OP on page %d", page)
 				}
 			}
 		}

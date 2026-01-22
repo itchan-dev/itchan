@@ -60,6 +60,7 @@ type File struct {
 type Attachment struct {
 	Id        AttachmentId   `json:"id,omitempty"`
 	Board     BoardShortName `json:"board,omitempty"`
+	ThreadId  ThreadId       `json:"thread_id,omitempty"`
 	MessageId MsgId          `json:"message_id,omitempty"`
 	FileId    FileId         `json:"file_id,omitempty"`
 	File      *File          `json:"file,omitempty"` // Optional: populated when fetching with file details

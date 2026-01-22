@@ -189,7 +189,7 @@ func createTestThread(t *testing.T, q Querier, data domain.ThreadCreationData) (
 	data.OpMessage.CreatedAt = &createdTs
 	data.OpMessage.Board = data.Board
 
-	opMsgID, _, err := storage.createMessage(q, data.OpMessage)
+	opMsgID, err := storage.createMessage(q, data.OpMessage)
 	require.NoError(t, err)
 	return threadID, opMsgID
 }
@@ -197,7 +197,7 @@ func createTestThread(t *testing.T, q Querier, data domain.ThreadCreationData) (
 // createTestMessage creates a message within the given transaction.
 func createTestMessage(t *testing.T, q Querier, data domain.MessageCreationData) domain.MsgId {
 	t.Helper()
-	msgID, _, err := storage.createMessage(q, data)
+	msgID, err := storage.createMessage(q, data)
 	require.NoError(t, err)
 	return msgID
 }

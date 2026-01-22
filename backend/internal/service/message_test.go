@@ -29,19 +29,21 @@ func createDefaultTestConfig() *config.Public {
 
 // MockMessageStorage mocks the MessageStorage interface.
 type MockMessageStorage struct {
-	createMessageFunc  func(creationData domain.MessageCreationData) (domain.MsgId, int, error)
-	getMessageFunc     func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error)
-	deleteMessageFunc  func(board domain.BoardShortName, id domain.MsgId) error
-	addAttachmentsFunc func(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error
+	createMessageFunc  func(creationData domain.MessageCreationData) (domain.MsgId, error)
+	getMessageFunc     func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error)
+	deleteMessageFunc  func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error
+	addAttachmentsFunc func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error
 
-	mu                    sync.Mutex
-	createMessageCalled   bool
-	createMessageArg      domain.MessageCreationData
-	getMessageCalled      bool
-	getMessageArgId       domain.MsgId
-	deleteMessageCalled   bool
-	deleteMessageArgBoard domain.BoardShortName
-	deleteMessageArgId    domain.MsgId
+	mu                       sync.Mutex
+	createMessageCalled      bool
+	createMessageArg         domain.MessageCreationData
+	getMessageCalled         bool
+	getMessageArgThreadId    domain.ThreadId
+	getMessageArgId          domain.MsgId
+	deleteMessageCalled      bool
+	deleteMessageArgBoard    domain.BoardShortName
+	deleteMessageArgThreadId domain.ThreadId
+	deleteMessageArgId       domain.MsgId
 }
 
 func (m *MockMessageStorage) ResetCallTracking() {
@@ -50,13 +52,15 @@ func (m *MockMessageStorage) ResetCallTracking() {
 	m.createMessageCalled = false
 	m.createMessageArg = domain.MessageCreationData{}
 	m.getMessageCalled = false
+	m.getMessageArgThreadId = 0
 	m.getMessageArgId = 0
 	m.deleteMessageCalled = false
 	m.deleteMessageArgBoard = ""
+	m.deleteMessageArgThreadId = 0
 	m.deleteMessageArgId = 0
 }
 
-func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error) {
 	m.mu.Lock()
 	m.createMessageCalled = true
 	m.createMessageArg = creationData
@@ -65,39 +69,41 @@ func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationDa
 	if m.createMessageFunc != nil {
 		return m.createMessageFunc(creationData)
 	}
-	// Default success returns an arbitrary ID (e.g., 1) and ordinal 1
-	return 1, 1, nil
+	// Default success returns an arbitrary ID (e.g., 1)
+	return 1, nil
 }
 
-func (m *MockMessageStorage) GetMessage(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+func (m *MockMessageStorage) GetMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 	m.mu.Lock()
 	m.getMessageCalled = true
+	m.getMessageArgThreadId = threadId
 	m.getMessageArgId = id
 	m.mu.Unlock()
 
 	if m.getMessageFunc != nil {
-		return m.getMessageFunc(board, id)
+		return m.getMessageFunc(board, threadId, id)
 	}
 	// Default success returns a basic message matching the ID
-	return domain.Message{MessageMetadata: domain.MessageMetadata{Id: id}}, nil
+	return domain.Message{MessageMetadata: domain.MessageMetadata{Id: id, ThreadId: threadId}}, nil
 }
 
-func (m *MockMessageStorage) DeleteMessage(board domain.BoardShortName, id domain.MsgId) error {
+func (m *MockMessageStorage) DeleteMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
 	m.mu.Lock()
 	m.deleteMessageCalled = true
 	m.deleteMessageArgBoard = board
+	m.deleteMessageArgThreadId = threadId
 	m.deleteMessageArgId = id
 	m.mu.Unlock()
 
 	if m.deleteMessageFunc != nil {
-		return m.deleteMessageFunc(board, id)
+		return m.deleteMessageFunc(board, threadId, id)
 	}
 	return nil // Default success
 }
 
-func (m *MockMessageStorage) AddAttachments(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+func (m *MockMessageStorage) AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
 	if m.addAttachmentsFunc != nil {
-		return m.addAttachmentsFunc(board, messageID, attachments)
+		return m.addAttachmentsFunc(board, threadId, messageID, attachments)
 	}
 	return nil // Default success
 }
@@ -147,13 +153,13 @@ func TestMessageCreate(t *testing.T) {
 			assert.Equal(t, testCreationData.Text, text)
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
 			assert.Equal(t, testCreationData, creationData)
-			return expectedCreatedId, 1, nil // Storage create succeeds
+			return expectedCreatedId, nil // Storage create succeeds
 		}
 
 		// Act
-		createdId, _, err := service.Create(testCreationData)
+		createdId, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -178,13 +184,13 @@ func TestMessageCreate(t *testing.T) {
 		validator.textFunc = func(text domain.MsgText) error {
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
 			assert.Equal(t, testCreationData, creationData)
-			return 0, 0, storageError // Storage create fails
+			return 0, storageError // Storage create fails
 		}
 
 		// Act
-		_, _, err := service.Create(testCreationData)
+		_, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -213,7 +219,7 @@ func TestMessageCreate(t *testing.T) {
 		// storage.createMessageFunc is not set, so CreateMessage should not be called
 
 		// Act
-		_, _, err := service.Create(testCreationData)
+		_, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -229,6 +235,7 @@ func TestMessageCreate(t *testing.T) {
 
 func TestMessageGet(t *testing.T) {
 	// Common test data
+	testThreadId := domain.ThreadId(1)
 	testId := domain.MsgId(1)
 
 	t.Run("Successful get", func(t *testing.T) {
@@ -239,17 +246,18 @@ func TestMessageGet(t *testing.T) {
 		mediaStorage := &SharedMockMediaStorage{}
 		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 		expectedMessage := domain.Message{
-			MessageMetadata: domain.MessageMetadata{Id: testId},
+			MessageMetadata: domain.MessageMetadata{Id: testId, ThreadId: testThreadId},
 			Text:            "test_text",
 		}
 
-		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+		storage.getMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
+			assert.Equal(t, testThreadId, threadId)
 			assert.Equal(t, testId, id)
 			return expectedMessage, nil // Storage get succeeds
 		}
 
 		// Act
-		message, err := service.Get("test", testId)
+		message, err := service.Get("test", testThreadId, testId)
 
 		// Assert
 		require.NoError(t, err)
@@ -257,6 +265,7 @@ func TestMessageGet(t *testing.T) {
 
 		storage.mu.Lock()
 		assert.True(t, storage.getMessageCalled, "Storage GetMessage should be called")
+		assert.Equal(t, testThreadId, storage.getMessageArgThreadId)
 		assert.Equal(t, testId, storage.getMessageArgId)
 		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called")
 		assert.False(t, storage.deleteMessageCalled, "DeleteMessage should not be called")
@@ -272,13 +281,14 @@ func TestMessageGet(t *testing.T) {
 		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 		storageError := errors.New("db read failed")
 
-		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+		storage.getMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
+			assert.Equal(t, testThreadId, threadId)
 			assert.Equal(t, testId, id)
 			return domain.Message{}, storageError // Storage get fails
 		}
 
 		// Act
-		_, err := service.Get("test", testId)
+		_, err := service.Get("test", testThreadId, testId)
 
 		// Assert
 		require.Error(t, err)
@@ -286,6 +296,7 @@ func TestMessageGet(t *testing.T) {
 
 		storage.mu.Lock()
 		assert.True(t, storage.getMessageCalled, "Storage GetMessage should have been attempted")
+		assert.Equal(t, testThreadId, storage.getMessageArgThreadId)
 		assert.Equal(t, testId, storage.getMessageArgId)
 		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called")
 		assert.False(t, storage.deleteMessageCalled, "DeleteMessage should not be called")
@@ -296,6 +307,7 @@ func TestMessageGet(t *testing.T) {
 func TestMessageDelete(t *testing.T) {
 	// Common test data
 	testBoard := domain.BoardShortName("tst")
+	testThreadId := domain.ThreadId(1)
 	testId := domain.MsgId(1)
 
 	t.Run("Successful deletion", func(t *testing.T) {
@@ -307,23 +319,25 @@ func TestMessageDelete(t *testing.T) {
 		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
 
 		// Mock GetMessage to return a message with no attachments
-		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+		storage.getMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testThreadId, threadId)
 			assert.Equal(t, testId, id)
 			return domain.Message{
-				MessageMetadata: domain.MessageMetadata{Id: testId, Board: testBoard},
+				MessageMetadata: domain.MessageMetadata{Id: testId, ThreadId: testThreadId, Board: testBoard},
 			}, nil
 		}
 
 		// Use built-in mock tracking via the func override
-		storage.deleteMessageFunc = func(board domain.BoardShortName, id domain.MsgId) error {
+		storage.deleteMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
 			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testThreadId, threadId)
 			assert.Equal(t, testId, id)
 			return nil // Storage delete succeeds
 		}
 
 		// Act
-		err := service.Delete(testBoard, testId)
+		err := service.Delete(testBoard, testThreadId, testId)
 
 		// Assert
 		require.NoError(t, err)
@@ -331,6 +345,7 @@ func TestMessageDelete(t *testing.T) {
 		storage.mu.Lock()
 		assert.True(t, storage.deleteMessageCalled, "DeleteMessage should have been called")
 		assert.Equal(t, testBoard, storage.deleteMessageArgBoard)
+		assert.Equal(t, testThreadId, storage.deleteMessageArgThreadId)
 		assert.Equal(t, testId, storage.deleteMessageArgId)
 		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called")
 		assert.True(t, storage.getMessageCalled, "GetMessage should have been called")
@@ -347,23 +362,25 @@ func TestMessageDelete(t *testing.T) {
 		storageError := errors.New("db delete failed")
 
 		// Mock GetMessage to return a message with no attachments
-		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+		storage.getMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testThreadId, threadId)
 			assert.Equal(t, testId, id)
 			return domain.Message{
-				MessageMetadata: domain.MessageMetadata{Id: testId, Board: testBoard},
+				MessageMetadata: domain.MessageMetadata{Id: testId, ThreadId: testThreadId, Board: testBoard},
 			}, nil
 		}
 
 		// Use built-in mock tracking via the func override
-		storage.deleteMessageFunc = func(board domain.BoardShortName, id domain.MsgId) error {
+		storage.deleteMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
 			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testThreadId, threadId)
 			assert.Equal(t, testId, id)
 			return storageError // Storage delete fails
 		}
 
 		// Act
-		err := service.Delete(testBoard, testId)
+		err := service.Delete(testBoard, testThreadId, testId)
 
 		// Assert
 		require.Error(t, err)
@@ -372,6 +389,7 @@ func TestMessageDelete(t *testing.T) {
 		storage.mu.Lock()
 		assert.True(t, storage.deleteMessageCalled, "DeleteMessage should have been attempted")
 		assert.Equal(t, testBoard, storage.deleteMessageArgBoard) // Verify args even on failure
+		assert.Equal(t, testThreadId, storage.deleteMessageArgThreadId)
 		assert.Equal(t, testId, storage.deleteMessageArgId)
 		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called")
 		assert.True(t, storage.getMessageCalled, "GetMessage should have been called")
@@ -396,7 +414,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, _, err := service.Create(testCreationData)
+		_, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -419,7 +437,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, _, err := service.Create(testCreationData)
+		_, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -442,7 +460,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		msgId, _, err := service.Create(testCreationData)
+		msgId, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -474,7 +492,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		msgId, _, err := service.Create(testCreationData)
+		msgId, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -506,7 +524,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		msgId, _, err := service.Create(testCreationData)
+		msgId, err := service.Create(testCreationData)
 
 		// Assert
 		require.NoError(t, err)
@@ -537,7 +555,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, _, err := service.Create(testCreationData)
+		_, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)
@@ -577,7 +595,7 @@ func TestMessageCreate_TextOrAttachmentsRequired(t *testing.T) {
 		}
 
 		// Act
-		_, _, err := service.Create(testCreationData)
+		_, err := service.Create(testCreationData)
 
 		// Assert
 		require.Error(t, err)

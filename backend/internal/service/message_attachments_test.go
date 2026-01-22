@@ -186,28 +186,30 @@ func (m *SharedMockMediaStorage) DeleteBoard(boardID string) error {
 // MockStorageWithAddAttachments extends MockMessageStorage with AddAttachments
 type MockStorageWithAddAttachments struct {
 	MockMessageStorage
-	addAttachmentsFunc  func(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error
+	addAttachmentsFunc  func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error
 	addAttachmentsCalls []AddAttachmentsCall
 	mu2                 sync.Mutex
 }
 
 type AddAttachmentsCall struct {
 	Board       domain.BoardShortName
+	ThreadId    domain.ThreadId
 	MessageID   domain.MsgId
 	Attachments domain.Attachments
 }
 
-func (m *MockStorageWithAddAttachments) AddAttachments(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+func (m *MockStorageWithAddAttachments) AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
 	m.mu2.Lock()
 	m.addAttachmentsCalls = append(m.addAttachmentsCalls, AddAttachmentsCall{
 		Board:       board,
+		ThreadId:    threadId,
 		MessageID:   messageID,
 		Attachments: attachments,
 	})
 	m.mu2.Unlock()
 
 	if m.addAttachmentsFunc != nil {
-		return m.addAttachmentsFunc(board, messageID, attachments)
+		return m.addAttachmentsFunc(board, threadId, messageID, attachments)
 	}
 	return nil
 }
@@ -257,7 +259,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 		assert.NoError(t, err)
 	})
 
@@ -289,7 +291,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			PendingFiles: files,
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "too many attachments")
 	})
@@ -319,7 +321,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported file type")
 	})
@@ -349,7 +351,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "file too large")
 	})
@@ -399,7 +401,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "total attachments size too large")
 	})
@@ -429,7 +431,7 @@ func TestValidatePendingFiles(t *testing.T) {
 				},
 			}
 
-			_, _, err := service.Create(creationData)
+			_, err := service.Create(creationData)
 			assert.NoError(t, err, "Should accept "+mimeType)
 		}
 	})
@@ -460,7 +462,7 @@ func TestValidatePendingFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 		assert.NoError(t, err, "Should accept "+mimeType)
 	})
 }
@@ -475,14 +477,14 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		var createdMessageID domain.MsgId = 42
 
 		// Mock storage to return a message ID
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
 			// Should be called without PendingFiles
 			assert.Nil(t, creationData.PendingFiles)
-			return createdMessageID, 1, nil
+			return createdMessageID, nil
 		}
 
 		// Mock AddAttachments to succeed
-		storage.addAttachmentsFunc = func(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+		storage.addAttachmentsFunc = func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
 			assert.Equal(t, createdMessageID, messageID)
 			assert.Len(t, attachments, 2)
 			return nil
@@ -518,7 +520,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		msgID, _, err := service.Create(creationData)
+		msgID, err := service.Create(creationData)
 
 		require.NoError(t, err)
 		assert.Equal(t, createdMessageID, msgID)
@@ -545,13 +547,13 @@ func TestCreateMessageWithFiles(t *testing.T) {
 
 		var createdMessageID domain.MsgId = 42
 
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
-			return createdMessageID, 1, nil
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+			return createdMessageID, nil
 		}
 
 		// Mock AddAttachments to fail
 		addAttachmentsError := errors.New("database error")
-		storage.addAttachmentsFunc = func(board domain.BoardShortName, messageID domain.MsgId, attachments domain.Attachments) error {
+		storage.addAttachmentsFunc = func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
 			return addAttachmentsError
 		}
 
@@ -574,7 +576,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to save attachments to DB")
@@ -599,8 +601,8 @@ func TestCreateMessageWithFiles(t *testing.T) {
 
 		var createdMessageID domain.MsgId = 42
 
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, int, error) {
-			return createdMessageID, 1, nil
+		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+			return createdMessageID, nil
 		}
 
 		// First SaveImage succeeds, second fails
@@ -641,7 +643,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to save image file")
@@ -688,7 +690,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 			},
 		}
 
-		_, _, err := service.Create(creationData)
+		_, err := service.Create(creationData)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "file too large")
@@ -713,11 +715,12 @@ func TestMessageDeleteWithAttachments(t *testing.T) {
 		mediaStorage := &SharedMockMediaStorage{}
 
 		// Mock GetMessage to return a message with attachments
-		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+		storage.getMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 			return domain.Message{
 				MessageMetadata: domain.MessageMetadata{
-					Id:    id,
-					Board: board,
+					Id:       id,
+					ThreadId: threadId,
+					Board:    board,
 				},
 				Attachments: domain.Attachments{
 					&domain.Attachment{
@@ -736,7 +739,7 @@ func TestMessageDeleteWithAttachments(t *testing.T) {
 
 		service := NewMessage(storage, validator, mediaStorage, cfg)
 
-		err := service.Delete("tech", 1)
+		err := service.Delete("tech", 1, 1)
 		require.NoError(t, err)
 
 		// Verify message was deleted
@@ -759,11 +762,12 @@ func TestMessageDeleteWithAttachments(t *testing.T) {
 		validator := &MockMessageValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 
-		storage.getMessageFunc = func(board domain.BoardShortName, id domain.MsgId) (domain.Message, error) {
+		storage.getMessageFunc = func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 			return domain.Message{
 				MessageMetadata: domain.MessageMetadata{
-					Id:    id,
-					Board: board,
+					Id:       id,
+					ThreadId: threadId,
+					Board:    board,
 				},
 				Attachments: domain.Attachments{
 					&domain.Attachment{
@@ -783,7 +787,7 @@ func TestMessageDeleteWithAttachments(t *testing.T) {
 		service := NewMessage(storage, validator, mediaStorage, cfg)
 
 		// Should not error despite file deletion failure
-		err := service.Delete("tech", 1)
+		err := service.Delete("tech", 1, 1)
 		assert.NoError(t, err)
 
 		// Message should still be deleted

@@ -23,6 +23,9 @@ var viewTmpl string
 //go:embed templates/partition_template.sql
 var partitionTmpl string
 
+//go:embed templates/partition_template_simple.sql
+var partitionTmplSimple string
+
 // =========================================================================
 // Public Methods (satisfy the service.BoardStorage interface)
 // =========================================================================
@@ -133,32 +136,29 @@ func (s *Storage) createBoard(q Querier, creationData domain.BoardCreationData) 
 		}
 	}
 
-	// Create partitions for all partitioned tables.
-	for _, table := range []string{"threads", "messages", "attachments"} {
-		var query string
-		// Tables requiring a sequence for their partitioned ID need the partition template.
-		seqName := fmt.Sprintf("%s_id_seq_%s", table, creationData.ShortName)
-		query = fmt.Sprintf(partitionTmpl,
-			pq.QuoteIdentifier(seqName),
+	// Create partition for threads table (requires sequence for auto-increment ID).
+	threadsSeqName := fmt.Sprintf("threads_id_seq_%s", creationData.ShortName)
+	threadsQuery := fmt.Sprintf(partitionTmpl,
+		pq.QuoteIdentifier(threadsSeqName),
+		PartitionName(creationData.ShortName, "threads"),
+		pq.QuoteIdentifier("threads"),
+		pq.QuoteLiteral(threadsSeqName),
+		pq.QuoteLiteral(creationData.ShortName),
+	)
+	if _, err = q.Exec(threadsQuery); err != nil {
+		return fmt.Errorf("failed to create threads partition for board '%s': %w", creationData.ShortName, err)
+	}
+
+	// Create partitions for tables without sequences (id is set explicitly).
+	for _, table := range []string{"messages", "attachments", "message_replies"} {
+		query := fmt.Sprintf(partitionTmplSimple,
 			PartitionName(creationData.ShortName, table),
 			pq.QuoteIdentifier(table),
-			pq.QuoteLiteral(seqName),
 			pq.QuoteLiteral(creationData.ShortName),
 		)
 		if _, err = q.Exec(query); err != nil {
 			return fmt.Errorf("failed to create %s partition for board '%s': %w", table, creationData.ShortName, err)
 		}
-	}
-
-	// Tables without a sequence have a simpler creation statement.
-	table := "message_replies"
-	query := fmt.Sprintf(`CREATE TABLE %s PARTITION OF %s FOR VALUES IN (%s);`,
-		PartitionName(creationData.ShortName, table),
-		pq.QuoteIdentifier(table),
-		pq.QuoteLiteral(creationData.ShortName),
-	)
-	if _, err = q.Exec(query); err != nil {
-		return fmt.Errorf("failed to create %s partition for board '%s': %w", table, creationData.ShortName, err)
 	}
 
 	// Create the materialized view for board content previews.
@@ -227,10 +227,10 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		fmt.Sprintf(`
             SELECT thread_title, message_count, last_bumped_at, thread_id, is_pinned,
                    msg_id, author_id, author_email, author_is_admin,
-                   text, created_at, is_op, ordinal
+                   text, created_at
             FROM %s
             WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
-            ORDER BY thread_order, ordinal -- at first, order by thread then by message inside thread
+            ORDER BY thread_order, msg_id -- order by thread then by message id (which is ordinal)
 			`,
 			ViewTableName(shortName),
 		),
@@ -255,12 +255,12 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		AuthorIsAdmin bool
 		Text          domain.MsgText
 		CreatedAt     time.Time
-		IsOp          bool
-		Ordinal       int
 	}
 
-	idToMessage := make(map[domain.MsgId]*domain.Message) // Map for efficient message lookup when attaching replies and attachments
-	var messageIds []domain.MsgId                         // Collect all message IDs to fetch related data in bulk queries
+	// Map for efficient message lookup when attaching replies and attachments
+	// Key is (threadId, msgId) since msgId is per-thread
+	idToMessage := make(map[MsgKey]*domain.Message)
+	var messageKeys []MsgKey // Collect all message keys to fetch related data in bulk queries
 
 	var threads []*domain.Thread
 	var thread domain.Thread
@@ -270,11 +270,11 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		if err := rows.Scan(
 			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.IsPinned, &row.MsgID,
 			&row.AuthorID, &row.AuthorEmail, &row.AuthorIsAdmin,
-			&row.Text, &row.CreatedAt, &row.IsOp, &row.Ordinal,
+			&row.Text, &row.CreatedAt,
 		); err != nil {
 			return domain.Board{}, fmt.Errorf("failed to scan thread/message row: %w", err)
 		}
-		// rows are sorted by last_bumped_at and reply_number
+		// rows are sorted by last_bumped_at and msg_id
 		// so, if row.ThreadID != currentThread(basically previous row/rows thread_id)
 		// that means new thread started, and we fully parsed previous thread
 		// we need to add parsed thread to threads and create new thread object
@@ -308,16 +308,15 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 				},
 				CreatedAt: row.CreatedAt,
 				ThreadId:  row.ThreadID,
-				Op:        row.IsOp,
 				Board:     shortName,
-				Ordinal:   row.Ordinal,
 				Replies:   domain.Replies{}, // Initialize empty replies slice
 			},
 			Text: row.Text,
 		}
 		thread.Messages = append(thread.Messages, msg)
-		idToMessage[msg.Id] = msg
-		messageIds = append(messageIds, msg.Id) // Uniqueness ensured by unique index on board materialized view
+		key := MsgKey{ThreadId: row.ThreadID, MsgId: row.MsgID}
+		idToMessage[key] = msg
+		messageKeys = append(messageKeys, key)
 	}
 	if err = rows.Err(); err != nil {
 		return domain.Board{}, fmt.Errorf("error iterating thread/message rows: %w", err)
@@ -331,15 +330,15 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	}
 
 	// Enrich parsed messages with replies
-	if len(messageIds) > 0 {
-		if err := enrichMessagesWithReplies(q, shortName, messageIds, idToMessage); err != nil {
+	if len(messageKeys) > 0 {
+		if err := enrichMessagesWithReplies(q, shortName, messageKeys, idToMessage, s.cfg.Public.MessagesPerThreadPage); err != nil {
 			return domain.Board{}, fmt.Errorf("failed to enrich replies for board page: %w", err)
 		}
 	}
 
 	// Enrich parsed messages with attachments
-	if len(messageIds) > 0 {
-		if err := enrichMessagesWithAttachments(q, shortName, messageIds, idToMessage); err != nil {
+	if len(messageKeys) > 0 {
+		if err := enrichMessagesWithAttachments(q, shortName, messageKeys, idToMessage); err != nil {
 			return domain.Board{}, fmt.Errorf("failed to enrich attachments for board page: %w", err)
 		}
 	}
