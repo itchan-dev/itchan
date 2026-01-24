@@ -212,7 +212,7 @@
 {{- $pageParam := ""}}{{if gt .Page 1}}{{$pageParam = printf "?page=%d" .Page}}{{end}}
 {{- $anchor := .Anchor}}{{if not $anchor}}{{$anchor = "p"}}{{end}}
 {{- $class := "message-link"}}{{if .Class}}{{$class = printf "message-link %s" .Class}}{{else}}{{$class = "message-link message-link-preview"}}{{end}}
-{{- $text := .Text}}{{if not $text}}{{$text = printf ">>%d/%d" .ThreadId .MessageId}}{{end}}
+{{- $text := .Text}}{{if not $text}}{{$text = printf ">>%d#%d" .ThreadId .MessageId}}{{end}}
 <a href="/{{.Board}}/{{.ThreadId}}{{$pageParam}}#{{$anchor}}{{.MessageId}}" class="{{$class}}" data-board="{{.Board}}" data-message-id="{{.MessageId}}" data-thread-id="{{.ThreadId}}">{{$text}}</a>
 {{- end}}
 

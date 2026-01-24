@@ -21,7 +21,7 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
+var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)#(\d+)`)
 
 // formatMessageLink generates HTML for an inline message link with page calculation.
 // The page param is calculated server-side and stored in the HTML.
@@ -33,7 +33,7 @@ func (tp *TextProcessor) formatMessageLink(board domain.BoardShortName, threadId
 		pageParam = fmt.Sprintf("?page=%d", page)
 	}
 
-	return fmt.Sprintf(`<a href="/%s/%d%s#p%d" class="message-link message-link-preview" data-board="%s" data-message-id="%d" data-thread-id="%d">&gt;&gt;%d/%d</a>`,
+	return fmt.Sprintf(`<a href="/%s/%d%s#p%d" class="message-link message-link-preview" data-board="%s" data-message-id="%d" data-thread-id="%d">&gt;&gt;%d#%d</a>`,
 		board, threadId, pageParam, messageId, board, messageId, threadId, threadId, messageId)
 }
 
@@ -99,7 +99,7 @@ func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, domain.
 	return sanitizedText, matches, hasPayload
 }
 
-// processMessageLinks finds >>N/M patterns and converts them to internal links.
+// processMessageLinks finds >>N#M patterns and converts them to internal links.
 // It also returns a list of all matched strings found in the input.
 func (tp *TextProcessor) processMessageLinks(message domain.Message) (string, domain.Replies) {
 	var matches domain.Replies
