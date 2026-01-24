@@ -1,7 +1,7 @@
 // Click-to-Reply Functionality
 function addReplyLink(textarea, threadId, messageId) {
     if (textarea) {
-        const replyText = '>>' + threadId + '/' + messageId + '\n';
+        const replyText = '>>' + threadId + '#' + messageId + '\n';
         textarea.value = textarea.value + replyText;
         textarea.focus();
         textarea.setSelectionRange(textarea.value.length, textarea.value.length);
