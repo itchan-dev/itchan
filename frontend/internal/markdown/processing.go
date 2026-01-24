@@ -11,6 +11,7 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
+	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -22,17 +23,26 @@ import (
 
 var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)/(\d+)`)
 
-// formatMessageLink generates HTML for a message link (used in markdown processing)
-func formatMessageLink(board domain.BoardShortName, threadId domain.ThreadId, messageId domain.MsgId) string {
-	return fmt.Sprintf(`<a href="/%s/%d#p%d" class="message-link" data-board="%[1]s" data-message-id="%[3]d" data-thread-id="%[2]d">>>%[2]d/%[3]d</a>`,
-		board, threadId, messageId)
+// formatMessageLink generates HTML for an inline message link with page calculation.
+// The page param is calculated server-side and stored in the HTML.
+func (tp *TextProcessor) formatMessageLink(board domain.BoardShortName, threadId domain.ThreadId, messageId domain.MsgId) string {
+	page := utils.CalculatePage(int(messageId), tp.messagesPerPage)
+
+	pageParam := ""
+	if page > 1 {
+		pageParam = fmt.Sprintf("?page=%d", page)
+	}
+
+	return fmt.Sprintf(`<a href="/%s/%d%s#p%d" class="message-link message-link-preview" data-board="%s" data-message-id="%d" data-thread-id="%d">&gt;&gt;%d/%d</a>`,
+		board, threadId, pageParam, messageId, board, messageId, threadId, threadId, messageId)
 }
 
 type TextProcessor struct {
-	md goldmark.Markdown
+	md              goldmark.Markdown
+	messagesPerPage int
 }
 
-func New() *TextProcessor {
+func New(messagesPerPage int) *TextProcessor {
 	p := parser.NewParser(
 		parser.WithBlockParsers(
 			// util.Prioritized(parser.NewSetextHeadingParser(), 100),
@@ -63,7 +73,10 @@ func New() *TextProcessor {
 		goldmark.WithRendererOptions(ghtml.WithUnsafe()),
 		goldmark.WithExtensions(extension.Strikethrough),
 	)
-	return &TextProcessor{md: md}
+	return &TextProcessor{
+		md:              md,
+		messagesPerPage: messagesPerPage,
+	}
 }
 
 func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, domain.Replies, bool) {
@@ -107,7 +120,7 @@ func (tp *TextProcessor) processMessageLinks(message domain.Message) (string, do
 			return match
 		}
 		reply := domain.Reply{Board: message.Board, FromThreadId: message.ThreadId, ToThreadId: domain.ThreadId(threadId), From: message.Id, To: domain.MsgId(messageId)}
-		linkHTML := formatMessageLink(message.Board, domain.ThreadId(threadId), domain.MsgId(messageId))
+		linkHTML := tp.formatMessageLink(message.Board, domain.ThreadId(threadId), domain.MsgId(messageId))
 		// We dont want to add reply link twice
 		if _, ok := seen[linkHTML]; !ok {
 			seen[linkHTML] = struct{}{}
@@ -132,7 +145,7 @@ func (tp *TextProcessor) renderText(text string) (string, error) {
 func (tp *TextProcessor) sanitizeText(text string) string {
 	p := bluemonday.UGCPolicy()
 
-	p.AllowAttrs("class").Matching(regexp.MustCompile("^message-link$")).OnElements("a")
+	p.AllowAttrs("class").Matching(regexp.MustCompile("^message-link( message-link-preview)?$")).OnElements("a")
 	p.AllowAttrs("data-board", "data-message-id", "data-thread-id").OnElements("a")
 	p.RequireNoFollowOnLinks(false)
 	p.AllowRelativeURLs(true)

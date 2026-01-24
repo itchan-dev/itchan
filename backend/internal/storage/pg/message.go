@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 // =========================================================================

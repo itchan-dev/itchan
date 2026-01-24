@@ -3,8 +3,8 @@ package pg
 import (
 	"fmt"
 
-	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/utils"
 	"github.com/lib/pq"
 )
 

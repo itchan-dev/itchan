@@ -73,3 +73,12 @@ func Decode(r io.ReadCloser, body any) error {
 	}
 	return nil
 }
+
+// CalculatePage calculates the page number for a message given its ordinal and messages per page.
+// Formula: page = (ordinal - 1) / perPage + 1
+func CalculatePage(ordinal, perPage int) int {
+	if ordinal <= 0 || perPage <= 0 {
+		return 1
+	}
+	return (ordinal-1)/perPage + 1
+}
