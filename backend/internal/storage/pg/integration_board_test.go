@@ -252,7 +252,7 @@ func TestBoardOperations(t *testing.T) {
 		}
 
 		t.Run("admin sees all boards", func(t *testing.T) {
-			adminUser := domain.User{Id: 101, Email: "admin@example.com", Admin: true}
+			adminUser := domain.User{Id: 101, EmailDomain: "example.com", Admin: true}
 			boards, err := storage.getBoardsByUser(tx, adminUser)
 			require.NoError(t, err)
 			assert.Len(t, boards, 3, "Admin should see all boards")
@@ -271,17 +271,17 @@ func TestBoardOperations(t *testing.T) {
 			}{
 				{
 					name:        "domain1 user",
-					user:        domain.User{Id: 102, Email: "user@domain1.com", Admin: false},
+					user:        domain.User{Id: 102, EmailDomain: "domain1.com", Admin: false},
 					expectedSNs: []domain.BoardShortName{boardPublic, boardDomain1},
 				},
 				{
 					name:        "domain2 user",
-					user:        domain.User{Id: 103, Email: "user@domain2.com", Admin: false},
+					user:        domain.User{Id: 103, EmailDomain: "domain2.com", Admin: false},
 					expectedSNs: []domain.BoardShortName{boardPublic, boardDomain2},
 				},
 				{
 					name:        "other domain user",
-					user:        domain.User{Id: 104, Email: "user@other.com", Admin: false},
+					user:        domain.User{Id: 104, EmailDomain: "other.com", Admin: false},
 					expectedSNs: []domain.BoardShortName{boardPublic},
 				},
 			}
@@ -299,9 +299,9 @@ func TestBoardOperations(t *testing.T) {
 			}
 		})
 
-		t.Run("malformed email fails", func(t *testing.T) {
-			userMalformedEmail := domain.User{Id: 105, Email: "malformedemail", Admin: false}
-			_, err := storage.getBoardsByUser(tx, userMalformedEmail)
+		t.Run("empty domain fails", func(t *testing.T) {
+			userEmptyDomain := domain.User{Id: 105, EmailDomain: "", Admin: false}
+			_, err := storage.getBoardsByUser(tx, userEmptyDomain)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "could not determine user email domain")
 		})

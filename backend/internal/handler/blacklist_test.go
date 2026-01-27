@@ -31,8 +31,7 @@ func setupBlacklistTestHandler(authService service.AuthService) (*Handler, *mux.
 
 func TestBlacklistUser(t *testing.T) {
 	adminUser := &domain.User{
-		Id:    1,
-		Email: "admin@example.com",
+		Id: 1,
 	}
 	targetUserId := domain.UserId(42)
 	reason := "spam"
@@ -198,14 +197,12 @@ func TestGetBlacklistedUsers(t *testing.T) {
 		expectedEntries := []domain.BlacklistEntry{
 			{
 				UserId:        1,
-				Email:         "user1@example.com",
 				Reason:        "spam",
 				BlacklistedAt: time.Now(),
 				BlacklistedBy: 10,
 			},
 			{
 				UserId:        2,
-				Email:         "user2@example.com",
 				Reason:        "harassment",
 				BlacklistedAt: time.Now(),
 				BlacklistedBy: 10,
@@ -232,9 +229,7 @@ func TestGetBlacklistedUsers(t *testing.T) {
 
 		assert.Len(t, response.Users, 2)
 		assert.Equal(t, expectedEntries[0].UserId, response.Users[0].UserId)
-		assert.Equal(t, expectedEntries[0].Email, response.Users[0].Email)
 		assert.Equal(t, expectedEntries[1].UserId, response.Users[1].UserId)
-		assert.Equal(t, expectedEntries[1].Email, response.Users[1].Email)
 	})
 
 	t.Run("successful retrieval with empty list", func(t *testing.T) {

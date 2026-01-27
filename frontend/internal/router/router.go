@@ -81,8 +81,8 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	// Authenticated routes
 	authRouter := r.NewRoute().Subrouter()
 	authRouter.Use(authMw.NeedAuth())
-	authRouter.Use(mw.RestrictBoardAccess(deps.AccessData))           // Enforce board access restrictions
-	authRouter.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
+	authRouter.Use(mw.RestrictBoardAccess(deps.AccessData))            // Enforce board access restrictions
+	authRouter.Use(mw.RateLimit(rl.Rps100(), mw.GetUserIDFromContext)) // 100 RPS per user
 
 	// Add CSRF validation for authenticated state-changing operations
 	if deps.Public.CSRFEnabled {
@@ -102,7 +102,7 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 	// Invite routes (must be registered before /{board} to avoid route conflicts)
 	authRouter.HandleFunc("/invites", deps.Handler.InvitesGetHandler).Methods("GET")
 	// GenerateInvite: 1 per minute per user (same as CreateThread)
-	authRouter.Handle("/invites/generate", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.GenerateInvitePostHandler))).Methods("POST")
+	authRouter.Handle("/invites/generate", mw.RateLimit(rl.OnceInMinute(), mw.GetUserIDFromContext)(http.HandlerFunc(deps.Handler.GenerateInvitePostHandler))).Methods("POST")
 	authRouter.HandleFunc("/invites/revoke", deps.Handler.RevokeInvitePostHandler).Methods("POST")
 
 	// Account page
@@ -110,14 +110,14 @@ func SetupRouter(deps *setup.Dependencies) *mux.Router {
 
 	// Board routes with specific rate limits
 	// GetBoard: 10 RPS per user
-	authRouter.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.BoardGetHandler))).Methods("GET")
+	authRouter.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetUserIDFromContext)(http.HandlerFunc(deps.Handler.BoardGetHandler))).Methods("GET")
 	// CreateThread: 1 per minute per user
-	authRouter.Handle("/{board}", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.BoardPostHandler))).Methods("POST")
+	authRouter.Handle("/{board}", mw.RateLimit(rl.OnceInMinute(), mw.GetUserIDFromContext)(http.HandlerFunc(deps.Handler.BoardPostHandler))).Methods("POST")
 
 	// Thread routes
 	authRouter.HandleFunc("/{board}/{thread}", deps.Handler.ThreadGetHandler).Methods("GET")
 	// CreateMessage: 1 per second per user
-	authRouter.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(deps.Handler.ThreadPostHandler))).Methods("POST")
+	authRouter.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetUserIDFromContext)(http.HandlerFunc(deps.Handler.ThreadPostHandler))).Methods("POST")
 
 	// API proxy for message preview (JSON)
 	authRouter.HandleFunc("/api/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler).Methods("GET")

@@ -248,7 +248,7 @@ func TestDeleteBoardHandler(t *testing.T) {
 
 func TestGetBoardsHandler(t *testing.T) {
 	route := "/v1/boards"
-	testUser := domain.User{Id: 1, Email: "test@example.com"}
+	testUser := domain.User{Id: 1}
 	expectedBoards := []domain.Board{
 		{BoardMetadata: domain.BoardMetadata{Name: "Board 1", ShortName: "b1"}},
 		{BoardMetadata: domain.BoardMetadata{Name: "Board 2", ShortName: "b2"}},

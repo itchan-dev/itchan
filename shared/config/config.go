@@ -81,9 +81,10 @@ type Email struct {
 }
 
 type Private struct {
-	Pg     Pg     `yaml:"pg"`
-	Email  Email  `yaml:"email"`
-	JwtKey string `yaml:"jwt_key" validate:"required"`
+	Pg            Pg     `yaml:"pg"`
+	Email         Email  `yaml:"email"`
+	JwtKey        string `yaml:"jwt_key" validate:"required"`
+	EncryptionKey string `yaml:"encryption_key" validate:"required"`
 }
 
 // implementing logic.Config interface

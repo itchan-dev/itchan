@@ -176,12 +176,13 @@ func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, threadId
 func (s *Storage) getMessage(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 	var msg domain.Message
 	err := q.QueryRow(`
-	   SELECT id, author_id, text, created_at, thread_id, updated_at, board
-	   FROM messages
-	   WHERE board = $1 AND thread_id = $2 AND id = $3`,
+	   SELECT m.id, m.author_id, u.email_domain, u.is_admin, m.text, m.created_at, m.thread_id, m.updated_at, m.board
+	   FROM messages m
+	   JOIN users u ON m.author_id = u.id
+	   WHERE m.board = $1 AND m.thread_id = $2 AND m.id = $3`,
 		board, threadId, id,
 	).Scan(
-		&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt, &msg.ThreadId,
+		&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Author.Admin, &msg.Text, &msg.CreatedAt, &msg.ThreadId,
 		&msg.ModifiedAt, &msg.Board,
 	)
 	if err != nil {

@@ -66,9 +66,9 @@ func TestRestrictBoardAccess(t *testing.T) {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
-					Id:    1,
-					Email: "admin@other.com",
-					Admin: true,
+					Id:          1,
+					EmailDomain: "other.com",
+					Admin:       true,
 				})
 				return req.WithContext(ctx)
 			},
@@ -84,8 +84,8 @@ func TestRestrictBoardAccess(t *testing.T) {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
-					Id:    1,
-					Email: "user@example.com",
+					Id:          1,
+					EmailDomain: "example.com",
 				})
 				return req.WithContext(ctx)
 			},
@@ -101,8 +101,8 @@ func TestRestrictBoardAccess(t *testing.T) {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
-					Id:    1,
-					Email: "user@example.com",
+					Id:          1,
+					EmailDomain: "example.com",
 				})
 				return req.WithContext(ctx)
 			},
@@ -116,8 +116,8 @@ func TestRestrictBoardAccess(t *testing.T) {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
-					Id:    1,
-					Email: "user@unauthorized.com",
+					Id:          1,
+					EmailDomain: "unauthorized.com",
 				})
 				return req.WithContext(ctx)
 			},
@@ -128,13 +128,13 @@ func TestRestrictBoardAccess(t *testing.T) {
 			nextCalled:     false,
 		},
 		{
-			name: "malformed email",
+			name: "empty email domain",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
-					Id:    1,
-					Email: "invalid-email",
+					Id:          1,
+					EmailDomain: "",
 				})
 				return req.WithContext(ctx)
 			},

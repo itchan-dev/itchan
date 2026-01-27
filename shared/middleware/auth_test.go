@@ -15,9 +15,9 @@ import (
 
 func TestAuth(t *testing.T) {
 	jwtService := jwt_internal.New("test_secret", time.Hour)
-	admin := &domain.User{Id: 1, Email: "test@example.com", Admin: true}
+	admin := &domain.User{Id: 1, EmailDomain: "example.com", Admin: true}
 	tokenAdmin, _ := jwtService.NewToken(*admin)
-	user := &domain.User{Id: 1, Email: "test@example.com", Admin: false}
+	user := &domain.User{Id: 1, EmailDomain: "example.com", Admin: false}
 	token, _ := jwtService.NewToken(*user)
 
 	tests := []struct {
@@ -83,7 +83,7 @@ func TestAuth(t *testing.T) {
 				require.NotNil(t, user, "Auth should always propagate user thru context")
 				if tt.expectedUser != nil {
 					assert.Equal(t, tt.expectedUser.Id, user.Id)
-					assert.Equal(t, tt.expectedUser.Email, user.Email)
+					assert.Equal(t, tt.expectedUser.EmailDomain, user.EmailDomain)
 					assert.Equal(t, tt.expectedUser.Admin, user.Admin)
 					// Don't compare CreatedAt as JWT encoding/decoding can change timezone
 				} else {
@@ -108,7 +108,7 @@ func TestGetUserFromContext(t *testing.T) {
 
 	// Test context with user
 	t.Run("user in context", func(t *testing.T) {
-		user := &domain.User{Id: 1, Email: "test@example.com", Admin: true}
+		user := &domain.User{Id: 1, EmailDomain: "example.com", Admin: true}
 		req := httptest.NewRequest("GET", "/", nil)
 		ctx := context.WithValue(req.Context(), UserClaimsKey, user)
 		req = req.WithContext(ctx)
@@ -131,8 +131,8 @@ func (m *mockBlacklistCache) IsBlacklisted(userId domain.UserId) bool {
 
 func TestAuthWithBlacklist(t *testing.T) {
 	jwtService := jwt_internal.New("test_secret", time.Hour)
-	user := &domain.User{Id: 1, Email: "test@example.com", Admin: false}
-	blacklistedUser := &domain.User{Id: 2, Email: "banned@example.com", Admin: false}
+	user := &domain.User{Id: 1, EmailDomain: "example.com", Admin: false}
+	blacklistedUser := &domain.User{Id: 2, EmailDomain: "example.com", Admin: false}
 
 	token, _ := jwtService.NewToken(*user)
 	blacklistedToken, _ := jwtService.NewToken(*blacklistedUser)

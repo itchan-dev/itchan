@@ -29,7 +29,9 @@ func New(secretKey string, ttl time.Duration) JwtService {
 func (j *Jwt) NewToken(user domain.User) (string, error) {
 	claims := jwt.MapClaims{}
 	claims["uid"] = user.Id
-	claims["email"] = user.Email
+	// Email removed for privacy - no longer stored in JWT
+	// Email domain stored for board access control (not sensitive)
+	claims["email_domain"] = user.EmailDomain
 	claims["admin"] = user.Admin
 	claims["created_at"] = user.CreatedAt.Unix()
 	claims["exp"] = time.Now().Add(j.ttl).Unix()

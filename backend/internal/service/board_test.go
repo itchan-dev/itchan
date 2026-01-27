@@ -323,7 +323,7 @@ func TestBoardGet(t *testing.T) {
 }
 
 func TestBoardGetAll(t *testing.T) {
-	testUser := domain.User{Id: 1, Email: "test@example.com"}
+	testUser := domain.User{Id: 1}
 	expectedBoards := []domain.Board{
 		{BoardMetadata: domain.BoardMetadata{ShortName: "b", Name: "Board B"}},
 		{BoardMetadata: domain.BoardMetadata{ShortName: "a", Name: "Board A"}},

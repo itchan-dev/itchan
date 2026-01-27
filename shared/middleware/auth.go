@@ -82,9 +82,11 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 				return
 			}
 
-			email, ok := claims["email"].(string)
+			// Email no longer stored in JWT for privacy/security
+			// Email domain stored for board access control (not sensitive)
+			emailDomain, ok := claims["email_domain"].(string)
 			if !ok {
-				logger.Log.Error("missing or invalid email claim in jwt")
+				logger.Log.Error("missing or invalid email_domain claim in jwt")
 				http.Error(w, "Invalid token", http.StatusUnauthorized)
 				return
 			}
@@ -111,10 +113,10 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 
 			// Create a User struct from the claims
 			user := &domain.User{
-				Id:        int64(uidFloat),
-				Email:     email,
-				Admin:     isAdmin,
-				CreatedAt: createdAt,
+				Id:          int64(uidFloat),
+				EmailDomain: emailDomain,
+				Admin:       isAdmin,
+				CreatedAt:   createdAt,
 			}
 
 			// Check if user is blacklisted

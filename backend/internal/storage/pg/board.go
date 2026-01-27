@@ -226,7 +226,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	rows, err := q.Query(
 		fmt.Sprintf(`
             SELECT thread_title, message_count, last_bumped_at, thread_id, is_pinned,
-                   msg_id, author_id, author_email, author_is_admin,
+                   msg_id, author_id, email_domain, author_is_admin,
                    text, created_at
             FROM %s
             WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
@@ -244,17 +244,17 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 
 	// Temporary structure to hold flat row data from the view
 	type rowData struct {
-		ThreadTitle   domain.ThreadTitle
-		NMessages     int
-		LastBumpTs    time.Time
-		ThreadID      domain.ThreadId
-		IsPinned      bool
-		MsgID         domain.MsgId
-		AuthorID      domain.UserId
-		AuthorEmail   domain.Email
-		AuthorIsAdmin bool
-		Text          domain.MsgText
-		CreatedAt     time.Time
+		ThreadTitle       domain.ThreadTitle
+		NMessages         int
+		LastBumpTs        time.Time
+		ThreadID          domain.ThreadId
+		IsPinned          bool
+		MsgID             domain.MsgId
+		AuthorID          domain.UserId
+		AuthorEmailDomain string
+		AuthorIsAdmin     bool
+		Text              domain.MsgText
+		CreatedAt         time.Time
 	}
 
 	// Map for efficient message lookup when attaching replies and attachments
@@ -269,11 +269,12 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		var row rowData
 		if err := rows.Scan(
 			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.IsPinned, &row.MsgID,
-			&row.AuthorID, &row.AuthorEmail, &row.AuthorIsAdmin,
+			&row.AuthorID, &row.AuthorEmailDomain, &row.AuthorIsAdmin,
 			&row.Text, &row.CreatedAt,
 		); err != nil {
 			return domain.Board{}, fmt.Errorf("failed to scan thread/message row: %w", err)
 		}
+
 		// rows are sorted by last_bumped_at and msg_id
 		// so, if row.ThreadID != currentThread(basically previous row/rows thread_id)
 		// that means new thread started, and we fully parsed previous thread
@@ -302,9 +303,9 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 			MessageMetadata: domain.MessageMetadata{
 				Id: row.MsgID,
 				Author: domain.User{
-					Id:    row.AuthorID,
-					Email: row.AuthorEmail,
-					Admin: row.AuthorIsAdmin,
+					Id:          row.AuthorID,
+					EmailDomain: row.AuthorEmailDomain,
+					Admin:       row.AuthorIsAdmin,
 				},
 				CreatedAt: row.CreatedAt,
 				ThreadId:  row.ThreadID,
@@ -391,9 +392,9 @@ func (s *Storage) getBoardsByUser(q Querier, user domain.User) ([]domain.Board, 
 	var boards []domain.Board
 	var err error
 	// restrict boards for non-admins
-	userEmailDomain, domainErr := user.EmailDomain()
+	userEmailDomain, domainErr := user.GetEmailDomain()
 	if domainErr != nil {
-		return nil, fmt.Errorf("could not determine user email domain for '%s': %w", user.Email, domainErr)
+		return nil, fmt.Errorf("could not determine user email domain for user %d: %w", user.Id, domainErr)
 	}
 	// Use UNION ALL pattern for better query performance:
 	// 1. Public boards (no permissions set)

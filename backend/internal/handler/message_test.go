@@ -73,7 +73,7 @@ func TestCreateMessageHandler(t *testing.T) {
 	threadId := domain.ThreadId(1)
 	threadIdStr := strconv.FormatInt(threadId, 10)
 	route := "/" + board + "/" + threadIdStr
-	user := domain.User{Id: 1, Email: "test@test.com"}
+	user := domain.User{Id: 1}
 
 	t.Run("successful request", func(t *testing.T) {
 		expectedMsgId := domain.MsgId(123)

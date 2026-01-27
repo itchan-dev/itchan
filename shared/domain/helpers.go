@@ -3,19 +3,18 @@ package domain
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/logger"
 )
 
-func (u *User) EmailDomain() (string, error) {
-	emailParts := strings.Split(u.Email, "@")
-	if len(emailParts) != 2 {
-		logger.Log.Error("failed to split user email", "email", u.Email)
-		return "", errors.New("Cant get user domain")
+func (u *User) GetEmailDomain() (string, error) {
+	// Return the stored domain (populated from encrypted email storage)
+	if u.EmailDomain == "" {
+		logger.Log.Error("user email domain is empty", "userId", u.Id)
+		return "", errors.New("email domain not available")
 	}
-	return emailParts[1], nil
+	return u.EmailDomain, nil
 }
 
 // for debug

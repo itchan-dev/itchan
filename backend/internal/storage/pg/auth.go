@@ -10,7 +10,6 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
-	sharedutils "github.com/itchan-dev/itchan/shared/utils"
 	_ "github.com/lib/pq"
 )
 
@@ -33,32 +32,32 @@ func (s *Storage) SaveUser(user domain.User) (domain.UserId, error) {
 	return id, err
 }
 
-// User is a public, read-only method to fetch a user by their email. It uses
+// User is a public, read-only method to fetch a user by their email hash. It uses
 // the main database connection pool for efficiency.
-func (s *Storage) User(email domain.Email) (domain.User, error) {
-	return s.user(s.db, email)
+func (s *Storage) User(emailHash []byte) (domain.User, error) {
+	return s.user(s.db, emailHash)
 }
 
 // UpdatePassword is the public entry point for changing a user's password.
 // It manages the transaction for this security-sensitive operation.
-func (s *Storage) UpdatePassword(creds domain.Credentials) error {
+func (s *Storage) UpdatePassword(emailHash []byte, newPasswordHash domain.Password) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		return s.updatePassword(tx, creds)
+		return s.updatePassword(tx, emailHash, newPasswordHash)
 	})
 }
 
 // DeleteUser is the public entry point for deleting a user account.
 // It wraps the deletion in a transaction. The database schema's ON DELETE
 // CASCADE constraints will handle cleaning up related data (e.g., confirmation data).
-func (s *Storage) DeleteUser(email domain.Email) error {
+func (s *Storage) DeleteUser(emailHash []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		return s.deleteUser(tx, email)
+		return s.deleteUser(tx, emailHash)
 	})
 }
 
@@ -74,18 +73,18 @@ func (s *Storage) SaveConfirmationData(data domain.ConfirmationData) error {
 }
 
 // ConfirmationData is a public, read-only method to retrieve confirmation data.
-func (s *Storage) ConfirmationData(email domain.Email) (domain.ConfirmationData, error) {
-	return s.confirmationData(s.db, email)
+func (s *Storage) ConfirmationData(emailHash []byte) (domain.ConfirmationData, error) {
+	return s.confirmationData(s.db, emailHash)
 }
 
 // DeleteConfirmationData is the public entry point for removing used or expired
 // confirmation data.
-func (s *Storage) DeleteConfirmationData(email domain.Email) error {
+func (s *Storage) DeleteConfirmationData(emailHash []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		return s.deleteConfirmationData(tx, email)
+		return s.deleteConfirmationData(tx, emailHash)
 	})
 }
 
@@ -95,32 +94,40 @@ func (s *Storage) DeleteConfirmationData(email domain.Email) error {
 // =========================================================================
 
 // saveUser contains the core logic for inserting a new user record.
+// It expects a domain.User with already-encrypted email fields.
 func (s *Storage) saveUser(q Querier, user domain.User) (domain.UserId, error) {
 	var id int64
-	err := q.QueryRow("INSERT INTO users(email, password_hash, is_admin) VALUES($1, $2, $3) RETURNING id",
-		user.Email, user.PassHash, user.Admin).Scan(&id)
+	err := q.QueryRow(
+		"INSERT INTO users(email_encrypted, email_domain, email_hash, password_hash, is_admin) VALUES($1, $2, $3, $4, $5) RETURNING id",
+		user.EmailEncrypted, user.EmailDomain, user.EmailHash, user.PassHash, user.Admin,
+	).Scan(&id)
 	if err != nil {
 		return -1, fmt.Errorf("failed to insert user: %w", err)
 	}
 	return id, nil
 }
 
-// user contains the core logic for fetching a single user record by email.
-func (s *Storage) user(q Querier, email domain.Email) (domain.User, error) {
+// user contains the core logic for fetching a single user record by email hash.
+func (s *Storage) user(q Querier, emailHash []byte) (domain.User, error) {
 	var user domain.User
-	err := q.QueryRow("SELECT id, email, password_hash, is_admin, created_at FROM users WHERE email = $1", email).Scan(&user.Id, &user.Email, &user.PassHash, &user.Admin, &user.CreatedAt)
+	err := q.QueryRow(
+		"SELECT id, email_encrypted, email_domain, email_hash, password_hash, is_admin, created_at FROM users WHERE email_hash = $1",
+		emailHash,
+	).Scan(&user.Id, &user.EmailEncrypted, &user.EmailDomain, &user.EmailHash, &user.PassHash, &user.Admin, &user.CreatedAt)
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{Message: "User not found", StatusCode: http.StatusNotFound}
 		}
 		return domain.User{}, fmt.Errorf("failed to query user: %w", err)
 	}
+
 	return user, nil
 }
 
 // updatePassword contains the core logic for updating a user's password hash.
-func (s *Storage) updatePassword(q Querier, creds domain.Credentials) error {
-	result, err := q.Exec("UPDATE users SET password_hash = $1 WHERE email = $2", creds.Password, creds.Email)
+func (s *Storage) updatePassword(q Querier, emailHash []byte, newPasswordHash domain.Password) error {
+	result, err := q.Exec("UPDATE users SET password_hash = $1 WHERE email_hash = $2", newPasswordHash, emailHash)
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
@@ -135,8 +142,8 @@ func (s *Storage) updatePassword(q Querier, creds domain.Credentials) error {
 }
 
 // deleteUser contains the core logic for deleting a user record.
-func (s *Storage) deleteUser(q Querier, email domain.Email) error {
-	result, err := q.Exec("DELETE FROM users WHERE email = $1", email)
+func (s *Storage) deleteUser(q Querier, emailHash []byte) error {
+	result, err := q.Exec("DELETE FROM users WHERE email_hash = $1", emailHash)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -151,11 +158,12 @@ func (s *Storage) deleteUser(q Querier, email domain.Email) error {
 }
 
 // saveConfirmationData contains the core logic for inserting confirmation data.
+// It uses the email hash from the ConfirmationData struct.
 func (s *Storage) saveConfirmationData(q Querier, data domain.ConfirmationData) error {
 	_, err := q.Exec(`
-        INSERT INTO confirmation_data(email, password_hash, confirmation_code_hash, expires_at)
+        INSERT INTO confirmation_data(email_hash, password_hash, confirmation_code_hash, expires_at)
         VALUES($1, $2, $3, $4)`,
-		data.Email, data.PasswordHash, data.ConfirmationCodeHash, data.Expires,
+		data.EmailHash, data.PasswordHash, data.ConfirmationCodeHash, data.Expires,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert confirmation data: %w", err)
@@ -164,25 +172,26 @@ func (s *Storage) saveConfirmationData(q Querier, data domain.ConfirmationData) 
 }
 
 // confirmationData contains the core logic for fetching confirmation data.
-func (s *Storage) confirmationData(q Querier, email domain.Email) (domain.ConfirmationData, error) {
+func (s *Storage) confirmationData(q Querier, emailHash []byte) (domain.ConfirmationData, error) {
 	var data domain.ConfirmationData
 	err := q.QueryRow(`
-        SELECT email, password_hash, confirmation_code_hash, (expires_at at time zone 'utc')
-        FROM confirmation_data WHERE email = $1`,
-		email,
-	).Scan(&data.Email, &data.PasswordHash, &data.ConfirmationCodeHash, &data.Expires)
+        SELECT email_hash, password_hash, confirmation_code_hash, (expires_at at time zone 'utc')
+        FROM confirmation_data WHERE email_hash = $1`,
+		emailHash,
+	).Scan(&data.EmailHash, &data.PasswordHash, &data.ConfirmationCodeHash, &data.Expires)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ConfirmationData{}, &internal_errors.ErrorWithStatusCode{Message: "Confirmation data not found", StatusCode: http.StatusNotFound}
 		}
 		return domain.ConfirmationData{}, fmt.Errorf("failed to query confirmation data: %w", err)
 	}
+
 	return data, nil
 }
 
 // deleteConfirmationData contains the core logic for deleting confirmation data.
-func (s *Storage) deleteConfirmationData(q Querier, email domain.Email) error {
-	result, err := q.Exec("DELETE FROM confirmation_data WHERE email = $1", email)
+func (s *Storage) deleteConfirmationData(q Querier, emailHash []byte) error {
+	result, err := q.Exec("DELETE FROM confirmation_data WHERE email_hash = $1", emailHash)
 	if err != nil {
 		return fmt.Errorf("failed to delete confirmation data: %w", err)
 	}
@@ -210,16 +219,6 @@ func (s *Storage) SaveInviteCode(invite domain.InviteCode) error {
 	})
 }
 
-// InviteCode finds an invite code by its plain-text value
-// Uses deterministic HMAC-SHA256 hashing for O(1) database lookup
-func (s *Storage) InviteCode(plainCode string) (domain.InviteCode, error) {
-	// Hash the plain code deterministically (using HMAC-SHA256)
-	codeHash := sharedutils.HashSHA256(plainCode)
-
-	// Use the existing hash lookup method (leverages primary key index)
-	return s.InviteCodeByHash(codeHash)
-}
-
 // InviteCodeByHash fetches an invite code by its hash
 func (s *Storage) InviteCodeByHash(codeHash string) (domain.InviteCode, error) {
 	return s.inviteCodeByHash(s.db, codeHash)
@@ -236,18 +235,12 @@ func (s *Storage) CountActiveInvites(userId domain.UserId) (int, error) {
 }
 
 // MarkInviteUsed marks an invite code as used by a specific user
-func (s *Storage) MarkInviteUsed(plainCode string, usedBy domain.UserId) error {
+func (s *Storage) MarkInviteUsed(codeHash string, usedBy domain.UserId) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Find the invite first
-	invite, err := s.InviteCode(plainCode)
-	if err != nil {
-		return err
-	}
-
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		return s.markInviteUsed(tx, invite.CodeHash, usedBy)
+		return s.markInviteUsed(tx, codeHash, usedBy)
 	})
 }
 

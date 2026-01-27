@@ -156,12 +156,10 @@ func (s *Storage) getBlacklistedUsersWithDetails(q Querier) ([]domain.BlacklistE
 	rows, err := q.Query(`
 		SELECT
 			ub.user_id,
-			u.email,
 			ub.blacklisted_at AT TIME ZONE 'utc' as blacklisted_at,
 			ub.reason,
 			ub.blacklisted_by
 		FROM user_blacklist ub
-		JOIN users u ON u.id = ub.user_id
 		ORDER BY ub.blacklisted_at DESC`,
 	)
 	if err != nil {
@@ -174,13 +172,15 @@ func (s *Storage) getBlacklistedUsersWithDetails(q Querier) ([]domain.BlacklistE
 		var entry domain.BlacklistEntry
 		if err := rows.Scan(
 			&entry.UserId,
-			&entry.Email,
 			&entry.BlacklistedAt,
 			&entry.Reason,
 			&entry.BlacklistedBy,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan blacklist entry: %w", err)
 		}
+
+		// Email field removed from BlacklistEntry - display user ID instead
+
 		entries = append(entries, entry)
 	}
 

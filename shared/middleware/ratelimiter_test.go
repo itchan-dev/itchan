@@ -148,25 +148,25 @@ func TestRateLimit(t *testing.T) {
 	})
 }
 
-func TestGetEmailFromContext(t *testing.T) {
-	t.Run("returns email when user exists in context", func(t *testing.T) {
-		user := &domain.User{Email: "test@example.com"}
+func TestGetUserIDFromContext(t *testing.T) {
+	t.Run("returns user id when user exists in context", func(t *testing.T) {
+		user := &domain.User{Id: 123, EmailDomain: "example.com"}
 		req := httptest.NewRequest("GET", "/", nil)
 		ctx := context.WithValue(req.Context(), UserClaimsKey, user)
 		req = req.WithContext(ctx)
 
-		email, err := GetEmailFromContext(req)
+		userID, err := GetUserIDFromContext(req)
 		assert.NoError(t, err)
-		assert.Equal(t, user.Email, email)
+		assert.Equal(t, "user_123", userID)
 	})
 
 	t.Run("returns error when user not in context", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/", nil)
 
-		email, err := GetEmailFromContext(req)
+		userID, err := GetUserIDFromContext(req)
 		assert.Error(t, err)
-		assert.Empty(t, email)
-		assert.Equal(t, "Can't get user email", err.Error())
+		assert.Empty(t, userID)
+		assert.Equal(t, "Can't get user id", err.Error())
 	})
 }
 
