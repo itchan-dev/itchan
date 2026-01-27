@@ -51,9 +51,8 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success (StatusOK): Redirect to confirmation page with email pre-filled (via cookie)
-	h.setFlash(w, emailPrefillCookie, email)
-	http.Redirect(w, r, successURL, http.StatusSeeOther)
+	// Success (StatusOK): Redirect to confirmation page with email pre-filled (via cookie)W
+	h.redirectWithFlash(w, r, successURL, emailPrefillCookie, email)
 }
 
 func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request) {
