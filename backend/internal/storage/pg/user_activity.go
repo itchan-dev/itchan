@@ -18,7 +18,7 @@ func (s *Storage) GetUserMessages(userId domain.UserId, limit int) ([]domain.Mes
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT
 			m.id, m.board, m.thread_id, m.text, m.created_at,
-			u.id, u.email, u.is_admin
+			u.id, u.email_domain, u.is_admin
 		FROM messages m
 		JOIN users u ON m.author_id = u.id
 		WHERE m.author_id = $1
@@ -39,7 +39,7 @@ func (s *Storage) GetUserMessages(userId domain.UserId, limit int) ([]domain.Mes
 		var author domain.User
 		err := rows.Scan(
 			&msg.Id, &msg.Board, &msg.ThreadId, &msg.Text, &msg.CreatedAt,
-			&author.Id, &author.Email, &author.Admin,
+			&author.Id, &author.EmailDomain, &author.Admin,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user message: %w", err)

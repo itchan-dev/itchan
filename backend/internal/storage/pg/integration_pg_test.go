@@ -127,6 +127,7 @@ func mustSetup(ctx context.Context) (testcontainers.Container, error) {
 				Password: dbPassword,
 				Dbname:   dbName,
 			},
+			EncryptionKey: "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=", // Base64-encoded 32 bytes for AES-256 test key
 		},
 	}
 
@@ -161,10 +162,24 @@ func teardown(ctx context.Context, container testcontainers.Container) {
 // =========================================================================
 
 // createTestUser creates a user within the given transaction.
+// Since storage layer no longer handles crypto, we create test data directly.
 func createTestUser(t *testing.T, q Querier, email string) domain.UserId {
 	t.Helper()
-	user := domain.User{Email: domain.Email(email), PassHash: "test_hash"}
-	userID, err := storage.saveUser(q, user)
+
+	// Extract domain from email for test purposes
+	emailDomain := ""
+	if parts := strings.Split(email, "@"); len(parts) == 2 {
+		emailDomain = parts[1]
+	}
+
+	// Use simple test data - storage layer just stores what it receives
+	userID, err := storage.saveUser(q, domain.User{
+		EmailEncrypted: []byte("encrypted_" + email),
+		EmailDomain:    emailDomain,
+		EmailHash:      []byte("hash_" + email),
+		PassHash:       "test_hash",
+		Admin:          false,
+	})
 	require.NoError(t, err)
 	return userID
 }

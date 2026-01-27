@@ -1,11 +1,17 @@
 -- Represents a user account
 CREATE TABLE IF NOT EXISTS users (
     id                     serial PRIMARY KEY,
-    email                  varchar(254) NOT NULL UNIQUE,
+    email_encrypted        bytea NOT NULL,
+    email_domain           varchar(254) NOT NULL,
+    email_hash             bytea NOT NULL UNIQUE,
     password_hash          text NOT NULL,
     is_admin               boolean default false,
     created_at             timestamp default (now() at time zone 'utc')
 );
+
+-- Index on email_hash for fast lookups (unique constraint already creates an index)
+-- Index on email_domain for board permission queries
+CREATE INDEX IF NOT EXISTS idx_users_email_domain ON users(email_domain);
 
 -- Stores blacklisted users
 CREATE TABLE IF NOT EXISTS user_blacklist (
@@ -22,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_user_blacklist_time
 
 -- Used for account confirmation or password resets
 CREATE TABLE IF NOT EXISTS confirmation_data (
-    email                  varchar(254) PRIMARY KEY,
+    email_hash             bytea PRIMARY KEY,
     password_hash          varchar(80) NOT NULL,
     confirmation_code_hash varchar(80) default '',
     expires_at             timestamp default (now() at time zone 'utc'),

@@ -39,24 +39,30 @@ type Auth struct {
 	jwt            Jwt
 	cfg            *config.Public
 	blacklistCache *blacklist.Cache
+	emailCrypto    EmailCrypto
+}
+
+type EmailCrypto interface {
+	Encrypt(email string) ([]byte, error)
+	Hash(email string) []byte
+	ExtractDomain(email string) (string, error)
 }
 
 type AuthStorage interface {
 	SaveUser(user domain.User) (domain.UserId, error)
-	User(email domain.Email) (domain.User, error)
-	UpdatePassword(creds domain.Credentials) error
-	DeleteUser(email domain.Email) error
+	User(emailHash []byte) (domain.User, error)
+	UpdatePassword(emailHash []byte, newPasswordHash domain.Password) error
+	DeleteUser(emailHash []byte) error
 	SaveConfirmationData(data domain.ConfirmationData) error
-	ConfirmationData(email domain.Email) (domain.ConfirmationData, error)
-	DeleteConfirmationData(email domain.Email) error
+	ConfirmationData(emailHash []byte) (domain.ConfirmationData, error)
+	DeleteConfirmationData(emailHash []byte) error
 
 	// Invite code operations
 	SaveInviteCode(invite domain.InviteCode) error
-	InviteCode(plainCode string) (domain.InviteCode, error)
 	InviteCodeByHash(codeHash string) (domain.InviteCode, error)
 	GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error)
 	CountActiveInvites(userId domain.UserId) (int, error)
-	MarkInviteUsed(plainCode string, usedBy domain.UserId) error
+	MarkInviteUsed(codeHash string, usedBy domain.UserId) error
 	DeleteInviteCode(codeHash string) error
 	DeleteInvitesByUser(userId domain.UserId) error
 
@@ -76,10 +82,11 @@ type Jwt interface {
 	NewToken(user domain.User) (string, error)
 }
 
-func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache) *Auth {
+func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache, emailCrypto EmailCrypto) *Auth {
 	return &Auth{
 		storage:        storage,
 		email:          email,
+		emailCrypto:    emailCrypto,
 		jwt:            jwt,
 		cfg:            cfg,
 		blacklistCache: blacklistCache,
@@ -98,13 +105,16 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		return err
 	}
 
-	cData, err := a.storage.ConfirmationData(email)
+	// Hash email for storage lookups
+	emailHash := a.emailCrypto.Hash(email)
+
+	cData, err := a.storage.ConfirmationData(emailHash)
 	if err != nil && !errors.IsNotFound(err) { // if there is error, and error is not "not found"
 		return err
 	}
 	if err == nil { // data presented, check expiration
 		if cData.Expires.Before(time.Now()) { // if data expired - delete
-			if err := a.storage.DeleteConfirmationData(email); err != nil {
+			if err := a.storage.DeleteConfirmationData(emailHash); err != nil {
 				return err
 			}
 		} else {
@@ -124,7 +134,14 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		logger.Log.Error("failed to hash confirmation code", "error", err)
 		return err
 	}
-	err = a.storage.SaveConfirmationData(domain.ConfirmationData{Email: email, PasswordHash: string(passHash), ConfirmationCodeHash: string(confirmationCodeHash), Expires: time.Now().UTC().Add(a.cfg.ConfirmationCodeTTL)})
+
+	// Save confirmation data with email hash
+	err = a.storage.SaveConfirmationData(domain.ConfirmationData{
+		EmailHash:            emailHash,
+		PasswordHash:         domain.Password(passHash),
+		ConfirmationCodeHash: string(confirmationCodeHash),
+		Expires:              time.Now().UTC().Add(a.cfg.ConfirmationCodeTTL),
+	})
 	if err != nil {
 		return err
 	}
@@ -156,7 +173,10 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		return err
 	}
 
-	data, err := a.storage.ConfirmationData(email)
+	// Hash email for all storage operations
+	emailHash := a.emailCrypto.Hash(email)
+
+	data, err := a.storage.ConfirmationData(emailHash)
 	if err != nil {
 		return err
 	}
@@ -168,11 +188,27 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		return &errors.ErrorWithStatusCode{Message: "Wrong confirmation code", StatusCode: http.StatusBadRequest}
 	}
 	// if not exists - create
-	_, err = a.storage.User(email)
+	_, err = a.storage.User(emailHash)
 	if err != nil {
 		e, ok := err.(*errors.ErrorWithStatusCode)
 		if ok && e.StatusCode == http.StatusNotFound {
-			userId, err := a.storage.SaveUser(domain.User{Email: email, PassHash: data.PasswordHash})
+			// Encrypt email data
+			emailEncrypted, err := a.emailCrypto.Encrypt(email)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt email: %w", err)
+			}
+			emailDomain, err := a.emailCrypto.ExtractDomain(email)
+			if err != nil {
+				return fmt.Errorf("failed to extract email domain: %w", err)
+			}
+
+			userId, err := a.storage.SaveUser(domain.User{
+				EmailEncrypted: emailEncrypted,
+				EmailDomain:    emailDomain,
+				EmailHash:      emailHash,
+				PassHash:       data.PasswordHash,
+				Admin:          false,
+			})
 			if err != nil {
 				return err
 			}
@@ -181,12 +217,12 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 			return err
 		}
 	} else {
-		if err := a.storage.UpdatePassword(domain.Credentials{Email: email, Password: data.PasswordHash}); err != nil {
+		if err := a.storage.UpdatePassword(emailHash, data.PasswordHash); err != nil {
 			return err
 		}
 		logger.Log.Info("password updated", "email", email)
 	}
-	if err := a.storage.DeleteConfirmationData(email); err != nil { // cleanup
+	if err := a.storage.DeleteConfirmationData(emailHash); err != nil { // cleanup
 		return err
 	}
 	return nil
@@ -204,7 +240,10 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 		return "", err
 	}
 
-	user, err := a.storage.User(email)
+	// Hash email for storage lookup
+	emailHash := a.emailCrypto.Hash(email)
+
+	user, err := a.storage.User(emailHash)
 	if err != nil {
 		// to not leak existing users
 		e, ok := err.(*errors.ErrorWithStatusCode)
@@ -307,8 +346,11 @@ func (a *Auth) RefreshBlacklistCache() error {
 // RegisterWithInvite creates a user account using an invite code
 // Returns the generated @itchan.ru email address
 func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (string, error) {
-	// 1. Validate invite code exists and is valid
-	invite, err := a.storage.InviteCode(inviteCode)
+	// 1. Hash invite code for storage lookup
+	inviteCodeHash := sharedutils.HashSHA256(inviteCode)
+
+	// 2. Validate invite code exists and is valid
+	invite, err := a.storage.InviteCodeByHash(inviteCodeHash)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return "", &errors.ErrorWithStatusCode{
@@ -337,8 +379,10 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (
 
 	// 4. Generate random @itchan.ru email (retry on collision)
 	email := sharedutils.GenerateRandomEmail()
+	var emailHash []byte
 	for range 10 {
-		_, err := a.storage.User(email)
+		emailHash = a.emailCrypto.Hash(email)
+		_, err := a.storage.User(emailHash)
 		if errors.IsNotFound(err) {
 			break // Email is available
 		}
@@ -357,18 +401,31 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (
 	}
 
 	// 6. Create user
+	// Encrypt email data
+	emailEncrypted, err := a.emailCrypto.Encrypt(email)
+	if err != nil {
+		return "", fmt.Errorf("failed to encrypt email: %w", err)
+	}
+	emailDomain, err := a.emailCrypto.ExtractDomain(email)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract email domain: %w", err)
+	}
+	// emailHash already set from the collision check loop above
+
 	userId, err := a.storage.SaveUser(domain.User{
-		Email:    email,
-		PassHash: string(passHash),
-		Admin:    false,
+		EmailEncrypted: emailEncrypted,
+		EmailDomain:    emailDomain,
+		EmailHash:      emailHash,
+		PassHash:       domain.Password(passHash),
+		Admin:          false,
 	})
 	if err != nil {
 		return "", err
 	}
 
 	// 7. Mark invite as used
-	if err := a.storage.MarkInviteUsed(inviteCode, userId); err != nil {
-		logger.Log.Error("failed to mark invite used", "invite_code", inviteCode, "user_id", userId, "error", err)
+	if err := a.storage.MarkInviteUsed(inviteCodeHash, userId); err != nil {
+		logger.Log.Error("failed to mark invite used", "user_id", userId, "error", err)
 		// Don't fail - user is already created
 	}
 

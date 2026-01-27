@@ -93,8 +93,8 @@ func New(deps *setup.Dependencies) *mux.Router {
 
 	// Logged-in user routes
 	loggedIn := v1.NewRoute().Subrouter()
-	loggedIn.Use(authMw.NeedAuth())                                 // Enforce JWT authentication with blacklist check
-	loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetEmailFromContext)) // 100 RPS per user
+	loggedIn.Use(authMw.NeedAuth())                                  // Enforce JWT authentication with blacklist check
+	loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetUserIDFromContext)) // 100 RPS per user
 
 	// User activity endpoint
 	loggedIn.HandleFunc("/users/me/activity", h.GetUserActivity).Methods("GET")
@@ -104,7 +104,7 @@ func New(deps *setup.Dependencies) *mux.Router {
 
 	invites.HandleFunc("", h.GetMyInvites).Methods("GET")
 	// Generate invite: 1 per minute per user to prevent spam
-	invites.Handle("", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(
+	invites.Handle("", mw.RateLimit(rl.OnceInMinute(), mw.GetUserIDFromContext)(
 		http.HandlerFunc(h.GenerateInvite))).Methods("POST")
 	invites.HandleFunc("/{codeHash}", h.RevokeInvite).Methods("DELETE")
 
@@ -113,13 +113,13 @@ func New(deps *setup.Dependencies) *mux.Router {
 
 	boards.HandleFunc("/boards", h.GetBoards).Methods("GET")
 	// GetBoard: 10 RPS per user
-	boards.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetEmailFromContext)(http.HandlerFunc(h.GetBoard))).Methods("GET")
+	boards.Handle("/{board}", mw.RateLimit(rl.Rps10(), mw.GetUserIDFromContext)(http.HandlerFunc(h.GetBoard))).Methods("GET")
 	// CreateThread: 1 per minute per user
-	boards.Handle("/{board}", mw.RateLimit(rl.OnceInMinute(), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateThread))).Methods("POST")
+	boards.Handle("/{board}", mw.RateLimit(rl.OnceInMinute(), mw.GetUserIDFromContext)(http.HandlerFunc(h.CreateThread))).Methods("POST")
 
 	boards.HandleFunc("/{board}/{thread}", h.GetThread).Methods("GET")
 	// CreateMessage: 1 per second per user (fixed rate limiter)
-	boards.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetEmailFromContext)(http.HandlerFunc(h.CreateMessage))).Methods("POST")
+	boards.Handle("/{board}/{thread}", mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetUserIDFromContext)(http.HandlerFunc(h.CreateMessage))).Methods("POST")
 	boards.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods("GET")
 
 	return r

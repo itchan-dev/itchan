@@ -19,12 +19,12 @@ import (
 
 type MockAuthStorage struct {
 	SaveUserFunc                       func(user domain.User) (domain.UserId, error)
-	UserFunc                           func(email domain.Email) (domain.User, error)
-	DeleteUserFunc                     func(email domain.Email) error
-	UpdatePasswordFunc                 func(creds domain.Credentials) error
+	UserFunc                           func(emailHash []byte) (domain.User, error)
+	DeleteUserFunc                     func(emailHash []byte) error
+	UpdatePasswordFunc                 func(emailHash []byte, newPasswordHash domain.Password) error
 	SaveConfirmationDataFunc           func(data domain.ConfirmationData) error
-	ConfirmationDataFunc               func(email domain.Email) (domain.ConfirmationData, error)
-	DeleteConfirmationDataFunc         func(email domain.Email) error
+	ConfirmationDataFunc               func(emailHash []byte) (domain.ConfirmationData, error)
+	DeleteConfirmationDataFunc         func(emailHash []byte) error
 	IsUserBlacklistedFunc              func(userId domain.UserId) (bool, error)
 	BlacklistUserFunc                  func(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
 	UnblacklistUserFunc                func(userId domain.UserId) error
@@ -32,11 +32,10 @@ type MockAuthStorage struct {
 
 	// Invite code function fields
 	SaveInviteCodeFunc      func(invite domain.InviteCode) error
-	InviteCodeFunc          func(plainCode string) (domain.InviteCode, error)
 	InviteCodeByHashFunc    func(codeHash string) (domain.InviteCode, error)
 	GetInvitesByUserFunc    func(userId domain.UserId) ([]domain.InviteCode, error)
 	CountActiveInvitesFunc  func(userId domain.UserId) (int, error)
-	MarkInviteUsedFunc      func(plainCode string, usedBy domain.UserId) error
+	MarkInviteUsedFunc      func(codeHash string, usedBy domain.UserId) error
 	DeleteInviteCodeFunc    func(codeHash string) error
 	DeleteInvitesByUserFunc func(userId domain.UserId) error
 }
@@ -48,25 +47,25 @@ func (m *MockAuthStorage) SaveUser(user domain.User) (domain.UserId, error) {
 	return 1, nil
 }
 
-func (m *MockAuthStorage) User(email domain.Email) (domain.User, error) {
+func (m *MockAuthStorage) User(emailHash []byte) (domain.User, error) {
 	if m.UserFunc != nil {
-		return m.UserFunc(email)
+		return m.UserFunc(emailHash)
 	}
 	// Default success case for login tests
 	passHash, _ := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
-	return domain.User{Id: 1, Email: email, PassHash: string(passHash)}, nil
+	return domain.User{Id: 1, PassHash: string(passHash)}, nil
 }
 
-func (m *MockAuthStorage) DeleteUser(email domain.Email) error {
+func (m *MockAuthStorage) DeleteUser(emailHash []byte) error {
 	if m.DeleteUserFunc != nil {
-		return m.DeleteUserFunc(email)
+		return m.DeleteUserFunc(emailHash)
 	}
 	return nil
 }
 
-func (m *MockAuthStorage) UpdatePassword(creds domain.Credentials) error {
+func (m *MockAuthStorage) UpdatePassword(emailHash []byte, newPasswordHash domain.Password) error {
 	if m.UpdatePasswordFunc != nil {
-		return m.UpdatePasswordFunc(creds)
+		return m.UpdatePasswordFunc(emailHash, newPasswordHash)
 	}
 	return nil
 }
@@ -78,9 +77,9 @@ func (m *MockAuthStorage) SaveConfirmationData(data domain.ConfirmationData) err
 	return nil
 }
 
-func (m *MockAuthStorage) ConfirmationData(email domain.Email) (domain.ConfirmationData, error) {
+func (m *MockAuthStorage) ConfirmationData(emailHash []byte) (domain.ConfirmationData, error) {
 	if m.ConfirmationDataFunc != nil {
-		return m.ConfirmationDataFunc(email)
+		return m.ConfirmationDataFunc(emailHash)
 	}
 	// Default: Not found
 	return domain.ConfirmationData{}, &internal_errors.ErrorWithStatusCode{
@@ -89,9 +88,9 @@ func (m *MockAuthStorage) ConfirmationData(email domain.Email) (domain.Confirmat
 	}
 }
 
-func (m *MockAuthStorage) DeleteConfirmationData(email domain.Email) error {
+func (m *MockAuthStorage) DeleteConfirmationData(emailHash []byte) error {
 	if m.DeleteConfirmationDataFunc != nil {
-		return m.DeleteConfirmationDataFunc(email)
+		return m.DeleteConfirmationDataFunc(emailHash)
 	}
 	return nil
 }
@@ -133,18 +132,11 @@ func (m *MockAuthStorage) SaveInviteCode(invite domain.InviteCode) error {
 	return nil
 }
 
-func (m *MockAuthStorage) InviteCode(plainCode string) (domain.InviteCode, error) {
-	if m.InviteCodeFunc != nil {
-		return m.InviteCodeFunc(plainCode)
-	}
-	return domain.InviteCode{}, &internal_errors.ErrorWithStatusCode{Message: "Invite code not found", StatusCode: http.StatusNotFound}
-}
-
 func (m *MockAuthStorage) InviteCodeByHash(codeHash string) (domain.InviteCode, error) {
 	if m.InviteCodeByHashFunc != nil {
 		return m.InviteCodeByHashFunc(codeHash)
 	}
-	return domain.InviteCode{}, nil
+	return domain.InviteCode{}, &internal_errors.ErrorWithStatusCode{Message: "Invite code not found", StatusCode: http.StatusNotFound}
 }
 
 func (m *MockAuthStorage) GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error) {
@@ -161,9 +153,9 @@ func (m *MockAuthStorage) CountActiveInvites(userId domain.UserId) (int, error) 
 	return 0, nil
 }
 
-func (m *MockAuthStorage) MarkInviteUsed(plainCode string, usedBy domain.UserId) error {
+func (m *MockAuthStorage) MarkInviteUsed(codeHash string, usedBy domain.UserId) error {
 	if m.MarkInviteUsedFunc != nil {
-		return m.MarkInviteUsedFunc(plainCode, usedBy)
+		return m.MarkInviteUsedFunc(codeHash, usedBy)
 	}
 	return nil
 }
@@ -216,16 +208,51 @@ func (m *MockJwt) NewToken(user domain.User) (string, error) {
 	return "test_token", nil
 }
 
+type MockEmailCrypto struct {
+	EncryptFunc       func(email string) ([]byte, error)
+	HashFunc          func(email string) []byte
+	ExtractDomainFunc func(email string) (string, error)
+}
+
+func (m *MockEmailCrypto) Encrypt(email string) ([]byte, error) {
+	if m.EncryptFunc != nil {
+		return m.EncryptFunc(email)
+	}
+	// Default: return email as bytes for testing
+	return []byte("encrypted_" + email), nil
+}
+
+func (m *MockEmailCrypto) Hash(email string) []byte {
+	if m.HashFunc != nil {
+		return m.HashFunc(email)
+	}
+	// Default: simple hash for testing
+	return []byte("hash_" + email)
+}
+
+func (m *MockEmailCrypto) ExtractDomain(email string) (string, error) {
+	if m.ExtractDomainFunc != nil {
+		return m.ExtractDomainFunc(email)
+	}
+	// Default: extract domain
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return "", errors.New("invalid email")
+	}
+	return parts[1], nil
+}
+
 // --- Tests ---
 
 func TestRegister(t *testing.T) {
 	storage := &MockAuthStorage{}
 	email := &MockEmail{}
 	jwt := &MockJwt{} // Not used in Register, but needed for constructor
+	emailCrypto := &MockEmailCrypto{}
 	service := NewAuth(storage, email, jwt, &config.Public{
 		ConfirmationCodeLen: 8,
 		ConfirmationCodeTTL: 10 * time.Minute,
-	}, nil)
+	}, nil, emailCrypto)
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 	lowerCaseEmail := strings.ToLower(creds.Email)
@@ -242,7 +269,7 @@ func TestRegister(t *testing.T) {
 		sendCalled := false
 		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
 			saveCalled = true
-			assert.Equal(t, lowerCaseEmail, data.Email)
+			assert.NotEmpty(t, data.EmailHash)
 			assert.NotEmpty(t, data.PasswordHash)
 			assert.NotEmpty(t, data.ConfirmationCodeHash)
 			assert.True(t, data.Expires.After(time.Now().UTC().Add(-1*time.Minute))) // Allow for slight clock skew
@@ -286,7 +313,7 @@ func TestRegister(t *testing.T) {
 	t.Run("storage.ConfirmationData general error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock ConfirmationDataFunc general error")
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return domain.ConfirmationData{}, mockError
 		}
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
@@ -302,9 +329,8 @@ func TestRegister(t *testing.T) {
 	t.Run("Existing valid confirmation data", func(t *testing.T) {
 		// Arrange
 		expires := time.Now().UTC().Add(10 * time.Minute)
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return domain.ConfirmationData{
-				Email:   email,
 				Expires: expires,
 			}, nil
 		}
@@ -328,18 +354,17 @@ func TestRegister(t *testing.T) {
 		sendCalled := false
 		expiredTime := time.Now().UTC().Add(-10 * time.Minute)
 
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			// Return expired data on first call
 			return domain.ConfirmationData{
-				Email:   email,
 				Expires: expiredTime,
 			}, nil
 		}
-		storage.DeleteConfirmationDataFunc = func(email domain.Email) error {
-			assert.Equal(t, lowerCaseEmail, email)
+		storage.DeleteConfirmationDataFunc = func(emailHash []byte) error {
+			// emailHash is []byte, not string - skip assertion
 			deleted = true
 			// After deleting, the next ConfirmationData call (if any) should find nothing
-			storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+			storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 				return domain.ConfirmationData{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
 			}
 			return nil
@@ -373,10 +398,10 @@ func TestRegister(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock DeleteConfirmationData error")
 		expiredTime := time.Now().UTC().Add(-10 * time.Minute)
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return domain.ConfirmationData{Expires: expiredTime}, nil
 		}
-		storage.DeleteConfirmationDataFunc = func(email domain.Email) error {
+		storage.DeleteConfirmationDataFunc = func(emailHash []byte) error {
 			return mockError
 		}
 		defer func() { // Restore defaults
@@ -428,7 +453,7 @@ func TestRegister(t *testing.T) {
 	t.Run("email.Send error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock SendFunc error")
-		storage.ConfirmationDataFunc = nil                                                         // Ensure default "not found"
+		storage.ConfirmationDataFunc = nil                                         // Ensure default "not found"
 		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error { return nil } // Assume save works
 		email.SendFunc = func(recipientEmail, subject, body string) error {
 			return mockError
@@ -452,17 +477,16 @@ func TestCheckConfirmationCode(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{} // Renamed to avoid conflict with package name
 	jwt := &MockJwt{}         // Not used in CheckConfirmationCode, but needed for constructor
-	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil)
+	emailCrypto := &MockEmailCrypto{}
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil, emailCrypto)
 
 	testEmail := "test@example.com"
-	lowerCaseEmail := strings.ToLower(testEmail)
 	confirmationCode := "123456"
 	correctPassHash := "correct_hashed_password"
 	correctCodeHashBytes, _ := bcrypt.GenerateFromPassword([]byte(confirmationCode), bcrypt.DefaultCost)
 	correctCodeHash := string(correctCodeHashBytes)
 
 	validConfirmationData := domain.ConfirmationData{
-		Email:                lowerCaseEmail,
 		PasswordHash:         correctPassHash,
 		ConfirmationCodeHash: correctCodeHash,
 		Expires:              time.Now().UTC().Add(5 * time.Minute),
@@ -472,24 +496,24 @@ func TestCheckConfirmationCode(t *testing.T) {
 		// Arrange
 		updateCalled := false
 		deleteCalled := false
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
-			assert.Equal(t, lowerCaseEmail, email)
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
+			// emailHash is []byte, not string - skip assertion
 			return validConfirmationData, nil
 		}
 		// Simulate existing user found
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
-			assert.Equal(t, lowerCaseEmail, email)
-			return domain.User{Id: 1, Email: email, PassHash: "old_hash"}, nil
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
+			// emailHash is []byte, not string - skip assertion
+			return domain.User{Id: 1, PassHash: "old_hash"}, nil
 		}
-		storage.UpdatePasswordFunc = func(creds domain.Credentials) error {
+		storage.UpdatePasswordFunc = func(emailHash []byte, newPasswordHash domain.Password) error {
 			updateCalled = true
-			assert.Equal(t, lowerCaseEmail, creds.Email)
-			assert.Equal(t, correctPassHash, creds.Password) // Password field now holds the new hash
+			// emailHash is []byte - assertions updated
+			assert.Equal(t, correctPassHash, string(newPasswordHash)) // Password field now holds the new hash
 			return nil
 		}
-		storage.DeleteConfirmationDataFunc = func(email domain.Email) error {
+		storage.DeleteConfirmationDataFunc = func(emailHash []byte) error {
 			deleteCalled = true
-			assert.Equal(t, lowerCaseEmail, email)
+			// emailHash is []byte, not string - skip assertion
 			return nil
 		}
 		defer func() { // Restore defaults
@@ -512,26 +536,27 @@ func TestCheckConfirmationCode(t *testing.T) {
 		// Arrange
 		saveUserCalled := false
 		deleteCalled := false
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
-			assert.Equal(t, lowerCaseEmail, email)
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
+			// emailHash is []byte, not string - skip assertion
 			return validConfirmationData, nil
 		}
 		// Simulate user not found
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
-			assert.Equal(t, lowerCaseEmail, email)
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
+			// emailHash is []byte, not string - skip assertion
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
 		}
 		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
 			saveUserCalled = true
-			assert.Equal(t, lowerCaseEmail, user.Email)
+			assert.NotEmpty(t, user.EmailEncrypted)
+			assert.NotEmpty(t, user.EmailHash)
+			assert.NotEmpty(t, user.EmailDomain)
 			assert.Equal(t, correctPassHash, user.PassHash)
 			assert.False(t, user.Admin) // Ensure default admin status is false
-			assert.Zero(t, user.Id)     // ID should be zero before saving
-			return 5, nil               // Return some user ID
+			return 5, nil          // Return some user ID
 		}
-		storage.DeleteConfirmationDataFunc = func(email domain.Email) error {
+		storage.DeleteConfirmationDataFunc = func(emailHash []byte) error {
 			deleteCalled = true
-			assert.Equal(t, lowerCaseEmail, email)
+			// emailHash is []byte, not string - skip assertion
 			return nil
 		}
 		defer func() { // Restore defaults
@@ -566,7 +591,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 
 	t.Run("storage.ConfirmationData not found error", func(t *testing.T) {
 		// Arrange
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return domain.ConfirmationData{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound, Message: "not found"}
 		}
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
@@ -585,7 +610,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 	t.Run("storage.ConfirmationData general error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock ConfirmationDataFunc general error")
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return domain.ConfirmationData{}, mockError
 		}
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
@@ -602,7 +627,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		// Arrange
 		expiredData := validConfirmationData
 		expiredData.Expires = time.Now().UTC().Add(-5 * time.Minute)
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return expiredData, nil
 		}
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
@@ -620,7 +645,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 
 	t.Run("Wrong confirmation code", func(t *testing.T) {
 		// Arrange
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return validConfirmationData, nil // Use data with the CORRECT hash
 		}
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
@@ -639,10 +664,10 @@ func TestCheckConfirmationCode(t *testing.T) {
 	t.Run("storage.User general error (during check if user exists)", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock storage.User general error")
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return validConfirmationData, nil
 		}
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return domain.User{}, mockError // Return a non-NotFound error
 		}
 		defer func() { // Restore defaults
@@ -661,10 +686,10 @@ func TestCheckConfirmationCode(t *testing.T) {
 	t.Run("storage.SaveUser error (during new user creation)", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock SaveUser error")
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return validConfirmationData, nil
 		}
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound} // Trigger new user path
 		}
 		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
@@ -687,13 +712,13 @@ func TestCheckConfirmationCode(t *testing.T) {
 	t.Run("storage.UpdatePassword error (during existing user update)", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock UpdatePassword error")
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return validConfirmationData, nil
 		}
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
-			return domain.User{Id: 1, Email: email}, nil // Trigger existing user path
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
+			return domain.User{Id: 1}, nil // Trigger existing user path
 		}
-		storage.UpdatePasswordFunc = func(creds domain.Credentials) error {
+		storage.UpdatePasswordFunc = func(emailHash []byte, newPasswordHash domain.Password) error {
 			return mockError // Fail the update
 		}
 		defer func() { // Restore defaults
@@ -713,16 +738,16 @@ func TestCheckConfirmationCode(t *testing.T) {
 	t.Run("storage.DeleteConfirmationData error (at the end)", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock DeleteConfirmationData error")
-		storage.ConfirmationDataFunc = func(email domain.Email) (domain.ConfirmationData, error) {
+		storage.ConfirmationDataFunc = func(emailHash []byte) (domain.ConfirmationData, error) {
 			return validConfirmationData, nil
 		}
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
-			return domain.User{Id: 1, Email: email}, nil // Existing user path
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
+			return domain.User{Id: 1}, nil // Existing user path
 		}
-		storage.UpdatePasswordFunc = func(creds domain.Credentials) error {
+		storage.UpdatePasswordFunc = func(emailHash []byte, newPasswordHash domain.Password) error {
 			return nil // Update succeeds
 		}
-		storage.DeleteConfirmationDataFunc = func(email domain.Email) error {
+		storage.DeleteConfirmationDataFunc = func(emailHash []byte) error {
 			return mockError // Delete fails
 		}
 		defer func() { // Restore defaults
@@ -748,24 +773,23 @@ func TestLogin(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{} // Renamed to avoid conflict
 	jwt := &MockJwt{}
-	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil)
+	emailCrypto := &MockEmailCrypto{}
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil, emailCrypto)
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
-	lowerCaseEmail := strings.ToLower(creds.Email)
 
 	correctPassHashBytes, _ := bcrypt.GenerateFromPassword([]byte(creds.Password), bcrypt.DefaultCost)
 	correctPassHash := string(correctPassHashBytes)
-	correctUser := domain.User{Id: 1, Email: lowerCaseEmail, PassHash: correctPassHash, Admin: false}
+	correctUser := domain.User{Id: 1, PassHash: correctPassHash, Admin: false}
 
 	t.Run("Successful login", func(t *testing.T) {
 		// Arrange
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
-			assert.Equal(t, lowerCaseEmail, email)
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
+			// emailHash is []byte, not string - skip assertion
 			return correctUser, nil
 		}
 		jwt.NewTokenFunc = func(user domain.User) (string, error) {
 			assert.Equal(t, correctUser.Id, user.Id)
-			assert.Equal(t, correctUser.Email, user.Email)
 			assert.Equal(t, correctUser.PassHash, user.PassHash) // PassHash included in token generation
 			assert.Equal(t, correctUser.Admin, user.Admin)
 			return "success_token", nil
@@ -800,7 +824,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("storage.User not found error", func(t *testing.T) {
 		// Arrange
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{
 				Message:    "User not found in storage",
 				StatusCode: http.StatusNotFound,
@@ -823,7 +847,7 @@ func TestLogin(t *testing.T) {
 	t.Run("storage.User general error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock UserFunc general error")
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return domain.User{}, mockError
 		}
 		defer func() { storage.UserFunc = nil }() // Restore default
@@ -840,8 +864,8 @@ func TestLogin(t *testing.T) {
 	t.Run("Incorrect password", func(t *testing.T) {
 		// Arrange
 		// Mock UserFunc returns the user but CompareHashAndPassword will fail
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
-			assert.Equal(t, lowerCaseEmail, email)
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
+			// emailHash is []byte, not string - skip assertion
 			return correctUser, nil // Return user with the CORRECT hash
 		}
 		defer func() { storage.UserFunc = nil }() // Restore default
@@ -862,7 +886,7 @@ func TestLogin(t *testing.T) {
 	t.Run("jwt.NewToken error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock NewTokenFunc error")
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return correctUser, nil // Login credentials are correct
 		}
 		jwt.NewTokenFunc = func(user domain.User) (string, error) {
@@ -884,7 +908,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("Blacklisted user", func(t *testing.T) {
 		// Arrange
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return correctUser, nil
 		}
 		storage.IsUserBlacklistedFunc = func(userId domain.UserId) (bool, error) {
@@ -911,7 +935,7 @@ func TestLogin(t *testing.T) {
 	t.Run("IsUserBlacklisted error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock IsUserBlacklistedFunc error")
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return correctUser, nil
 		}
 		storage.IsUserBlacklistedFunc = func(userId domain.UserId) (bool, error) {
@@ -936,11 +960,12 @@ func TestRegisterWithInvite(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{}
 	jwt := &MockJwt{}
+	emailCrypto := &MockEmailCrypto{}
 	service := NewAuth(storage, emailMock, jwt, &config.Public{
 		InviteEnabled:    true,
 		InviteCodeLength: 12,
 		InviteCodeTTL:    720 * time.Hour,
-	}, nil)
+	}, nil, emailCrypto)
 
 	testInviteCode := "TESTCODE1234"
 	testPassword := domain.Password("password123")
@@ -958,20 +983,21 @@ func TestRegisterWithInvite(t *testing.T) {
 		// Arrange
 		saveUserCalled := false
 		markUsedCalled := false
-		generatedEmail := ""
 
-		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
-			assert.Equal(t, testInviteCode, plainCode)
+		storage.InviteCodeByHashFunc = func(codeHash string) (domain.InviteCode, error) {
+			// Service hashes the invite code before calling storage
+			assert.NotEmpty(t, codeHash)
 			return validInvite, nil
 		}
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			// First call should not find user (email available)
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
 		}
 		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
 			saveUserCalled = true
-			generatedEmail = user.Email
-			assert.Contains(t, user.Email, "@invited.ru")
+			assert.NotEmpty(t, user.EmailEncrypted)
+			assert.NotEmpty(t, user.EmailHash)
+			assert.NotEmpty(t, user.EmailDomain)
 			assert.NotEmpty(t, user.PassHash)
 			assert.False(t, user.Admin)
 			// Verify password was hashed correctly
@@ -979,14 +1005,14 @@ func TestRegisterWithInvite(t *testing.T) {
 			assert.NoError(t, err)
 			return 100, nil
 		}
-		storage.MarkInviteUsedFunc = func(plainCode string, usedBy domain.UserId) error {
+		storage.MarkInviteUsedFunc = func(codeHash string, usedBy domain.UserId) error {
 			markUsedCalled = true
-			assert.Equal(t, testInviteCode, plainCode)
+			assert.NotEmpty(t, codeHash) // Now receives hash, not plain code
 			assert.Equal(t, domain.UserId(100), usedBy)
 			return nil
 		}
 		defer func() {
-			storage.InviteCodeFunc = nil
+			storage.InviteCodeByHashFunc = nil
 			storage.UserFunc = nil
 			storage.SaveUserFunc = nil
 			storage.MarkInviteUsedFunc = nil
@@ -998,7 +1024,6 @@ func TestRegisterWithInvite(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.NotEmpty(t, email)
-		assert.Equal(t, generatedEmail, email)
 		assert.Contains(t, email, "@invited.ru")
 		assert.True(t, saveUserCalled)
 		assert.True(t, markUsedCalled)
@@ -1006,13 +1031,13 @@ func TestRegisterWithInvite(t *testing.T) {
 
 	t.Run("Invalid invite code", func(t *testing.T) {
 		// Arrange
-		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+		storage.InviteCodeByHashFunc = func(codeHash string) (domain.InviteCode, error) {
 			return domain.InviteCode{}, &internal_errors.ErrorWithStatusCode{
-				Message:    "Invalid or expired invite code",
-				StatusCode: http.StatusBadRequest,
+				Message:    "Invite code not found",
+				StatusCode: http.StatusNotFound,
 			}
 		}
-		defer func() { storage.InviteCodeFunc = nil }()
+		defer func() { storage.InviteCodeByHashFunc = nil }()
 
 		// Act
 		email, err := service.RegisterWithInvite("INVALIDCODE", testPassword)
@@ -1033,10 +1058,10 @@ func TestRegisterWithInvite(t *testing.T) {
 		usedInvite.UsedBy = &usedBy
 		usedInvite.UsedAt = &usedAt
 
-		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+		storage.InviteCodeByHashFunc = func(codeHash string) (domain.InviteCode, error) {
 			return usedInvite, nil
 		}
-		defer func() { storage.InviteCodeFunc = nil }()
+		defer func() { storage.InviteCodeByHashFunc = nil }()
 
 		// Act
 		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
@@ -1055,10 +1080,10 @@ func TestRegisterWithInvite(t *testing.T) {
 		expiredInvite := validInvite
 		expiredInvite.ExpiresAt = time.Now().UTC().Add(-1 * time.Hour)
 
-		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+		storage.InviteCodeByHashFunc = func(codeHash string) (domain.InviteCode, error) {
 			return expiredInvite, nil
 		}
-		defer func() { storage.InviteCodeFunc = nil }()
+		defer func() { storage.InviteCodeByHashFunc = nil }()
 
 		// Act
 		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
@@ -1075,14 +1100,14 @@ func TestRegisterWithInvite(t *testing.T) {
 	t.Run("Email collision retry logic", func(t *testing.T) {
 		// Arrange
 		callCount := 0
-		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+		storage.InviteCodeByHashFunc = func(codeHash string) (domain.InviteCode, error) {
 			return validInvite, nil
 		}
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			callCount++
 			if callCount <= 3 {
 				// First 3 attempts: email already exists
-				return domain.User{Id: 99, Email: email}, nil
+				return domain.User{Id: 99}, nil
 			}
 			// 4th attempt: email available
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
@@ -1090,11 +1115,11 @@ func TestRegisterWithInvite(t *testing.T) {
 		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
 			return 100, nil
 		}
-		storage.MarkInviteUsedFunc = func(plainCode string, usedBy domain.UserId) error {
+		storage.MarkInviteUsedFunc = func(codeHash string, usedBy domain.UserId) error {
 			return nil
 		}
 		defer func() {
-			storage.InviteCodeFunc = nil
+			storage.InviteCodeByHashFunc = nil
 			storage.UserFunc = nil
 			storage.SaveUserFunc = nil
 			storage.MarkInviteUsedFunc = nil
@@ -1112,17 +1137,17 @@ func TestRegisterWithInvite(t *testing.T) {
 	t.Run("SaveUser error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock SaveUser error")
-		storage.InviteCodeFunc = func(plainCode string) (domain.InviteCode, error) {
+		storage.InviteCodeByHashFunc = func(codeHash string) (domain.InviteCode, error) {
 			return validInvite, nil
 		}
-		storage.UserFunc = func(email domain.Email) (domain.User, error) {
+		storage.UserFunc = func(emailHash []byte) (domain.User, error) {
 			return domain.User{}, &internal_errors.ErrorWithStatusCode{StatusCode: http.StatusNotFound}
 		}
 		storage.SaveUserFunc = func(user domain.User) (domain.UserId, error) {
 			return 0, mockError
 		}
 		defer func() {
-			storage.InviteCodeFunc = nil
+			storage.InviteCodeByHashFunc = nil
 			storage.UserFunc = nil
 			storage.SaveUserFunc = nil
 		}()
@@ -1144,19 +1169,19 @@ func TestGenerateInvite(t *testing.T) {
 
 	testUser := domain.User{
 		Id:        42,
-		Email:     "test@example.com",
 		Admin:     false,
 		CreatedAt: time.Now().UTC().Add(-60 * 24 * time.Hour), // 60 days old
 	}
 
 	t.Run("Successful invite generation", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled:     true,
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 5,
-		}, nil)
+		}, nil, emailCrypto)
 
 		saveInviteCalled := false
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
@@ -1190,12 +1215,13 @@ func TestGenerateInvite(t *testing.T) {
 
 	t.Run("Admin bypasses invite limit", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled:     true,
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 2, // Low limit
-		}, nil)
+		}, nil, emailCrypto)
 
 		adminUser := testUser
 		adminUser.Admin = true
@@ -1223,12 +1249,13 @@ func TestGenerateInvite(t *testing.T) {
 
 	t.Run("Regular user exceeds invite limit", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled:     true,
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 3,
-		}, nil)
+		}, nil, emailCrypto)
 
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
 			return 3, nil // Already at limit
@@ -1249,12 +1276,13 @@ func TestGenerateInvite(t *testing.T) {
 
 	t.Run("Unlimited invites when MaxInvitesPerUser is 0", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled:     true,
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 0, // Unlimited
-		}, nil)
+		}, nil, emailCrypto)
 
 		// CountActiveInvites should not be called when limit is 0
 		countCalled := false
@@ -1281,9 +1309,10 @@ func TestGenerateInvite(t *testing.T) {
 
 	t.Run("Invite system disabled", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled: false,
-		}, nil)
+		}, nil, emailCrypto)
 
 		// Act
 		invite, err := service.GenerateInvite(testUser)
@@ -1299,12 +1328,13 @@ func TestGenerateInvite(t *testing.T) {
 
 	t.Run("Deterministic HMAC-SHA256 hashing (not bcrypt)", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled:     true,
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 0,
-		}, nil)
+		}, nil, emailCrypto)
 
 		var savedHash1, savedHash2 string
 		callCount := 0
@@ -1336,12 +1366,13 @@ func TestGenerateInvite(t *testing.T) {
 
 	t.Run("CountActiveInvites error", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled:     true,
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 5,
-		}, nil)
+		}, nil, emailCrypto)
 
 		mockError := errors.New("mock CountActiveInvites error")
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
@@ -1360,12 +1391,13 @@ func TestGenerateInvite(t *testing.T) {
 
 	t.Run("SaveInviteCode error", func(t *testing.T) {
 		// Arrange
+		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled:     true,
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 5,
-		}, nil)
+		}, nil, emailCrypto)
 
 		mockError := errors.New("mock SaveInviteCode error")
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {

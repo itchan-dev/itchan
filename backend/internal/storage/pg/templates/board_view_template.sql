@@ -11,7 +11,7 @@ CREATE MATERIALIZED VIEW %[1]s AS
 			t.is_pinned as is_pinned,
 			m.id as msg_id,
 			m.author_id as author_id,
-			u.email as author_email,
+			u.email_domain as email_domain,
 			u.is_admin as author_is_admin,
 			m.text as text,
 			m.created_at as created_at

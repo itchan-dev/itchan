@@ -13,9 +13,10 @@ import (
 func TestNewToken(t *testing.T) {
 	j := New("test_secret", time.Hour)
 	user := domain.User{
-		Id:    1,
-		Email: "test@example.com",
-		Admin: true,
+		Id:          1,
+		EmailDomain: "example.com",
+		Admin:       true,
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	tokenString, err := j.NewToken(user)
@@ -35,7 +36,7 @@ func TestNewToken(t *testing.T) {
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || claims["uid"] != float64(1) || claims["email"] != "test@example.com" || claims["admin"] != true {
+	if !ok || claims["uid"] != float64(1) || claims["email_domain"] != "example.com" || claims["admin"] != true {
 		t.Fatalf("Claims are not valid")
 
 	}
@@ -44,9 +45,10 @@ func TestNewToken(t *testing.T) {
 func TestDecodeToken(t *testing.T) {
 	j := New("test_secret", time.Hour)
 	user := domain.User{
-		Id:    1,
-		Email: "test@example.com",
-		Admin: true,
+		Id:          1,
+		EmailDomain: "example.com",
+		Admin:       true,
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	tokenString, err := j.NewToken(user)

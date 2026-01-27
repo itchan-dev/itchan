@@ -167,9 +167,8 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	if page > 1 {
 		opRow := q.QueryRow(`
 			SELECT
-				m.id, m.author_id, m.text, m.created_at, m.thread_id,
-				m.updated_at, m.board,
-				u.email, u.is_admin
+				m.id, m.author_id, u.email_domain, m.text, m.created_at, m.thread_id,
+				m.updated_at, m.board, u.is_admin
 			FROM messages m
 			JOIN users u ON m.author_id = u.id
 			WHERE m.board = $1 AND m.thread_id = $2 AND m.id = 1`,
@@ -177,9 +176,8 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		)
 		var opMsg domain.Message
 		if err := opRow.Scan(
-			&opMsg.Id, &opMsg.Author.Id, &opMsg.Text, &opMsg.CreatedAt,
-			&opMsg.ThreadId, &opMsg.ModifiedAt, &opMsg.Board,
-			&opMsg.Author.Email, &opMsg.Author.Admin,
+			&opMsg.Id, &opMsg.Author.Id, &opMsg.Author.EmailDomain, &opMsg.Text, &opMsg.CreatedAt,
+			&opMsg.ThreadId, &opMsg.ModifiedAt, &opMsg.Board, &opMsg.Author.Admin,
 		); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return domain.Thread{}, fmt.Errorf("failed to fetch OP message: %w", err)
 		} else if err == nil {
@@ -192,9 +190,8 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	// Fetch paginated messages for the thread
 	msgRows, err := q.Query(`
 		SELECT
-			m.id, m.author_id, m.text, m.created_at, m.thread_id,
-			m.updated_at, m.board,
-			u.email, u.is_admin
+			m.id, m.author_id, u.email_domain, m.text, m.created_at, m.thread_id,
+			m.updated_at, m.board, u.is_admin
 		FROM messages m
 		JOIN users u ON m.author_id = u.id
 		WHERE m.board = $1 AND m.thread_id = $2
@@ -210,9 +207,8 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	for msgRows.Next() {
 		var msg domain.Message
 		if err := msgRows.Scan(
-			&msg.Id, &msg.Author.Id, &msg.Text, &msg.CreatedAt,
-			&msg.ThreadId, &msg.ModifiedAt, &msg.Board,
-			&msg.Author.Email, &msg.Author.Admin,
+			&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Text, &msg.CreatedAt,
+			&msg.ThreadId, &msg.ModifiedAt, &msg.Board, &msg.Author.Admin,
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)
 		}

@@ -9,14 +9,24 @@ type Credentials struct {
 
 type User struct {
 	Id        UserId
-	Email     Email
-	PassHash  Password
-	Admin     bool
-	CreatedAt time.Time
+	// Stored fields - encrypted and hashed email data
+	EmailEncrypted []byte
+	EmailDomain    string
+	EmailHash      []byte
+	PassHash       Password
+	Admin          bool
+	CreatedAt      time.Time
+}
+
+// SaveUserData contains the data needed to create a new user
+type SaveUserData struct {
+	Email    Email
+	PassHash Password
+	Admin    bool
 }
 
 type ConfirmationData struct {
-	Email                Email
+	EmailHash            []byte // Email hash for lookup
 	PasswordHash         Password
 	ConfirmationCodeHash string
 	Expires              time.Time
@@ -24,7 +34,6 @@ type ConfirmationData struct {
 
 type BlacklistEntry struct {
 	UserId        UserId
-	Email         Email
 	BlacklistedAt time.Time
 	Reason        string
 	BlacklistedBy UserId

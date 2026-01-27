@@ -78,7 +78,7 @@ func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *mux
 func TestCreateThreadHandler(t *testing.T) {
 	boardName := "b"
 	route := "/" + boardName
-	testUser := domain.User{Id: 1, Email: "test@test.com"}
+	testUser := domain.User{Id: 1}
 	expectedThreadID := domain.ThreadId(42)
 
 	t.Run("successful request", func(t *testing.T) {
@@ -205,8 +205,8 @@ func TestGetThreadHandler(t *testing.T) {
 	expectedThread := domain.Thread{
 		ThreadMetadata: domain.ThreadMetadata{Title: "Test Thread", Board: boardName},
 		Messages: []*domain.Message{
-			{MessageMetadata: domain.MessageMetadata{Id: threadID, Author: domain.User{Id: 1, Email: "op@test.com"}}, Text: "OP message"},
-			{MessageMetadata: domain.MessageMetadata{Id: 124, Author: domain.User{Id: 2, Email: "reply@test.com"}}, Text: "Reply message"},
+			{MessageMetadata: domain.MessageMetadata{Id: threadID, Author: domain.User{Id: 1}}, Text: "OP message"},
+			{MessageMetadata: domain.MessageMetadata{Id: 124, Author: domain.User{Id: 2}}, Text: "Reply message"},
 		},
 	}
 

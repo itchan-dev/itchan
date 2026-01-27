@@ -4,7 +4,8 @@
 
 <!-- User info -->
 <div class="account-info">
-    <p><strong>Email:</strong> {{.User.Email}}</p>
+    <p><strong>User ID:</strong> {{.User.Id}}</p>
+    <p><strong>Domain:</strong> @{{.User.EmailDomain}}</p>
     <p><strong>Admin:</strong> {{if .User.Admin}}Yes{{else}}No{{end}}</p>
     <p><strong>Member since:</strong> {{.User.CreatedAt.Format "2006-01-02 15:04"}}</p>
 </div>

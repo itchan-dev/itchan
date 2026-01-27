@@ -1,7 +1,6 @@
 package setup
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
 	"context"
 	"fmt"
 	"html/template"
@@ -17,6 +16,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/jwt"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/middleware/board_access"
 	"github.com/itchan-dev/itchan/shared/storage"
@@ -68,13 +68,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	h := handler.New(templates, cfg.Public, textProcessor, apiClient, mediaPath)
 	startTemplateReloader(h, tmplPath)
 
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		cancel()
-		store.Cleanup()
-		return nil, fmt.Errorf("JWT_SECRET environment variable is required")
-	}
-	jwtSvc := jwt.New(jwtSecret, 2629800000000000) // 1 month expiration
+	jwtService := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
 
 	// Initialize blacklist cache
 	blacklistCache := blacklist.NewCache(store, cfg.JwtTTL())
@@ -93,11 +87,11 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 
 	// Create auth middleware
 	secureCookies := cfg.Public.SecureCookies
-	authMiddleware := middleware.NewAuth(jwtSvc, blacklistCache, secureCookies)
+	authMiddleware := middleware.NewAuth(jwtService, blacklistCache, secureCookies)
 
 	return &Dependencies{
 		Handler:        h,
-		Jwt:            jwtSvc,
+		Jwt:            jwtService,
 		Public:         cfg.Public,
 		Storage:        store,
 		AccessData:     accessData,

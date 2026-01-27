@@ -42,12 +42,13 @@ func GlobalRateLimit(rl *ratelimiter.UserRateLimiter) func(http.Handler) http.Ha
 }
 
 // Possible if user was authorized with previous middleware
-func GetEmailFromContext(r *http.Request) (string, error) {
+func GetUserIDFromContext(r *http.Request) (string, error) {
 	user := GetUserFromContext(r)
 	if user == nil {
-		return "", errors.New("Can't get user email")
+		return "", errors.New("Can't get user id")
 	}
-	return user.Email, nil
+	// Email no longer stored - use user ID for rate limiting
+	return fmt.Sprintf("user_%d", user.Id), nil
 }
 
 // GetIP extracts the real client IP from RemoteAddr

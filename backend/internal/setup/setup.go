@@ -12,6 +12,7 @@ import (
 	"github.com/itchan-dev/itchan/backend/internal/utils/email"
 	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
+	"github.com/itchan-dev/itchan/shared/crypto"
 	"github.com/itchan-dev/itchan/shared/jwt"
 	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/middleware"
@@ -76,8 +77,13 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	// Create auth middleware
 	secureCookies := cfg.Public.SecureCookies
 	authMiddleware := middleware.NewAuth(jwtService, blacklistCache, secureCookies)
+	emailCrypto, err := crypto.NewEmailCrypto(cfg.Private.EncryptionKey)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
-	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache)
+	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache, emailCrypto)
 	board := service.NewBoard(storage, utils.New(&cfg.Public), mediaStorage)
 	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public}, mediaStorage, &cfg.Public)
 	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, message, mediaStorage)

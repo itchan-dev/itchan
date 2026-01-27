@@ -220,7 +220,6 @@ func TestGetBlacklistedUsersWithDetails(t *testing.T) {
 			}
 		}
 		require.NotNil(t, user1Entry)
-		assert.Equal(t, domain.Email("user1@test.com"), user1Entry.Email)
 		assert.Equal(t, "Spam violation", user1Entry.Reason)
 		assert.Equal(t, adminId, user1Entry.BlacklistedBy)
 
@@ -233,7 +232,6 @@ func TestGetBlacklistedUsersWithDetails(t *testing.T) {
 			}
 		}
 		require.NotNil(t, user2Entry)
-		assert.Equal(t, domain.Email("user2@test.com"), user2Entry.Email)
 		assert.Equal(t, "Harassment", user2Entry.Reason)
 		assert.Equal(t, adminId, user2Entry.BlacklistedBy)
 	})
@@ -266,7 +264,9 @@ func TestCascadeDeleteBlacklist(t *testing.T) {
 	assert.True(t, isBlacklisted)
 
 	// Delete the user (should cascade to blacklist)
-	err = storage.deleteUser(tx, domain.Email("user@test.com"))
+	// Use the same hash format as createTestUser
+	emailHash := []byte("hash_user@test.com")
+	err = storage.deleteUser(tx, emailHash)
 	require.NoError(t, err)
 
 	// Verify blacklist entry was also deleted (user doesn't exist anymore)

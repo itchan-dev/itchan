@@ -34,7 +34,7 @@ func TestBoardViewConcurrentRefresh(t *testing.T) {
 			require.NoError(t, err)
 			defer storage.DeleteBoard(boardShortName)
 
-			userID, err := storage.SaveUser(domain.User{Email: generateString(t) + "@example.com", PassHash: "test"})
+			userID, err := storage.SaveUser(generateString(t)+"@example.com", "test", false)
 			require.NoError(t, err)
 
 			_, err = storage.CreateThread(domain.ThreadCreationData{
@@ -75,7 +75,7 @@ func TestBoardViewConcurrentRefresh(t *testing.T) {
 			require.NoError(t, err)
 			defer storage.DeleteBoard(boardShortName)
 
-			userID, err := storage.SaveUser(domain.User{Email: generateString(t) + "@example.com", PassHash: "test"})
+			userID, err := storage.SaveUser(generateString(t)+"@example.com", "test", false)
 			require.NoError(t, err)
 
 			threadID, err := storage.CreateThread(domain.ThreadCreationData{
