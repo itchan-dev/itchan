@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -16,15 +16,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupBlacklistTestHandler(authService service.AuthService) (*Handler, *mux.Router) {
+func setupBlacklistTestHandler(authService service.AuthService) (*Handler, *chi.Mux) {
 	h := &Handler{
 		auth: authService,
 	}
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/admin/users/{userId}/blacklist", h.BlacklistUser).Methods(http.MethodPost)
-	router.HandleFunc("/v1/admin/users/{userId}/blacklist", h.UnblacklistUser).Methods(http.MethodDelete)
-	router.HandleFunc("/v1/admin/blacklist/refresh", h.RefreshBlacklistCache).Methods(http.MethodPost)
-	router.HandleFunc("/v1/admin/blacklist", h.GetBlacklistedUsers).Methods(http.MethodGet)
+	router := chi.NewRouter()
+	router.Post("/v1/admin/users/{userId}/blacklist", h.BlacklistUser)
+	router.Delete("/v1/admin/users/{userId}/blacklist", h.UnblacklistUser)
+	router.Post("/v1/admin/blacklist/refresh", h.RefreshBlacklistCache)
+	router.Get("/v1/admin/blacklist", h.GetBlacklistedUsers)
 
 	return h, router
 }

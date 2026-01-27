@@ -7,7 +7,7 @@ import (
 	_ "image/png"
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
@@ -17,8 +17,8 @@ import (
 )
 
 func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
-	board := mux.Vars(r)["board"]
-	threadIdStr := mux.Vars(r)["thread"]
+	board := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
 	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -71,14 +71,14 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
-	board := mux.Vars(r)["board"]
-	threadIdStr := mux.Vars(r)["thread"]
+	board := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
 	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	msgIdStr := mux.Vars(r)["message"]
+	msgIdStr := chi.URLParam(r, "message")
 	msgId, err := parseIntParam(msgIdStr, "message ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -96,14 +96,14 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
-	board := mux.Vars(r)["board"]
-	threadIdStr := mux.Vars(r)["thread"]
+	board := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
 	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	msgIdStr := mux.Vars(r)["message"]
+	msgIdStr := chi.URLParam(r, "message")
 	msgId, err := parseIntParam(msgIdStr, "message ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

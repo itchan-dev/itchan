@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,6 +17,15 @@ type mockBoardAccess struct {
 
 func (m *mockBoardAccess) AllowedDomains(board string) []string {
 	return m.allowedDomains[board]
+}
+
+// withChiURLParams adds chi URL parameters to a request for testing
+func withChiURLParams(r *http.Request, params map[string]string) *http.Request {
+	chiCtx := chi.NewRouteContext()
+	for key, value := range params {
+		chiCtx.URLParams.Add(key, value)
+	}
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, chiCtx))
 }
 
 func TestRestrictBoardAccess(t *testing.T) {
@@ -40,8 +49,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			name: "no restrictions for board",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/public", nil)
-				req = mux.SetURLVars(req, map[string]string{"board": "public"})
-				return req
+				return withChiURLParams(req, map[string]string{"board": "public"})
 			},
 			boardAccess:    &mockBoardAccess{allowedDomains: map[string][]string{}},
 			expectedStatus: http.StatusOK,
@@ -51,8 +59,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			name: "unauthenticated user",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
-				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
-				return req
+				return withChiURLParams(req, map[string]string{"board": "restricted"})
 			},
 			boardAccess: &mockBoardAccess{allowedDomains: map[string][]string{
 				"restricted": {"example.com"},
@@ -64,7 +71,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			name: "admin user bypass",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
-				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
+				req = withChiURLParams(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:          1,
 					EmailDomain: "other.com",
@@ -82,7 +89,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			name: "allowed domain",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
-				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
+				req = withChiURLParams(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:          1,
 					EmailDomain: "example.com",
@@ -99,7 +106,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			name: "empty domains",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
-				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
+				req = withChiURLParams(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:          1,
 					EmailDomain: "example.com",
@@ -114,7 +121,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			name: "disallowed domain",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
-				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
+				req = withChiURLParams(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:          1,
 					EmailDomain: "unauthorized.com",
@@ -131,7 +138,7 @@ func TestRestrictBoardAccess(t *testing.T) {
 			name: "empty email domain",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
-				req = mux.SetURLVars(req, map[string]string{"board": "restricted"})
+				req = withChiURLParams(req, map[string]string{"board": "restricted"})
 				ctx := context.WithValue(req.Context(), UserClaimsKey, &domain.User{
 					Id:          1,
 					EmailDomain: "",

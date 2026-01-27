@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -53,7 +53,7 @@ func (m *MockThreadService) TogglePinned(board domain.BoardShortName, id domain.
 	return true, nil
 }
 
-func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *mux.Router) {
+func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *chi.Mux) {
 	cfg := &config.Config{
 		Public: config.Public{
 			MaxAttachmentsPerMessage: 4,
@@ -67,10 +67,10 @@ func setupThreadTestHandler(threadService service.ThreadService) (*Handler, *mux
 		thread: threadService,
 		cfg:    cfg,
 	}
-	router := mux.NewRouter()
-	router.HandleFunc("/{board}", h.CreateThread).Methods(http.MethodPost)
-	router.HandleFunc("/{board}/{thread}", h.GetThread).Methods(http.MethodGet)
-	router.HandleFunc("/{board}/{thread}", h.DeleteThread).Methods(http.MethodDelete)
+	router := chi.NewRouter()
+	router.Post("/{board}", h.CreateThread)
+	router.Get("/{board}/{thread}", h.GetThread)
+	router.Delete("/{board}/{thread}", h.DeleteThread)
 
 	return h, router
 }

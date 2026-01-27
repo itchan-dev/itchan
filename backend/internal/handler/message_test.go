@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -46,7 +46,7 @@ func (m *MockMessageService) Delete(board domain.BoardShortName, threadId domain
 	return nil
 }
 
-func setupMessageTestHandler(messageService service.MessageService) (*Handler, *mux.Router) {
+func setupMessageTestHandler(messageService service.MessageService) (*Handler, *chi.Mux) {
 	cfg := &config.Config{
 		Public: config.Public{
 			MaxAttachmentsPerMessage: 4,
@@ -60,10 +60,10 @@ func setupMessageTestHandler(messageService service.MessageService) (*Handler, *
 		message: messageService,
 		cfg:     cfg,
 	}
-	router := mux.NewRouter()
-	router.HandleFunc("/{board}/{thread}", h.CreateMessage).Methods(http.MethodPost)
-	router.HandleFunc("/{board}/{thread}/{message}", h.GetMessage).Methods(http.MethodGet)
-	router.HandleFunc("/{board}/{thread}/{message}", h.DeleteMessage).Methods(http.MethodDelete)
+	router := chi.NewRouter()
+	router.Post("/{board}/{thread}", h.CreateMessage)
+	router.Get("/{board}/{thread}/{message}", h.GetMessage)
+	router.Delete("/{board}/{thread}/{message}", h.DeleteMessage)
 
 	return h, router
 }

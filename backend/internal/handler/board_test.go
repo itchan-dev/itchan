@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -52,15 +52,15 @@ func (m *MockBoardService) GetAll(user domain.User) ([]domain.Board, error) {
 	return []domain.Board{}, nil
 }
 
-func setupBoardTestHandler(boardService service.BoardService) (*Handler, *mux.Router) {
+func setupBoardTestHandler(boardService service.BoardService) (*Handler, *chi.Mux) {
 	h := &Handler{
 		board: boardService,
 	}
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/boards", h.CreateBoard).Methods(http.MethodPost)
-	router.HandleFunc("/v1/boards", h.GetBoards).Methods(http.MethodGet)
-	router.HandleFunc("/v1/{board}", h.GetBoard).Methods(http.MethodGet)
-	router.HandleFunc("/v1/{board}", h.DeleteBoard).Methods(http.MethodDelete)
+	router := chi.NewRouter()
+	router.Post("/v1/boards", h.CreateBoard)
+	router.Get("/v1/boards", h.GetBoards)
+	router.Get("/v1/{board}", h.GetBoard)
+	router.Delete("/v1/{board}", h.DeleteBoard)
 
 	return h, router
 }

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
@@ -77,8 +77,7 @@ func (h *Handler) GetMyInvites(w http.ResponseWriter, r *http.Request) {
 // Deletes an unused invite code owned by the authenticated user
 func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	user := mw.GetUserFromContext(r)
-	vars := mux.Vars(r)
-	codeHash := vars["codeHash"]
+	codeHash := chi.URLParam(r, "codeHash")
 
 	if err := h.auth.RevokeInvite(user.Id, codeHash); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)

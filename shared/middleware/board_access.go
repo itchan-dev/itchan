@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/logger"
 )
 
@@ -19,8 +19,8 @@ func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-			board, ok := mux.Vars(r)["board"]
-			if !ok {
+			board := chi.URLParam(r, "board")
+			if board == "" {
 				// if no board in vars - skip
 				next.ServeHTTP(w, r)
 				return

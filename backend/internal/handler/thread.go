@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
@@ -14,7 +14,7 @@ import (
 )
 
 func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
-	board := mux.Vars(r)["board"]
+	board := chi.URLParam(r, "board")
 	user := mw.GetUserFromContext(r)
 	if user == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -56,8 +56,8 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
-	board := mux.Vars(r)["board"]
-	threadIdStr := mux.Vars(r)["thread"]
+	board := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
 	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -83,8 +83,8 @@ func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
-	board := mux.Vars(r)["board"]
-	threadIdStr := mux.Vars(r)["thread"]
+	board := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
 	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -100,8 +100,8 @@ func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) TogglePinnedThread(w http.ResponseWriter, r *http.Request) {
-	board := mux.Vars(r)["board"]
-	threadIdStr := mux.Vars(r)["thread"]
+	board := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
 	threadId, err := parseIntParam(threadIdStr, "thread ID")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -114,7 +114,7 @@ func (m *MockAuthService) RevokeInvite(userId domain.UserId, codeHash string) er
 	return nil
 }
 
-func setupAuthTestHandler(authService service.AuthService, cfg *config.Config) (*Handler, *mux.Router) {
+func setupAuthTestHandler(authService service.AuthService, cfg *config.Config) (*Handler, *chi.Mux) {
 	if cfg == nil {
 		cfg = &config.Config{Public: config.Public{JwtTTL: 3600 * time.Second}}
 	}
@@ -122,11 +122,11 @@ func setupAuthTestHandler(authService service.AuthService, cfg *config.Config) (
 		auth: authService,
 		cfg:  cfg,
 	}
-	router := mux.NewRouter()
-	router.HandleFunc("/v1/auth/register", h.Register).Methods(http.MethodPost)
-	router.HandleFunc("/v1/auth/check-confirmation-code", h.CheckConfirmationCode).Methods(http.MethodPost)
-	router.HandleFunc("/v1/auth/login", h.Login).Methods(http.MethodPost)
-	router.HandleFunc("/v1/auth/logout", h.Logout).Methods(http.MethodPost)
+	router := chi.NewRouter()
+	router.Post("/v1/auth/register", h.Register)
+	router.Post("/v1/auth/check-confirmation-code", h.CheckConfirmationCode)
+	router.Post("/v1/auth/login", h.Login)
+	router.Post("/v1/auth/logout", h.Logout)
 
 	return h, router
 }

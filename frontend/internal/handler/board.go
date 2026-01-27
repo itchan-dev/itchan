@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -20,7 +20,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		CurrentPage int
 	}
 	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-	shortName := mux.Vars(r)["board"]
+	shortName := chi.URLParam(r, "board")
 
 	page := 1
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
@@ -42,8 +42,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	shortName := vars["board"]
+	shortName := chi.URLParam(r, "board")
 	errorTargetURL := "/" + shortName
 
 	// Validate request size and parse multipart form
@@ -81,7 +80,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) BoardDeleteHandler(w http.ResponseWriter, r *http.Request) {
-	shortName := mux.Vars(r)["board"]
+	shortName := chi.URLParam(r, "board")
 	targetURL := "/" // Redirect to index page
 
 	err := h.APIClient.DeleteBoard(r, shortName)

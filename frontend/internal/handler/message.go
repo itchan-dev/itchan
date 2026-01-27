@@ -4,20 +4,17 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-
-	"github.com/itchan-dev/itchan/shared/logger"
-
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
+	"github.com/itchan-dev/itchan/shared/logger"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
 
 func (h *Handler) MessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	boardShortName := vars["board"]
-	threadId := vars["thread"]
-	messageId := vars["message"]
+	boardShortName := chi.URLParam(r, "board")
+	threadId := chi.URLParam(r, "thread")
+	messageId := chi.URLParam(r, "message")
 	targetURL := fmt.Sprintf("/%s/%s", boardShortName, threadId)
 
 	err := h.APIClient.DeleteMessage(r, boardShortName, threadId, messageId)
@@ -32,10 +29,9 @@ func (h *Handler) MessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
 
 // MessagePreviewHandler proxies message API requests for JavaScript previews.
 func (h *Handler) MessagePreviewHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	board := vars["board"]
-	threadId := vars["thread"]
-	messageId := vars["message"]
+	board := chi.URLParam(r, "board")
+	threadId := chi.URLParam(r, "thread")
+	messageId := chi.URLParam(r, "message")
 
 	resp, err := h.APIClient.GetMessage(r, board, threadId, messageId)
 	if err != nil {
@@ -56,10 +52,9 @@ func (h *Handler) MessagePreviewHandler(w http.ResponseWriter, r *http.Request) 
 
 // MessagePreviewHTMLHandler returns rendered HTML for message previews.
 func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	board := vars["board"]
-	threadId := vars["thread"]
-	messageId := vars["message"]
+	board := chi.URLParam(r, "board")
+	threadId := chi.URLParam(r, "thread")
+	messageId := chi.URLParam(r, "message")
 
 	// Fetch message data from backend API
 	messageData, err := h.APIClient.GetMessageParsed(r, board, threadId, messageId)
