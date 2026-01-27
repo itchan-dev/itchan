@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/utils"
@@ -23,10 +24,20 @@ import (
 
 var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)#(\d+)`)
 
+// Cached sanitizer policy - compiled once at startup
+var sanitizerPolicy = func() *bluemonday.Policy {
+	p := bluemonday.UGCPolicy()
+	p.AllowAttrs("class").Matching(regexp.MustCompile("^message-link( message-link-preview)?$")).OnElements("a")
+	p.AllowAttrs("data-board", "data-message-id", "data-thread-id").OnElements("a")
+	p.RequireNoFollowOnLinks(false)
+	p.AllowRelativeURLs(true)
+	return p
+}()
+
 // formatMessageLink generates HTML for an inline message link with page calculation.
 // The page param is calculated server-side and stored in the HTML.
 func (tp *TextProcessor) formatMessageLink(board domain.BoardShortName, threadId domain.ThreadId, messageId domain.MsgId) string {
-	page := utils.CalculatePage(int(messageId), tp.messagesPerPage)
+	page := utils.CalculatePage(int(messageId), tp.cfg.MessagesPerThreadPage)
 
 	pageParam := ""
 	if page > 1 {
@@ -38,11 +49,11 @@ func (tp *TextProcessor) formatMessageLink(board domain.BoardShortName, threadId
 }
 
 type TextProcessor struct {
-	md              goldmark.Markdown
-	messagesPerPage int
+	md  goldmark.Markdown
+	cfg *config.Public
 }
 
-func New(messagesPerPage int) *TextProcessor {
+func New(cfg *config.Public) *TextProcessor {
 	p := parser.NewParser(
 		parser.WithBlockParsers(
 			// util.Prioritized(parser.NewSetextHeadingParser(), 100),
@@ -74,8 +85,8 @@ func New(messagesPerPage int) *TextProcessor {
 		goldmark.WithExtensions(extension.Strikethrough),
 	)
 	return &TextProcessor{
-		md:              md,
-		messagesPerPage: messagesPerPage,
+		md:  md,
+		cfg: cfg,
 	}
 }
 
@@ -101,35 +112,74 @@ func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, domain.
 
 // processMessageLinks finds >>N#M patterns and converts them to internal links.
 // It also returns a list of all matched strings found in the input.
+// The number of unique reply links is limited by MaxRepliesPerMessage config.
+// Uses early termination to avoid processing matches after limit is reached.
 func (tp *TextProcessor) processMessageLinks(message domain.Message) (string, domain.Replies) {
 	var matches domain.Replies
 	seen := make(map[string]struct{})
+	replyCount := 0
 
-	processedText := messageLinkRegex.ReplaceAllStringFunc(message.Text, func(match string) string {
-		// Extract the capture groups from the current match
-		submatch := messageLinkRegex.FindStringSubmatch(match)
-		if len(submatch) < 3 {
-			return match // shouldn't happen due to prior match
+	text := message.Text
+	var result strings.Builder
+	result.Grow(len(text)) // Pre-allocate to avoid reallocations
+	lastEnd := 0
+
+	for {
+		// Find next match starting from lastEnd
+		loc := messageLinkRegex.FindStringSubmatchIndex(text[lastEnd:])
+		if loc == nil {
+			break
 		}
-		threadId, err := strconv.ParseInt(submatch[1], 10, 64)
-		if err != nil {
-			return match
+
+		// Adjust indices relative to full string
+		matchStart := lastEnd + loc[0]
+		matchEnd := lastEnd + loc[1]
+
+		// Write text before this match
+		result.WriteString(text[lastEnd:matchStart])
+
+		// Parse thread and message IDs from capture groups
+		threadIdStr := text[lastEnd+loc[2] : lastEnd+loc[3]]
+		msgIdStr := text[lastEnd+loc[4] : lastEnd+loc[5]]
+
+		threadId, err1 := strconv.ParseInt(threadIdStr, 10, 64)
+		messageId, err2 := strconv.ParseInt(msgIdStr, 10, 64)
+
+		if err1 != nil || err2 != nil {
+			// Invalid numbers, keep as raw text
+			result.WriteString(text[matchStart:matchEnd])
+			lastEnd = matchEnd
+			continue
 		}
-		messageId, err := strconv.ParseInt(submatch[2], 10, 64)
-		if err != nil {
-			return match
-		}
-		reply := domain.Reply{Board: message.Board, FromThreadId: message.ThreadId, ToThreadId: domain.ThreadId(threadId), From: message.Id, To: domain.MsgId(messageId)}
+
 		linkHTML := tp.formatMessageLink(message.Board, domain.ThreadId(threadId), domain.MsgId(messageId))
-		// We dont want to add reply link twice
+
 		if _, ok := seen[linkHTML]; !ok {
+			// New unique reply
+			if replyCount >= tp.cfg.MaxRepliesPerMessage {
+				// Limit reached - append remaining text unchanged and exit
+				result.WriteString(text[matchStart:])
+				return result.String(), matches
+			}
 			seen[linkHTML] = struct{}{}
+			replyCount++
+			reply := domain.Reply{
+				Board:        message.Board,
+				FromThreadId: message.ThreadId,
+				ToThreadId:   domain.ThreadId(threadId),
+				From:         message.Id,
+				To:           domain.MsgId(messageId),
+			}
 			matches = append(matches, &reply)
 		}
-		return linkHTML
-	})
 
-	return processedText, matches
+		result.WriteString(linkHTML)
+		lastEnd = matchEnd
+	}
+
+	// Append any remaining text after last match
+	result.WriteString(text[lastEnd:])
+	return result.String(), matches
 }
 
 func (tp *TextProcessor) renderText(text string) (string, error) {
@@ -143,15 +193,7 @@ func (tp *TextProcessor) renderText(text string) (string, error) {
 }
 
 func (tp *TextProcessor) sanitizeText(text string) string {
-	p := bluemonday.UGCPolicy()
-
-	p.AllowAttrs("class").Matching(regexp.MustCompile("^message-link( message-link-preview)?$")).OnElements("a")
-	p.AllowAttrs("data-board", "data-message-id", "data-thread-id").OnElements("a")
-	p.RequireNoFollowOnLinks(false)
-	p.AllowRelativeURLs(true)
-
-	safeHTML := p.Sanitize(text)
-	return safeHTML
+	return sanitizerPolicy.Sanitize(text)
 }
 
 // hasPayload checks if an HTML string contains any text content that is not just whitespace.

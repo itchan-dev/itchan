@@ -56,7 +56,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 
 	// Load templates and other dependencies
 	templates := mustLoadTemplates(tmplPath)
-	textProcessor := markdown.New(cfg.Public.MessagesPerThreadPage)
+	textProcessor := markdown.New(&cfg.Public)
 	apiClient := apiclient.New("http://api:8080")
 
 	// Get media path from environment or use default

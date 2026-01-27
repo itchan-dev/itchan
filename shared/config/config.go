@@ -59,6 +59,9 @@ type Public struct {
 
 	// User activity page settings
 	UserMessagesPageLimit int `yaml:"user_messages_page_limit"` // Number of messages/replies shown on account page
+
+	// Message processing settings
+	MaxRepliesPerMessage int `yaml:"max_replies_per_message"` // Maximum number of >>thread#msg reply links per message
 }
 
 type Pg struct {
@@ -229,5 +232,10 @@ func applyValidationDefaults(public *Public) {
 	// CSRF protection default (enabled by default for security)
 	if !public.CSRFEnabled {
 		public.CSRFEnabled = true
+	}
+
+	// Message processing defaults
+	if public.MaxRepliesPerMessage == 0 {
+		public.MaxRepliesPerMessage = 50
 	}
 }
