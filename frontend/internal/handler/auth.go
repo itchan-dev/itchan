@@ -39,9 +39,10 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode == http.StatusTooEarly {
 		// Safely construct message without XSS risk - use template escaping
 		msg := template.HTMLEscapeString(string(bodyBytes)) + " Please check your email or use the confirmation page."
-		// Redirect to confirmation page with email pre-filled and error message
+		// Redirect to confirmation page with email pre-filled (via cookie) and error message
 		h.setFlash(w, flashCookieError, msg)
-		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email})
+		h.setFlash(w, emailPrefillCookie, email)
+		http.Redirect(w, r, "/check_confirmation_code", http.StatusSeeOther)
 		return
 	}
 
@@ -50,17 +51,16 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success (StatusOK): Redirect to confirmation page with email pre-filled
-	redirectWithParams(w, r, successURL, map[string]string{"email": email})
+	// Success (StatusOK): Redirect to confirmation page with email pre-filled (via cookie)
+	h.setFlash(w, emailPrefillCookie, email)
+	http.Redirect(w, r, successURL, http.StatusSeeOther)
 }
 
 func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
 		CommonTemplateData
-		EmailPlaceholder string
 	}
 	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-	templateData.EmailPlaceholder = parseEmail(r) // Get email from query param
 
 	h.renderTemplate(w, "check_confirmation_code.html", templateData)
 }
@@ -73,25 +73,21 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		logger.Log.Error("confirming email via API", "error", err)
 		h.setFlash(w, flashCookieError, template.HTMLEscapeString(err.Error()))
-		redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email})
+		h.setFlash(w, emailPrefillCookie, email)
+		http.Redirect(w, r, "/check_confirmation_code", http.StatusSeeOther)
 		return
 	}
 
 	h.setFlash(w, flashCookieSuccess, `Success! You can now <a href="/login">login</a>.`)
-	redirectWithParams(w, r, "/check_confirmation_code", map[string]string{"email": email})
+	h.setFlash(w, emailPrefillCookie, email)
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
 func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
 		CommonTemplateData
-		EmailPlaceholder string
 	}
 	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-	templateData.EmailPlaceholder = r.URL.Query().Get("email") // Pre-fill email if redirected with it
-	if templateData.EmailPlaceholder == "" {
-		// Fallback if not passed in query
-		templateData.EmailPlaceholder = parseEmail(r)
-	}
 
 	h.renderTemplate(w, "login.html", templateData)
 }
@@ -104,7 +100,8 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Log.Error("during login API call", "error", err)
 		h.setFlash(w, flashCookieError, "Internal error: backend unavailable.")
-		redirectWithParams(w, r, "/login", map[string]string{"email": email})
+		h.setFlash(w, emailPrefillCookie, email)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 	defer resp.Body.Close()
@@ -112,7 +109,8 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		h.setFlash(w, flashCookieError, template.HTMLEscapeString(string(bodyBytes)))
-		redirectWithParams(w, r, "/login", map[string]string{"email": email})
+		h.setFlash(w, emailPrefillCookie, email)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
@@ -163,9 +161,10 @@ func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Success: Redirect to login page with generated email pre-filled and success message
+	// Success: Redirect to login page with generated email pre-filled (via cookie) and success message
 	// Note: HTML tags are intentional, but escape the email value for safety
 	successMsg := fmt.Sprintf("<strong>Registration successful!</strong> Your email is: <strong>%s</strong><br>Please save this - it cannot be recovered!", template.HTMLEscapeString(email))
 	h.setFlash(w, flashCookieSuccess, successMsg)
-	redirectWithParams(w, r, "/login", map[string]string{"email": email})
+	h.setFlash(w, emailPrefillCookie, email)
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
