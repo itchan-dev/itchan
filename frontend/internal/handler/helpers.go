@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"net/url"
 	"strings"
 
 	frontend_mw "github.com/itchan-dev/itchan/frontend/internal/middleware"
@@ -18,6 +17,7 @@ import (
 const (
 	flashCookieError   = "flash_error"
 	flashCookieSuccess = "flash_success"
+	emailPrefillCookie = "email_prefill"
 )
 
 // setFlash sets a flash message cookie that will be displayed once and then deleted.
@@ -83,26 +83,6 @@ func (h *Handler) redirectWithFlash(w http.ResponseWriter, r *http.Request, targ
 	http.Redirect(w, r, targetURL, http.StatusSeeOther)
 }
 
-// redirectWithParams redirects to a target URL after adding the given query parameters.
-// It safely handles existing query params and URL fragments (anchors).
-// Use this for non-message query params (e.g., email pre-filling).
-// For error/success messages, use setFlash() + redirectWithParams() or redirectWithFlash().
-func redirectWithParams(w http.ResponseWriter, r *http.Request, targetURL string, params map[string]string) {
-	u, err := url.Parse(targetURL)
-	if err != nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
-	query := u.Query()
-	for key, value := range params {
-		query.Set(key, value)
-	}
-	u.RawQuery = query.Encode()
-
-	http.Redirect(w, r, u.String(), http.StatusSeeOther)
-}
-
 // splitAndTrim splits a comma-separated string into a slice of trimmed strings.
 func splitAndTrim(s string) []string {
 	parts := strings.Split(s, ",")
@@ -115,16 +95,6 @@ func splitAndTrim(s string) []string {
 	return result
 }
 
-func parseEmail(r *http.Request) string {
-	// set default email value from querystring or form value
-	var email string
-	if r.URL.Query().Get("email") != "" {
-		email = r.URL.Query().Get("email")
-	} else {
-		email = r.FormValue("email")
-	}
-	return email
-}
 
 // processMessageText processes user-submitted text and builds reply references.
 // Returns the processed text, domain replies, and whether the message has valid payload.
@@ -156,11 +126,12 @@ func (h *Handler) parseAndValidateMultipartForm(w http.ResponseWriter, r *http.R
 // CommonTemplateData holds fields that are common to all page templates.
 // Embed this struct in page-specific template data to ensure consistency.
 type CommonTemplateData struct {
-	Error      template.HTML
-	Success    template.HTML
-	User       *domain.User
-	Validation ValidationData
-	CSRFToken  string // CSRF token for form submissions
+	Error            template.HTML
+	Success          template.HTML
+	User             *domain.User
+	Validation       ValidationData
+	CSRFToken        string // CSRF token for form submissions
+	EmailPlaceholder string // Pre-filled email for auth forms (from cookie, not URL)
 }
 
 // ValidationData holds all validation constants needed by templates.
@@ -211,8 +182,8 @@ func (h *Handler) NewValidationData() ValidationData {
 }
 
 // InitCommonTemplateData initializes common template data fields from the request.
-// Call this in GET handlers to populate Error, Success, User, and Validation fields.
-// Flash messages are automatically read and deleted from cookies.
+// Call this in GET handlers to populate Error, Success, User, Validation, and EmailPlaceholder fields.
+// Flash messages and email prefill are automatically read and deleted from cookies.
 func (h *Handler) InitCommonTemplateData(w http.ResponseWriter, r *http.Request) CommonTemplateData {
 	common := CommonTemplateData{
 		User:       mw.GetUserFromContext(r),
@@ -221,5 +192,7 @@ func (h *Handler) InitCommonTemplateData(w http.ResponseWriter, r *http.Request)
 	}
 	// Automatically populate flash messages (and delete them)
 	common.Error, common.Success = h.getFlashes(w, r)
+	// Read email prefill cookie (reuses flash pattern)
+	common.EmailPlaceholder = string(h.getFlash(w, r, emailPrefillCookie))
 	return common
 }
