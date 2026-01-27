@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -20,9 +20,8 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		Thread *frontend_domain.Thread
 	}
 	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-	vars := mux.Vars(r)
-	shortName := vars["board"]
-	threadId := vars["thread"]
+	shortName := chi.URLParam(r, "board")
+	threadId := chi.URLParam(r, "thread")
 
 	// Parse page parameter (default to 1)
 	page := 1
@@ -44,9 +43,8 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	shortName := vars["board"]
-	threadIdStr := vars["thread"]
+	shortName := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
 
 	errorTargetURL := fmt.Sprintf("/%s/%s#top", shortName, threadIdStr)
 
@@ -92,9 +90,8 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ThreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	boardShortName := vars["board"]
-	threadId := vars["thread"]
+	boardShortName := chi.URLParam(r, "board")
+	threadId := chi.URLParam(r, "thread")
 	targetURL := "/" + boardShortName // Redirect to board page
 
 	err := h.APIClient.DeleteThread(r, boardShortName, threadId)
@@ -108,9 +105,8 @@ func (h *Handler) ThreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ThreadTogglePinnedHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	boardShortName := vars["board"]
-	threadId := vars["thread"]
+	boardShortName := chi.URLParam(r, "board")
+	threadId := chi.URLParam(r, "thread")
 
 	// Determine redirect target (referer or thread page)
 	referer := r.Header.Get("Referer")

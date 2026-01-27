@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
@@ -14,7 +14,7 @@ import (
 // BlacklistUser handles POST /v1/admin/users/:userId/blacklist
 func (h *Handler) BlacklistUser(w http.ResponseWriter, r *http.Request) {
 	// Extract user ID from URL parameter
-	userIdStr := mux.Vars(r)["userId"]
+	userIdStr := chi.URLParam(r, "userId")
 	userId, err := strconv.ParseInt(userIdStr, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)
@@ -44,7 +44,7 @@ func (h *Handler) BlacklistUser(w http.ResponseWriter, r *http.Request) {
 // UnblacklistUser handles DELETE /v1/admin/users/:userId/blacklist
 func (h *Handler) UnblacklistUser(w http.ResponseWriter, r *http.Request) {
 	// Extract user ID from URL parameter
-	userIdStr := mux.Vars(r)["userId"]
+	userIdStr := chi.URLParam(r, "userId")
 	userId, err := strconv.ParseInt(userIdStr, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid user ID", http.StatusBadRequest)

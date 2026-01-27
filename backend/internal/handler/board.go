@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
@@ -29,7 +29,7 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
-	shortName := mux.Vars(r)["board"]
+	shortName := chi.URLParam(r, "board")
 	pageQuery := r.URL.Query().Get("page")
 	var page int
 	var err error
@@ -53,7 +53,7 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
-	shortName := mux.Vars(r)["board"]
+	shortName := chi.URLParam(r, "board")
 
 	err := h.board.Delete(shortName)
 	if err != nil {
