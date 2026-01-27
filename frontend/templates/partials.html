@@ -80,9 +80,11 @@
     <span class="post-reply">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Anchor" "reply-" "Class" "post-reply-link" "Text" "[reply]")}}</span>
     <span class="post-reply-popup">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-reply-popup-link" "Text" "[popup-reply]")}}</span>
     {{if .Message.Replies}}
-        {{range .Message.Replies}}
+        <span class="reply-links">
+        {{- range .Message.Replies}}
             <span class="reply-link">{{template "message-link" (dict "Board" .Board "ThreadId" .FromThreadId "MessageId" .From "Page" .FromPage)}}</span>
-        {{end}}
+        {{- end}}
+        </span>
     {{end}}
     {{if .User}}
         {{if .User.Admin}}

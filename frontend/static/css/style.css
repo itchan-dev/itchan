@@ -335,9 +335,6 @@ blockquote {
     font-size: 0.9em; /* Slightly smaller metadata */
     color: #117743; /* Green name/metadata color */
     margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 .post-header input[type="checkbox"] {
     margin: 0 5px 0 0;
@@ -400,6 +397,23 @@ blockquote {
 .post-reply-popup a:hover {
     color: #dd0000; /* Red hover */
     text-decoration: underline;
+}
+
+.reply-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    white-space: normal;
+    vertical-align: top;
+    max-height: 3.6em;
+    overflow-y: auto;
+}
+.reply-link a {
+    color: #0000ee;
+    text-decoration: underline;
+}
+.reply-link a:hover {
+    color: #dd0000;
 }
 
 .reply-to-info {
