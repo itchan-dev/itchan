@@ -9,11 +9,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - 8080:8080
+    expose:
+      - "8080"
     volumes:
-      - ./config:/root/config
-      - ./media:/root/media
+      - ./config:/app/config
+      - ./media:/app/media
   frontend:
     container_name: frontend
     build:
@@ -22,10 +22,10 @@ services:
     ports:
       - 8081:8081
     volumes:
-      - ./config:/root/config
-      - ./frontend/templates:/root/templates
-      - ./frontend/static:/root/static
-      - ./media:/root/media
+      - ./config:/app/config
+      - ./frontend/templates:/app/templates
+      - ./frontend/static:/app/static
+      - ./media:/app/media
     depends_on:
       - api
   db:
@@ -33,16 +33,16 @@ services:
     image: postgres:17.6-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=itchan
-      - POSTGRES_PASSWORD=itchan
-      - POSTGRES_DB=itchan
+      - POSTGRES_USER=${POSTGRES_USER:-itchan}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-itchan}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data
       - ./backend/internal/storage/pg/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-          test: ["CMD-SHELL", "pg_isready -h localhost -U itchan -d itchan"]
+          test: ["CMD-SHELL", "pg_isready -h localhost -U $${POSTGRES_USER:-itchan} -d $${POSTGRES_DB:-itchan}"]
           interval: 10s
           retries: 5
           start_period: 30s

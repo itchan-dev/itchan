@@ -4,6 +4,7 @@ trash.txt
 *_mock.go
 fmtcoverage.html
 .*
+!.env.example
 media
 *.exe
 CLAUDE.md

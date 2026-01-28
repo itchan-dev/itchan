@@ -22,15 +22,27 @@ FROM alpine:latest
 # Install ffmpeg for video metadata stripping
 RUN apk add --no-cache ffmpeg
 
-# Set working directory
-WORKDIR /root/
+# Create non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy the binary from the builder
+# Set working directory
+WORKDIR /app
+
+# Copy the binary and config from the builder
 COPY --from=builder /app/itchan-api .
 COPY --from=builder /app/config ./config/
 
+# Create media directory
+RUN mkdir -p ./media
+
+# Set ownership for non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
 # Expose port (optional, since Docker Compose handles it)
-EXPOSE 8000
+EXPOSE 8080
 
 # Command to run the backend
 CMD ["./itchan-api", "-config_folder", "./config"]
