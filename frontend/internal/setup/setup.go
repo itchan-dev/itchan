@@ -24,7 +24,7 @@ import (
 
 const (
 	baseTemplate           = "base.html"
-	tmplPath               = "templates"
+	tmplPath               = "./templates"
 	templateReloadInterval = 5 * time.Second
 )
 
@@ -62,7 +62,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	// Get media path from environment or use default
 	mediaPath := os.Getenv("MEDIA_PATH")
 	if mediaPath == "" {
-		mediaPath = "/root/media" // Default path in Docker container
+		mediaPath = "./media" // Relative to working directory
 	}
 
 	h := handler.New(templates, cfg.Public, textProcessor, apiClient, mediaPath)
