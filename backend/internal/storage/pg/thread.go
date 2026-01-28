@@ -36,12 +36,42 @@ func (s *Storage) CreateThread(creationData domain.ThreadCreationData) (domain.T
 }
 
 // GetThread is the public entry point for fetching a full thread, including all of its
-// messages, replies, and attachments. As a read-only operation, it does not
-// need to manage a transaction and can delegate directly to the internal method
-// using the main database connection pool for efficiency.
+// messages, replies, and attachments. It decides whether to use the optimized single-page
+// fetch or the paginated fetch based on thread size.
 // The page parameter controls pagination (1-based). Page 0 or 1 returns the first page.
 func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
-	return s.getThread(s.db, board, id, page)
+	if page < 1 {
+		page = 1
+	}
+
+	// Fetch thread metadata first to determine which strategy to use
+	var metadata domain.ThreadMetadata
+	err := s.db.QueryRow(`
+		SELECT
+			id, title, board, message_count, last_bumped_at, is_pinned
+		FROM threads
+		WHERE board = $1 AND id = $2`,
+		board, id,
+	).Scan(
+		&metadata.Id, &metadata.Title, &metadata.Board,
+		&metadata.MessageCount, &metadata.LastBumped, &metadata.IsPinned,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Thread{}, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
+		}
+		return domain.Thread{}, fmt.Errorf("failed to fetch thread metadata: %w", err)
+	}
+
+	messagesPerPage := s.cfg.Public.MessagesPerThreadPage
+
+	// For single-page threads (95% of cases), use the faster thread-level queries
+	if metadata.MessageCount <= messagesPerPage {
+		return s.getThreadSinglePage(s.db, metadata, board, id)
+	}
+
+	// For multi-page threads, use targeted enrichment to avoid over-fetching
+	return s.getThreadPaginated(s.db, metadata, board, id, page, messagesPerPage)
 }
 
 // DeleteThread is the public entry point for deleting a thread. It wraps the core
@@ -129,39 +159,120 @@ func (s *Storage) createThread(q Querier, creationData domain.ThreadCreationData
 	return id, createdTs, nil
 }
 
-// getThread contains the comprehensive logic for fetching all data related to a
-// single thread. It queries multiple tables and assembles the data into a
-// cohesive `domain.Thread` object. It accepts a Querier to be testable and
-// usable within or outside a transaction.
-// The page parameter controls pagination (1-based). Page 0 or 1 returns the first page.
-func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
-	if page < 1 {
-		page = 1
-	}
+// getThreadSinglePage fetches all messages, replies, and attachments for a thread
+// using thread-level queries. This is faster for small threads (95% of cases)
+// because it avoids the overhead of building message key arrays.
+func (s *Storage) getThreadSinglePage(q Querier, metadata domain.ThreadMetadata, board domain.BoardShortName, id domain.ThreadId) (domain.Thread, error) {
+	var messages []*domain.Message
+	msgIDMap := make(map[domain.MsgId]*domain.Message)
 
-	var metadata domain.ThreadMetadata
-	err := q.QueryRow(`
-	       	SELECT
-				id, title, board, message_count, last_bumped_at, is_pinned
-	       	FROM threads
-		   	WHERE board = $1 AND id = $2`,
+	// Fetch all messages for the thread
+	msgRows, err := q.Query(`
+		SELECT
+			m.id, m.author_id, u.email_domain, m.text, m.created_at, m.thread_id,
+			m.updated_at, m.board, u.is_admin
+		FROM messages m
+		JOIN users u ON m.author_id = u.id
+		WHERE m.board = $1 AND m.thread_id = $2
+		ORDER BY m.id`,
 		board, id,
-	).Scan(
-		&metadata.Id, &metadata.Title, &metadata.Board,
-		&metadata.MessageCount, &metadata.LastBumped, &metadata.IsPinned,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Thread{}, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
+		return domain.Thread{}, fmt.Errorf("failed to fetch thread messages: %w", err)
+	}
+	defer msgRows.Close()
+
+	for msgRows.Next() {
+		var msg domain.Message
+		if err := msgRows.Scan(
+			&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Text, &msg.CreatedAt,
+			&msg.ThreadId, &msg.ModifiedAt, &msg.Board, &msg.Author.Admin,
+		); err != nil {
+			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)
 		}
-		return domain.Thread{}, fmt.Errorf("failed to fetch thread metadata: %w", err)
+		msg.Page = 1 // Single page thread
+		messages = append(messages, &msg)
+		msgIDMap[msg.Id] = &msg
+	}
+	if err = msgRows.Err(); err != nil {
+		return domain.Thread{}, fmt.Errorf("error iterating message rows: %w", err)
 	}
 
-	messagesPerPage := s.cfg.Public.MessagesPerThreadPage
+	// Fetch all reply relationships for the entire thread
+	replyRows, err := q.Query(`
+		SELECT
+			mr.board, mr.sender_message_id, mr.sender_thread_id, mr.receiver_message_id, mr.receiver_thread_id,
+			mr.created_at
+		FROM message_replies mr
+		WHERE mr.board = $1 AND mr.receiver_thread_id = $2
+		ORDER BY mr.created_at`,
+		board, id,
+	)
+	if err != nil {
+		return domain.Thread{}, fmt.Errorf("failed to fetch thread replies: %w", err)
+	}
+	defer replyRows.Close()
+	for replyRows.Next() {
+		var reply domain.Reply
+		if err := replyRows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
+			return domain.Thread{}, fmt.Errorf("failed to scan reply row: %w", err)
+		}
+		reply.FromPage = 1 // Single page thread
+		if msg, ok := msgIDMap[reply.To]; ok {
+			msg.Replies = append(msg.Replies, &reply)
+		}
+	}
+
+	// Fetch all attachments for the entire thread
+	attachRows, err := q.Query(`
+		SELECT
+			a.id, a.board, a.thread_id, a.message_id, a.file_id,
+			f.file_path, f.filename, f.original_filename, f.file_size_bytes, f.mime_type, f.original_mime_type, f.image_width, f.image_height, f.thumbnail_path
+		FROM attachments a
+		JOIN files f ON a.file_id = f.id
+		WHERE a.board = $1 AND a.thread_id = $2
+		ORDER BY a.id`,
+		board, id,
+	)
+	if err != nil {
+		return domain.Thread{}, fmt.Errorf("failed to fetch thread attachments: %w", err)
+	}
+	defer attachRows.Close()
+	for attachRows.Next() {
+		var attachment domain.Attachment
+		var file domain.File
+		if err := attachRows.Scan(
+			&attachment.Id, &attachment.Board, &attachment.ThreadId, &attachment.MessageId, &attachment.FileId,
+			&file.FilePath, &file.Filename, &file.OriginalFilename, &file.SizeBytes, &file.MimeType, &file.OriginalMimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
+		); err != nil {
+			return domain.Thread{}, fmt.Errorf("failed to scan attachment row: %w", err)
+		}
+		attachment.File = &file
+		if msg, ok := msgIDMap[attachment.MessageId]; ok {
+			msg.Attachments = append(msg.Attachments, &attachment)
+		}
+	}
+
+	return domain.Thread{
+		ThreadMetadata: metadata,
+		Messages:       messages,
+		Pagination: &domain.ThreadPagination{
+			CurrentPage: 1,
+			TotalPages:  1,
+			TotalCount:  metadata.MessageCount,
+		},
+	}, nil
+}
+
+// getThreadPaginated fetches messages for a specific page and enriches only those
+// messages with replies and attachments. This is more efficient for large threads
+// as it avoids fetching data for messages not on the current page.
+func (s *Storage) getThreadPaginated(q Querier, metadata domain.ThreadMetadata, board domain.BoardShortName, id domain.ThreadId, page int, messagesPerPage int) (domain.Thread, error) {
 	offset := (page - 1) * messagesPerPage
 
 	var messages []*domain.Message
-	msgIDMap := make(map[domain.MsgId]*domain.Message)
+	idToMessage := make(map[MsgKey]*domain.Message)
+	var messageKeys []MsgKey
 
 	// For pages > 1, first fetch the OP message separately so it's always visible
 	if page > 1 {
@@ -181,9 +292,13 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 		); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return domain.Thread{}, fmt.Errorf("failed to fetch OP message: %w", err)
 		} else if err == nil {
-			opMsg.Page = utils.CalculatePage(int(opMsg.Id), messagesPerPage)
+			opMsg.Page = 1
+			opMsg.Replies = domain.Replies{}
+			opMsg.Attachments = domain.Attachments{}
 			messages = append(messages, &opMsg)
-			msgIDMap[opMsg.Id] = &opMsg
+			key := MsgKey{ThreadId: id, MsgId: opMsg.Id}
+			idToMessage[key] = &opMsg
+			messageKeys = append(messageKeys, key)
 		}
 	}
 
@@ -213,68 +328,24 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)
 		}
 		msg.Page = utils.CalculatePage(int(msg.Id), messagesPerPage)
+		msg.Replies = domain.Replies{}
+		msg.Attachments = domain.Attachments{}
 		messages = append(messages, &msg)
-		msgIDMap[msg.Id] = &msg
+		key := MsgKey{ThreadId: id, MsgId: msg.Id}
+		idToMessage[key] = &msg
+		messageKeys = append(messageKeys, key)
 	}
 	if err = msgRows.Err(); err != nil {
 		return domain.Thread{}, fmt.Errorf("error iterating message rows: %w", err)
 	}
 
-	// Fetch all reply relationships for the entire thread in a single query for efficiency.
-	replyRows, err := q.Query(`
-        SELECT
-			mr.board, mr.sender_message_id, mr.sender_thread_id, mr.receiver_message_id, mr.receiver_thread_id,
-			mr.created_at
-        FROM message_replies mr
-		WHERE mr.board = $1 AND mr.receiver_thread_id = $2
-		ORDER BY mr.created_at`,
-		board, id,
-	)
-	if err != nil {
-		return domain.Thread{}, fmt.Errorf("failed to fetch thread replies: %w", err)
-	}
-	defer replyRows.Close()
-	for replyRows.Next() {
-		var reply domain.Reply
-		if err := replyRows.Scan(&reply.Board, &reply.From, &reply.FromThreadId, &reply.To, &reply.ToThreadId, &reply.CreatedAt); err != nil {
-			return domain.Thread{}, fmt.Errorf("failed to scan reply row: %w", err)
+	// Enrich only the messages on this page using the shared enrichment functions
+	if len(messageKeys) > 0 {
+		if err := enrichMessagesWithReplies(q, board, messageKeys, idToMessage, messagesPerPage); err != nil {
+			return domain.Thread{}, fmt.Errorf("failed to enrich replies for thread page: %w", err)
 		}
-		// From (sender_message_id) is the per-thread sequential ID, which is also the ordinal
-		reply.FromPage = utils.CalculatePage(int(reply.From), messagesPerPage)
-		// Attach the reply to the correct message using the map.
-		if msg, ok := msgIDMap[reply.To]; ok {
-			msg.Replies = append(msg.Replies, &reply)
-		}
-	}
-
-	// Fetch all attachments for the entire thread in a single query.
-	attachRows, err := q.Query(`
-        SELECT
-			a.id, a.board, a.thread_id, a.message_id, a.file_id,
-            f.file_path, f.filename, f.original_filename, f.file_size_bytes, f.mime_type, f.original_mime_type, f.image_width, f.image_height, f.thumbnail_path
-        FROM attachments a
-        JOIN files f ON a.file_id = f.id
-        WHERE a.board = $1 AND a.thread_id = $2
-        ORDER BY a.id`,
-		board, id,
-	)
-	if err != nil {
-		return domain.Thread{}, fmt.Errorf("failed to fetch thread attachments: %w", err)
-	}
-	defer attachRows.Close()
-	for attachRows.Next() {
-		var attachment domain.Attachment
-		var file domain.File
-		if err := attachRows.Scan(
-			&attachment.Id, &attachment.Board, &attachment.ThreadId, &attachment.MessageId, &attachment.FileId,
-			&file.FilePath, &file.Filename, &file.OriginalFilename, &file.SizeBytes, &file.MimeType, &file.OriginalMimeType, &file.ImageWidth, &file.ImageHeight, &file.ThumbnailPath,
-		); err != nil {
-			return domain.Thread{}, fmt.Errorf("failed to scan attachment row: %w", err)
-		}
-		attachment.File = &file
-		// Attach the attachment to the correct message using the map.
-		if msg, ok := msgIDMap[attachment.MessageId]; ok {
-			msg.Attachments = append(msg.Attachments, &attachment)
+		if err := enrichMessagesWithAttachments(q, board, messageKeys, idToMessage); err != nil {
+			return domain.Thread{}, fmt.Errorf("failed to enrich attachments for thread page: %w", err)
 		}
 	}
 
