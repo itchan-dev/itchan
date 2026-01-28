@@ -285,20 +285,20 @@
           "datasource": {
             "type": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total{job=\"itchan-api\", status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"itchan-api\"}[5m]))",
-          "legendFormat": "5xx Error Rate",
+          "expr": "sum(rate(http_requests_total{job=\"itchan-api\", status=~\"5..\"}[5m])) by (path, status)",
+          "legendFormat": "5xx - {{path}} ({{status}})",
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus"
           },
-          "expr": "sum(rate(http_requests_total{job=\"itchan-api\", status=~\"4..\"}[5m])) / sum(rate(http_requests_total{job=\"itchan-api\"}[5m]))",
-          "legendFormat": "4xx Error Rate",
+          "expr": "sum(rate(http_requests_total{job=\"itchan-api\", status=~\"4..\"}[5m])) by (path, status)",
+          "legendFormat": "4xx - {{path}} ({{status}})",
           "refId": "B"
         }
       ],
-      "title": "Error Rate",
+      "title": "Error Rate by Path",
       "type": "timeseries"
     },
     {
