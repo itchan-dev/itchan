@@ -52,8 +52,11 @@ func New(deps *setup.Dependencies) *chi.Mux {
 	authMw := deps.AuthMiddleware
 
 	// Health check and metrics endpoints (no auth required)
+	// Support both GET and HEAD for health checks (wget --spider uses HEAD)
 	r.Get("/health", h.Health)
+	r.Head("/health", h.Health)
 	r.Get("/ready", h.Ready)
+	r.Head("/ready", h.Ready)
 	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/v1", func(v1 chi.Router) {
