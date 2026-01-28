@@ -58,6 +58,36 @@ blockquote {
     padding: 0;
 }
 
+/* Code blocks and inline code */
+pre {
+    background-color: #f0f0f0; /* Light grey background for code blocks */
+    border: 1px solid #ccc;
+    border-left: 3px solid #999; /* Accent border */
+    padding: 8px 10px;
+    margin: 8px 0;
+    overflow-x: auto; /* Horizontal scroll for long lines */
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+pre code {
+    background-color: transparent; /* No background when inside pre */
+    border: none;
+    padding: 0;
+    color: #000;
+}
+
+code {
+    background-color: #f5f5f5; /* Subtle background for inline code */
+    border: 1px solid #ddd;
+    padding: 1px 4px;
+    border-radius: 2px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+    color: #000;
+}
+
 
 /* ==========================================
    Header Styles
