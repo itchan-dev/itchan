@@ -21,6 +21,9 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 - [Frontend](#frontend)
 - [Testing](#testing)
 - [Security Features](#security-features)
+- [Deployment](#deployment)
+- [Monitoring](#monitoring)
+- [CI/CD](#cicd)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -91,11 +94,13 @@ Shared Modules:
 - **Backend**: Go 1.24+
 - **Frontend**: Go templates (html/template)
 - **Database**: PostgreSQL 17.6 with partitioning
-- **Router**: Gorilla Mux
+- **Router**: Chi (go-chi/chi)
 - **Auth**: JWT (golang-jwt/jwt)
 - **Markdown**: Goldmark
 - **Media Processing**: ffmpeg (for metadata sanitization)
+- **Monitoring**: Prometheus + Grafana (optional)
 - **Container**: Docker & Docker Compose
+- **CI/CD**: GitHub Actions
 - **Email**: SMTP support for confirmations
 
 ## Getting Started
@@ -269,6 +274,7 @@ itchan/
 │   └── private.yaml           # Private configuration (backend only)
 │
 ├── docker-compose.yml         # Docker orchestration
+├── Makefile                   # Build and deployment commands
 ├── go.mod                     # Go module definition
 ├── go.sum                     # Go module checksums
 └── README.md
@@ -579,6 +585,92 @@ Integration tests use a separate test database and clean up after execution.
 - **Gzip compression**: Automatic response compression
 - **Graceful shutdown**: Proper connection cleanup
 - **Database partitioning**: Isolation between boards
+
+## Deployment
+
+### Development Mode
+
+For local development with hot-reload:
+
+```bash
+make dev  # or: docker compose up --build
+```
+
+### Production Deployment
+
+Simple deployment with Docker Compose:
+
+**Deploy/Update:**
+```bash
+make deploy
+```
+
+This performs:
+1. Builds new images
+2. Stops all containers
+3. Starts updated containers
+
+**Note:** There will be brief downtime (a few seconds) during deployment while containers restart.
+
+**View Status:**
+```bash
+docker compose ps     # View running services
+make logs            # View all logs
+make logs-api        # View API logs
+make logs-frontend   # View frontend logs
+```
+
+## Monitoring
+
+Optional Prometheus + Grafana stack for metrics and dashboards.
+
+### Enable Monitoring
+
+```bash
+make deploy-monitoring
+```
+
+Access:
+- **Grafana**: http://localhost:3000 (default: admin/admin)
+- **Prometheus**: http://localhost:9090
+
+### Disable Monitoring
+
+```bash
+make deploy  # Redeploy without monitoring compose file
+docker compose stop prometheus grafana  # Stop monitoring services
+```
+
+### Available Metrics
+
+- `http_requests_total{method, path, status}` - Request count
+- `http_request_duration_seconds{method, path}` - Latency histogram
+- `http_requests_in_flight` - Concurrent requests gauge
+- Go runtime metrics (goroutines, memory, GC)
+
+### Health Endpoints
+
+- `GET /health` - Liveness probe (200 if running)
+- `GET /ready` - Readiness probe (200 if DB connected)
+- `GET /metrics` - Prometheus metrics (backend only)
+
+## CI/CD
+
+Automated testing and deployment via GitHub Actions.
+
+### Workflow
+
+1. **On Pull Request**: Run tests
+2. **On Push to main**: Run tests → Deploy to VPS
+
+### Setup
+
+Add these secrets in GitHub (Settings → Secrets → Actions):
+
+- `VPS_HOST` - Your server IP/hostname
+- `VPS_USER` - SSH username
+- `VPS_SSH_KEY` - Private SSH key content
+- `VPS_PROJECT_PATH` - Path to project on VPS (e.g., `/home/user/itchan`)
 
 ## Contributing
 

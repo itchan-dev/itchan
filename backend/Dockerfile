@@ -19,8 +19,8 @@ RUN go build -o itchan-api ./backend/cmd/itchan-api/
 # Use a minimal image for the final build
 FROM alpine:latest
 
-# Install ffmpeg for video metadata stripping
-RUN apk add --no-cache ffmpeg
+# Install ffmpeg for video metadata stripping and wget for healthchecks
+RUN apk add --no-cache ffmpeg wget
 
 # Create non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
