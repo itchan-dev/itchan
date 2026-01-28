@@ -168,7 +168,7 @@ func TestBoardOperations(t *testing.T) {
 			_, err = storage.getBoard(tx, boardShortName, 1)
 			requireNotFoundError(t, err)
 
-			_, err = storage.GetThread(boardShortName, threadID, 1)
+			_, err = storage.getThread(tx, boardShortName, threadID, 1)
 			requireNotFoundError(t, err)
 
 			_, err = storage.getMessage(tx, boardShortName, threadID, messageID)
@@ -526,7 +526,7 @@ func TestBoardOperations(t *testing.T) {
 			_, err = storage.lastThreadId(tx, boardA)
 			requireNotFoundError(t, err)
 
-			_, err = storage.GetThread(boardA, tID1, 1)
+			_, err = storage.getThread(tx, boardA, tID1, 1)
 			require.NoError(t, err)
 		})
 
