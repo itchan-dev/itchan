@@ -1,3 +1,15 @@
+{{/* Thread pagination - expects Pagination with CurrentPage, TotalPages */}}
+{{define "thread-pagination"}}
+{{if and .Pagination (gt .Pagination.TotalPages 1)}}
+{{$p := .Pagination}}
+<div class="pagination">
+    {{if gt $p.CurrentPage 1}}<a href="?page={{sub $p.CurrentPage 1}}">&lt;&lt; prev</a>{{end}}
+    <form class="page-form" method="get" action=""><input type="number" class="page-input" name="page" value="{{$p.CurrentPage}}" min="1" max="{{$p.TotalPages}}"> / {{$p.TotalPages}}</form>
+    {{if lt $p.CurrentPage $p.TotalPages}}<a href="?page={{add $p.CurrentPage 1}}">next &gt;&gt;</a>{{end}}
+</div>
+{{end}}
+{{end}}
+
 {{define "title"}}/{{ .Thread.Board }}/ - Thread No.{{ .Thread.Id }}{{end}}
 {{define "content"}}
     <div class="board-header">

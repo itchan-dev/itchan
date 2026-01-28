@@ -48,7 +48,7 @@ func TestThreadOperations(t *testing.T) {
 			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
-			createdThread, err := storage.getThread(tx, boardShortName, threadID, 1)
+			createdThread, err := storage.GetThread(boardShortName, threadID, 1)
 			require.NoError(t, err)
 
 			assert.Equal(t, "Test Thread Creation", createdThread.Title)
@@ -100,7 +100,7 @@ func TestThreadOperations(t *testing.T) {
 			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
-			thread, err := storage.getThread(tx, boardShortName, threadID, 1)
+			thread, err := storage.GetThread(boardShortName, threadID, 1)
 			require.NoError(t, err)
 			assert.True(t, thread.IsPinned)
 		})
@@ -154,7 +154,7 @@ func TestThreadOperations(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			thread, err := storage.getThread(tx, boardShortName, threadID, 1)
+			thread, err := storage.GetThread(boardShortName, threadID, 1)
 			require.NoError(t, err)
 			assert.Equal(t, "Test Get Thread WithReplies", thread.Title)
 			assert.Equal(t, boardShortName, thread.Board)
@@ -233,7 +233,7 @@ func TestThreadOperations(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			thread, err := storage.getThread(tx, boardShortName, threadID, 1)
+			thread, err := storage.GetThread(boardShortName, threadID, 1)
 			require.NoError(t, err)
 			require.Len(t, thread.Messages, 3)
 
@@ -271,7 +271,7 @@ func TestThreadOperations(t *testing.T) {
 			_, err = storage.createMessage(tx, opMsg)
 			require.NoError(t, err)
 
-			thread, err := storage.getThread(tx, boardShortName, threadID, 1)
+			thread, err := storage.GetThread(boardShortName, threadID, 1)
 			require.NoError(t, err)
 			assert.Equal(t, "Only OP Thread", thread.Title)
 			assert.Equal(t, boardShortName, thread.Board)
@@ -284,7 +284,7 @@ func TestThreadOperations(t *testing.T) {
 		})
 
 		t.Run("NotFound", func(t *testing.T) {
-			_, err := storage.getThread(tx, boardShortName, -999, 1)
+			_, err := storage.GetThread(boardShortName, -999, 1)
 			requireNotFoundError(t, err)
 		})
 	})
@@ -368,7 +368,7 @@ func TestThreadOperations(t *testing.T) {
 			err = storage.deleteThread(tx, boardShortName, threadID)
 			require.NoError(t, err)
 
-			_, err = storage.getThread(tx, boardShortName, threadID, 1)
+			_, err = storage.GetThread(boardShortName, threadID, 1)
 			requireNotFoundError(t, err)
 
 			_, err = storage.getMessage(tx, boardShortName, threadID, opMsgID)
@@ -429,7 +429,7 @@ func TestThreadOperations(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		threadBefore, err := storage.getThread(tx, boardShortName, threadID, 1)
+		threadBefore, err := storage.GetThread(boardShortName, threadID, 1)
 		require.NoError(t, err)
 		require.Equal(t, bumpLimit, threadBefore.MessageCount)
 		lastBumpBefore := threadBefore.LastBumped
@@ -445,7 +445,7 @@ func TestThreadOperations(t *testing.T) {
 		createdMsgAtLimit, err := storage.getMessage(tx, boardShortName, threadID, msgAtLimit)
 		require.NoError(t, err)
 
-		threadAtLimit, err := storage.getThread(tx, boardShortName, threadID, 1)
+		threadAtLimit, err := storage.GetThread(boardShortName, threadID, 1)
 		require.NoError(t, err)
 		assert.Equal(t, bumpLimit+1, threadAtLimit.MessageCount)
 		assert.Equal(t, createdMsgAtLimit.CreatedAt, threadAtLimit.LastBumped)
@@ -459,7 +459,7 @@ func TestThreadOperations(t *testing.T) {
 			ThreadId: threadID,
 		})
 
-		threadOverLimit, err := storage.getThread(tx, boardShortName, threadID, 1)
+		threadOverLimit, err := storage.GetThread(boardShortName, threadID, 1)
 		require.NoError(t, err)
 		assert.Equal(t, bumpLimit+2, threadOverLimit.MessageCount)
 		assert.Equal(t, lastBumpAtLimit.UTC(), threadOverLimit.LastBumped.UTC())
