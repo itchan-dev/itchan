@@ -40,38 +40,7 @@ func (s *Storage) CreateThread(creationData domain.ThreadCreationData) (domain.T
 // fetch or the paginated fetch based on thread size.
 // The page parameter controls pagination (1-based). Page 0 or 1 returns the first page.
 func (s *Storage) GetThread(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
-	if page < 1 {
-		page = 1
-	}
-
-	// Fetch thread metadata first to determine which strategy to use
-	var metadata domain.ThreadMetadata
-	err := s.db.QueryRow(`
-		SELECT
-			id, title, board, message_count, last_bumped_at, is_pinned
-		FROM threads
-		WHERE board = $1 AND id = $2`,
-		board, id,
-	).Scan(
-		&metadata.Id, &metadata.Title, &metadata.Board,
-		&metadata.MessageCount, &metadata.LastBumped, &metadata.IsPinned,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.Thread{}, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
-		}
-		return domain.Thread{}, fmt.Errorf("failed to fetch thread metadata: %w", err)
-	}
-
-	messagesPerPage := s.cfg.Public.MessagesPerThreadPage
-
-	// For single-page threads (95% of cases), use the faster thread-level queries
-	if metadata.MessageCount <= messagesPerPage {
-		return s.getThreadSinglePage(s.db, metadata, board, id)
-	}
-
-	// For multi-page threads, use targeted enrichment to avoid over-fetching
-	return s.getThreadPaginated(s.db, metadata, board, id, page, messagesPerPage)
+	return s.getThread(s.db, board, id, page)
 }
 
 // DeleteThread is the public entry point for deleting a thread. It wraps the core
@@ -106,6 +75,41 @@ func (s *Storage) TogglePinnedStatus(board domain.BoardShortName, threadId domai
 // Internal Methods (Core Database Logic)
 // These methods accept a Querier and are transaction-agnostic.
 // =========================================================================
+
+// getThread contains the core logic for fetching a thread. It accepts a Querier to support
+// both direct database access and transactional contexts (used by tests).
+// It decides whether to use the optimized single-page fetch or paginated fetch based on thread size.
+func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	var metadata domain.ThreadMetadata
+	err := q.QueryRow(`
+		SELECT
+			id, title, board, message_count, last_bumped_at, is_pinned
+		FROM threads
+		WHERE board = $1 AND id = $2`,
+		board, id,
+	).Scan(
+		&metadata.Id, &metadata.Title, &metadata.Board,
+		&metadata.MessageCount, &metadata.LastBumped, &metadata.IsPinned,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.Thread{}, &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
+		}
+		return domain.Thread{}, fmt.Errorf("failed to fetch thread metadata: %w", err)
+	}
+
+	messagesPerPage := s.cfg.Public.MessagesPerThreadPage
+
+	if metadata.MessageCount <= messagesPerPage {
+		return s.getThreadSinglePage(q, metadata, board, id)
+	}
+
+	return s.getThreadPaginated(q, metadata, board, id, page, messagesPerPage)
+}
 
 // createThread handles the specific database operation of inserting a new record
 // into the `threads` table. It's unexported and designed to be called within

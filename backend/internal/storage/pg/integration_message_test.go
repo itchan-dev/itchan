@@ -68,7 +68,7 @@ func TestMessageOperations(t *testing.T) {
 		})
 
 		t.Run("updates thread metadata", func(t *testing.T) {
-			threadBefore, err := storage.GetThread(boardShortName, threadID, 1)
+			threadBefore, err := storage.getThread(tx, boardShortName, threadID, 1)
 			require.NoError(t, err)
 
 			createTestMessage(t, tx, domain.MessageCreationData{
@@ -78,7 +78,7 @@ func TestMessageOperations(t *testing.T) {
 				ThreadId: threadID,
 			})
 
-			threadAfter, err := storage.GetThread(boardShortName, threadID, 1)
+			threadAfter, err := storage.getThread(tx, boardShortName, threadID, 1)
 			require.NoError(t, err)
 			assert.Equal(t, threadBefore.MessageCount+1, threadAfter.MessageCount)
 			assert.True(t, threadAfter.LastBumped.After(threadBefore.LastBumped))
