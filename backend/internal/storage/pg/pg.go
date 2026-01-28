@@ -76,6 +76,12 @@ func (s *Storage) Cleanup() error {
 	return s.db.Close()
 }
 
+// Ping checks if the database connection is alive.
+// Used by health check endpoints to verify database connectivity.
+func (s *Storage) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 // =========================================================================
 // Transaction Helper
 // =========================================================================

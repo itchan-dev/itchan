@@ -7,9 +7,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/itchan-dev/itchan/backend/internal/setup"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
+	"github.com/itchan-dev/itchan/shared/middleware/metrics"
 	rl "github.com/itchan-dev/itchan/shared/middleware/ratelimiter"
 )
 
@@ -20,6 +22,9 @@ func New(deps *setup.Dependencies) *chi.Mux {
 
 	// Strip trailing slashes (replaces mux.StrictSlash)
 	r.Use(middleware.StripSlashes)
+
+	// Prometheus metrics middleware (must be early to capture all requests)
+	r.Use(metrics.Middleware)
 
 	// Enable gzip compression for all responses
 	r.Use(middleware.Compress(5))
@@ -45,6 +50,11 @@ func New(deps *setup.Dependencies) *chi.Mux {
 
 	h := deps.Handler
 	authMw := deps.AuthMiddleware
+
+	// Health check and metrics endpoints (no auth required)
+	r.Get("/health", h.Health)
+	r.Get("/ready", h.Ready)
+	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/v1", func(v1 chi.Router) {
 		// Public config endpoint

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -10,6 +11,11 @@ import (
 	"github.com/itchan-dev/itchan/shared/logger"
 )
 
+// HealthChecker is used by health endpoints to verify dependencies.
+type HealthChecker interface {
+	Ping(ctx context.Context) error
+}
+
 type Handler struct {
 	auth         service.AuthService
 	board        service.BoardService
@@ -18,9 +24,10 @@ type Handler struct {
 	userActivity service.UserActivityService
 	mediaStorage fs.MediaStorage
 	cfg          *config.Config
+	health       HealthChecker
 }
 
-func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, userActivity service.UserActivityService, mediaStorage fs.MediaStorage, cfg *config.Config) *Handler {
+func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, userActivity service.UserActivityService, mediaStorage fs.MediaStorage, cfg *config.Config, health HealthChecker) *Handler {
 	return &Handler{
 		auth:         auth,
 		board:        board,
@@ -29,6 +36,7 @@ func New(auth service.AuthService, board service.BoardService, thread service.Th
 		userActivity: userActivity,
 		mediaStorage: mediaStorage,
 		cfg:          cfg,
+		health:       health,
 	}
 }
 

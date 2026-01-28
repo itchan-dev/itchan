@@ -94,7 +94,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	threadGC := service.NewThreadGarbageCollector(storage, thread, cfg.Public.MaxThreadCount)
 	threadGC.StartBackgroundCleanup(ctx, 5*time.Minute)
 
-	h := handler.New(auth, board, thread, message, userActivity, mediaStorage, cfg)
+	h := handler.New(auth, board, thread, message, userActivity, mediaStorage, cfg, storage)
 
 	return &Dependencies{
 		Storage:        storage,

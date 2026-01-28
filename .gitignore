@@ -5,6 +5,7 @@ trash.txt
 fmtcoverage.html
 .*
 !.env.example
+!.github
 media
 *.exe
 CLAUDE.md

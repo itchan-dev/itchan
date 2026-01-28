@@ -1,11 +1,34 @@
-.PHONY: up build-up test show-coverage
+.PHONY: up down dev test show-coverage deploy deploy-monitoring logs logs-frontend logs-api
 
-up:
-	docker-compose up
+dev:
+	docker compose up --build
 
-build-up:
-	docker-compose up --build
+build:
+	docker compose -f docker-compose.yml build
 
+build-monitoring:
+	docker compose -f docker-compose.yml  -f docker-compose.monitoring.yml build
+
+deploy: build down
+	docker compose -f docker-compose.yml up -d
+
+deploy-monitoring: build-monitoring down
+	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+down:
+	docker compose down
+
+# View logs
+logs:
+	docker compose logs -f
+
+logs-api:
+	docker compose logs -f api
+
+logs-frontend:
+	docker compose logs -f frontend
+
+# Testing
 test:
 	go test ./...
 

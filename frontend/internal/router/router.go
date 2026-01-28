@@ -38,6 +38,12 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		}))
 	}
 
+	// Health check endpoint (no auth required)
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
 	// Public routes (GET endpoints - no rate limiting needed)
 	r.Get("/favicon.ico", handler.FaviconHandler)
 	r.Get("/login", deps.Handler.LoginGetHandler)
