@@ -145,12 +145,25 @@ func TestBoardOperations(t *testing.T) {
 				ThreadId: threadID,
 			})
 
+			// Add attachments to message
+			attachments := getRandomAttachments(t)
+			err := storage.addAttachments(tx, boardShortName, threadID, messageID, attachments)
+			require.NoError(t, err)
+
+			// Get file IDs before deletion
+			attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, threadID, messageID)
+			require.NoError(t, err)
+			var fileIDs []int64
+			for _, att := range attachmentsBefore {
+				fileIDs = append(fileIDs, att.FileId)
+			}
+
 			unquotedViewName := sharedstorage.ViewTableNameUnquoted(boardShortName)
 			unquotedMsgTableName := sharedstorage.PartitionNameUnquoted(boardShortName, "messages")
 			unquotedThreadsTableName := sharedstorage.PartitionNameUnquoted(boardShortName, "threads")
 
 			var exists bool
-			err := tx.QueryRow("SELECT EXISTS (SELECT FROM pg_matviews WHERE matviewname = $1)", unquotedViewName).Scan(&exists)
+			err = tx.QueryRow("SELECT EXISTS (SELECT FROM pg_matviews WHERE matviewname = $1)", unquotedViewName).Scan(&exists)
 			require.NoError(t, err)
 			require.True(t, exists, "Materialized view should exist before deletion")
 
@@ -185,6 +198,14 @@ func TestBoardOperations(t *testing.T) {
 			err = tx.QueryRow("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)", unquotedThreadsTableName).Scan(&exists)
 			require.NoError(t, err)
 			assert.False(t, exists, "Threads table should be dropped")
+
+			// Verify files are deleted from files table
+			for _, fileID := range fileIDs {
+				var count int
+				err = tx.QueryRow("SELECT COUNT(*) FROM files WHERE id = $1", fileID).Scan(&count)
+				require.NoError(t, err)
+				assert.Equal(t, 0, count, "File %d should be deleted from files table", fileID)
+			}
 		})
 
 		t.Run("fails for non-existent board", func(t *testing.T) {
