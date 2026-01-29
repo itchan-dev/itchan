@@ -206,6 +206,14 @@ func TestMessageOperations(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, attachmentsAfter)
 
+		// Verify files are deleted from files table
+		for _, att := range attachmentsBefore {
+			var count int
+			err = tx.QueryRow("SELECT COUNT(*) FROM files WHERE id = $1", att.FileId).Scan(&count)
+			require.NoError(t, err)
+			assert.Equal(t, 0, count, "File %d should be deleted from files table", att.FileId)
+		}
+
 		repliesToAfter, err := storage.getMessageRepliesTo(tx, boardShortName, threadID, msgToDelete)
 		require.NoError(t, err)
 		assert.Empty(t, repliesToAfter)

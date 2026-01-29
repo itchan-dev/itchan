@@ -365,6 +365,19 @@ func TestThreadOperations(t *testing.T) {
 				},
 			})
 
+			// Add attachments to messages
+			attachments := getRandomAttachments(t)
+			err = storage.addAttachments(tx, boardShortName, threadID, reply1, attachments)
+			require.NoError(t, err)
+
+			// Get file IDs before deletion
+			attachmentsBefore, err := storage.getMessageAttachments(tx, boardShortName, threadID, reply1)
+			require.NoError(t, err)
+			var fileIDs []int64
+			for _, att := range attachmentsBefore {
+				fileIDs = append(fileIDs, att.FileId)
+			}
+
 			err = storage.deleteThread(tx, boardShortName, threadID)
 			require.NoError(t, err)
 
@@ -383,9 +396,17 @@ func TestThreadOperations(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, replies, "Replies should be deleted via cascade")
 
-			attachments, err := storage.getMessageAttachments(tx, boardShortName, threadID, opMsgID)
+			attachments2, err := storage.getMessageAttachments(tx, boardShortName, threadID, opMsgID)
 			require.NoError(t, err)
-			assert.Empty(t, attachments, "Attachments should be deleted via cascade")
+			assert.Empty(t, attachments2, "Attachments should be deleted via cascade")
+
+			// Verify files are deleted from files table
+			for _, fileID := range fileIDs {
+				var count int
+				err = tx.QueryRow("SELECT COUNT(*) FROM files WHERE id = $1", fileID).Scan(&count)
+				require.NoError(t, err)
+				assert.Equal(t, 0, count, "File %d should be deleted from files table", fileID)
+			}
 		})
 	})
 
