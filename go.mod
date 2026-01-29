@@ -19,7 +19,6 @@ require (
 	github.com/yuin/goldmark v1.7.13
 	golang.org/x/crypto v0.41.0
 	golang.org/x/image v0.32.0
-	golang.org/x/net v0.43.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -79,6 +78,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
