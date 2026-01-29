@@ -11,6 +11,7 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+	"github.com/itchan-dev/itchan/shared/logger"
 
 	"github.com/lib/pq"
 )
@@ -176,6 +177,29 @@ func (s *Storage) createBoard(q Querier, creationData domain.BoardCreationData) 
 // deleteBoard contains the core DDL and DML logic for removing all database
 // objects associated with a board. It must be executed within a transaction.
 func (s *Storage) deleteBoard(q Querier, shortName domain.BoardShortName) error {
+	// Get all file IDs from attachments in this board BEFORE dropping partitions
+	// Note: Must do this before dropping attachments partition
+	rows, err := q.Query(`
+		SELECT DISTINCT file_id FROM attachments
+		WHERE board = $1`,
+		shortName)
+	if err != nil {
+		return fmt.Errorf("failed to get file IDs for board '%s': %w", shortName, err)
+	}
+	defer rows.Close()
+
+	var fileIDs []int64
+	for rows.Next() {
+		var fileID int64
+		if err := rows.Scan(&fileID); err != nil {
+			return fmt.Errorf("failed to scan file ID: %w", err)
+		}
+		fileIDs = append(fileIDs, fileID)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating file IDs: %w", err)
+	}
+
 	// Drop the materialized view first, as it may depend on the tables to be dropped.
 	if _, err := q.Exec(fmt.Sprintf("DROP MATERIALIZED VIEW IF EXISTS %s", ViewTableName(shortName))); err != nil {
 		return fmt.Errorf("failed to drop view for board '%s': %w", shortName, err)
@@ -199,6 +223,20 @@ func (s *Storage) deleteBoard(q Querier, shortName domain.BoardShortName) error 
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return &internal_errors.ErrorWithStatusCode{
 			Message: fmt.Sprintf("Board '%s' not found for deletion", shortName), StatusCode: http.StatusNotFound,
+		}
+	}
+
+	// Delete file records in a single batch query
+	// FK constraints will prevent deletion if files are still referenced elsewhere
+	// This is best-effort - if it fails, the GC will clean up later
+	if len(fileIDs) > 0 {
+		_, err := q.Exec(`DELETE FROM files WHERE id = ANY($1)`, pq.Array(fileIDs))
+		if err != nil {
+			// Log warning but don't fail the operation
+			logger.Log.Warn("failed to delete file records during board deletion",
+				"board", shortName,
+				"file_count", len(fileIDs),
+				"error", err)
 		}
 	}
 

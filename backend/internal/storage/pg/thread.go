@@ -10,7 +10,9 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/utils"
+	"github.com/lib/pq"
 )
 
 // =========================================================================
@@ -369,7 +371,29 @@ func (s *Storage) getThreadPaginated(q Querier, metadata domain.ThreadMetadata, 
 
 // deleteThread contains the core logic for removing a thread record.
 func (s *Storage) deleteThread(q Querier, board domain.BoardShortName, id domain.ThreadId) error {
-	// Update the board's last_activity timestamp.
+	// STEP 1: Collect file IDs BEFORE cascade delete (while attachments still exist)
+	rows, err := q.Query(`
+		SELECT DISTINCT file_id FROM attachments
+		WHERE board = $1 AND thread_id = $2`,
+		board, id)
+	if err != nil {
+		return fmt.Errorf("failed to get file IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var fileIDs []int64
+	for rows.Next() {
+		var fileID int64
+		if err := rows.Scan(&fileID); err != nil {
+			return fmt.Errorf("failed to scan file ID: %w", err)
+		}
+		fileIDs = append(fileIDs, fileID)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating file IDs: %w", err)
+	}
+
+	// STEP 2: Update the board's last_activity timestamp
 	result, err := q.Exec(`
         UPDATE boards SET last_activity_at = NOW() AT TIME ZONE 'utc'
         WHERE short_name = $1`,
@@ -382,13 +406,27 @@ func (s *Storage) deleteThread(q Querier, board domain.BoardShortName, id domain
 		return &internal_errors.ErrorWithStatusCode{Message: "Board not found", StatusCode: http.StatusNotFound}
 	}
 
-	// Delete the thread from its partition. ON DELETE CASCADE will handle all child messages.
+	// STEP 3: Delete the thread from its partition. ON DELETE CASCADE will handle all child messages and attachments
 	result, err = q.Exec("DELETE FROM threads WHERE board = $1 AND id = $2", board, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete thread: %w", err)
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return &internal_errors.ErrorWithStatusCode{Message: "Thread not found", StatusCode: http.StatusNotFound}
+	}
+
+	// STEP 4: Batch delete file records (now that attachments are cascaded away)
+	// FK constraints will prevent deletion if files are still referenced elsewhere
+	// This is best-effort - if it fails, the GC will clean up later
+	if len(fileIDs) > 0 {
+		_, err = q.Exec(`DELETE FROM files WHERE id = ANY($1)`, pq.Array(fileIDs))
+		if err != nil {
+			// Log warning but don't fail the operation
+			logger.Log.Warn("failed to delete file records during thread deletion",
+				"board", board,
+				"thread_id", id,
+				"error", err)
+		}
 	}
 
 	return nil

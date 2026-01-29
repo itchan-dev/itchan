@@ -183,36 +183,6 @@ func (m *SharedMockMediaStorage) DeleteBoard(boardID string) error {
 	return nil
 }
 
-// MockStorageWithAddAttachments extends MockMessageStorage with AddAttachments
-type MockStorageWithAddAttachments struct {
-	MockMessageStorage
-	addAttachmentsFunc  func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error
-	addAttachmentsCalls []AddAttachmentsCall
-	mu2                 sync.Mutex
-}
-
-type AddAttachmentsCall struct {
-	Board       domain.BoardShortName
-	ThreadId    domain.ThreadId
-	MessageID   domain.MsgId
-	Attachments domain.Attachments
-}
-
-func (m *MockStorageWithAddAttachments) AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
-	m.mu2.Lock()
-	m.addAttachmentsCalls = append(m.addAttachmentsCalls, AddAttachmentsCall{
-		Board:       board,
-		ThreadId:    threadId,
-		MessageID:   messageID,
-		Attachments: attachments,
-	})
-	m.mu2.Unlock()
-
-	if m.addAttachmentsFunc != nil {
-		return m.addAttachmentsFunc(board, threadId, messageID, attachments)
-	}
-	return nil
-}
 
 // --- Helper Functions ---
 
@@ -230,7 +200,7 @@ func createTestConfig() *config.Public {
 
 func TestValidatePendingFiles(t *testing.T) {
 	cfg := createTestConfig()
-	storage := &MockStorageWithAddAttachments{}
+	storage := &MockMessageStorage{}
 	validator := &MockMessageValidator{}
 	mediaStorage := &SharedMockMediaStorage{}
 
@@ -470,24 +440,17 @@ func TestValidatePendingFiles(t *testing.T) {
 func TestCreateMessageWithFiles(t *testing.T) {
 	t.Run("successfully creates message with files", func(t *testing.T) {
 		cfg := createTestConfig()
-		storage := &MockStorageWithAddAttachments{}
+		storage := &MockMessageStorage{}
 		validator := &MockMessageValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 
 		var createdMessageID domain.MsgId = 42
 
-		// Mock storage to return a message ID
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
-			// Should be called without PendingFiles
-			assert.Nil(t, creationData.PendingFiles)
+		// Mock storage to accept message with attachments
+		storage.createMessageFunc = func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
+			// Verify attachments were passed (files processed before DB call)
+			assert.Len(t, attachments, 2, "Should have 2 attachments")
 			return createdMessageID, nil
-		}
-
-		// Mock AddAttachments to succeed
-		storage.addAttachmentsFunc = func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
-			assert.Equal(t, createdMessageID, messageID)
-			assert.Len(t, attachments, 2)
-			return nil
 		}
 
 		service := NewMessage(storage, validator, mediaStorage, cfg)
@@ -533,28 +496,23 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		assert.Equal(t, "video.mp4", mediaStorage.moveFileCalls[0].Filename)
 		mediaStorage.mu.Unlock()
 
-		// Verify AddAttachments was called
-		storage.mu2.Lock()
-		assert.Len(t, storage.addAttachmentsCalls, 1)
-		storage.mu2.Unlock()
+		// Verify CreateMessage was called with attachments
+		storage.mu.Lock()
+		assert.True(t, storage.createMessageCalled)
+		assert.Len(t, storage.createMessageAttachments, 2)
+		storage.mu.Unlock()
 	})
 
 	t.Run("cleans up files on storage error", func(t *testing.T) {
 		cfg := createTestConfig()
-		storage := &MockStorageWithAddAttachments{}
+		storage := &MockMessageStorage{}
 		validator := &MockMessageValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 
-		var createdMessageID domain.MsgId = 42
-
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
-			return createdMessageID, nil
-		}
-
-		// Mock AddAttachments to fail
-		addAttachmentsError := errors.New("database error")
-		storage.addAttachmentsFunc = func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
-			return addAttachmentsError
+		// Mock CreateMessage to fail (simulating DB error during transaction)
+		createMessageError := errors.New("database error")
+		storage.createMessageFunc = func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
+			return 0, createMessageError
 		}
 
 		service := NewMessage(storage, validator, mediaStorage, cfg)
@@ -579,30 +537,30 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		_, err := service.Create(creationData)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to save attachments to DB")
+		assert.True(t, errors.Is(err, createMessageError), "Should return the CreateMessage error")
 
-		// Verify files were cleaned up (image + thumbnail)
+		// Verify files were cleaned up (image + thumbnail) after DB error
 		mediaStorage.mu.Lock()
-		assert.Len(t, mediaStorage.saveImageCalls, 1, "File should have been saved")
+		assert.Len(t, mediaStorage.saveImageCalls, 1, "File should have been saved before DB call")
 		assert.Len(t, mediaStorage.deleteFileCalls, 2, "Image and thumbnail should have been deleted on error")
 		mediaStorage.mu.Unlock()
 
-		// Verify message was deleted
+		// Verify DeleteMessage was NOT called (message was never created in DB)
 		storage.mu.Lock()
-		assert.True(t, storage.deleteMessageCalled, "Message should have been deleted on error")
+		assert.False(t, storage.deleteMessageCalled, "DeleteMessage should not be called - message was never created")
 		storage.mu.Unlock()
 	})
 
 	t.Run("cleans up files on media save error", func(t *testing.T) {
 		cfg := createTestConfig()
-		storage := &MockStorageWithAddAttachments{}
+		storage := &MockMessageStorage{}
 		validator := &MockMessageValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 
-		var createdMessageID domain.MsgId = 42
-
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
-			return createdMessageID, nil
+		// CreateMessage should never be called (file processing fails first)
+		storage.createMessageFunc = func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
+			t.Fatal("CreateMessage should not be called when file processing fails")
+			return 0, nil
 		}
 
 		// First SaveImage succeeds, second fails
@@ -654,15 +612,16 @@ func TestCreateMessageWithFiles(t *testing.T) {
 		assert.Contains(t, mediaStorage.deleteFileCalls, "tech/1/file1.jpg")
 		mediaStorage.mu.Unlock()
 
-		// Verify message was deleted
+		// Verify CreateMessage was never called (file processing failed before DB)
 		storage.mu.Lock()
-		assert.True(t, storage.deleteMessageCalled)
+		assert.False(t, storage.createMessageCalled, "CreateMessage should not be called when file processing fails")
+		assert.False(t, storage.deleteMessageCalled, "DeleteMessage should not be called - message was never created")
 		storage.mu.Unlock()
 	})
 
 	t.Run("validation error prevents file operations", func(t *testing.T) {
 		cfg := createTestConfig()
-		storage := &MockStorageWithAddAttachments{}
+		storage := &MockMessageStorage{}
 		validator := &MockMessageValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 
@@ -710,7 +669,7 @@ func TestCreateMessageWithFiles(t *testing.T) {
 func TestMessageDeleteWithAttachments(t *testing.T) {
 	t.Run("deletes message and all attachment files", func(t *testing.T) {
 		cfg := createTestConfig()
-		storage := &MockStorageWithAddAttachments{}
+		storage := &MockMessageStorage{}
 		validator := &MockMessageValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 
@@ -758,7 +717,7 @@ func TestMessageDeleteWithAttachments(t *testing.T) {
 
 	t.Run("continues despite file deletion errors", func(t *testing.T) {
 		cfg := createTestConfig()
-		storage := &MockStorageWithAddAttachments{}
+		storage := &MockMessageStorage{}
 		validator := &MockMessageValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 

@@ -10,7 +10,9 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/utils"
+	"github.com/lib/pq"
 )
 
 // =========================================================================
@@ -22,7 +24,7 @@ import (
 // atomic database transaction. This ensures that all related database operations
 // (updating board/thread metadata, inserting the message, attachments, and replies)
 // either succeed together or fail together, maintaining data integrity.
-func (s *Storage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error) {
+func (s *Storage) CreateMessage(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -30,7 +32,18 @@ func (s *Storage) CreateMessage(creationData domain.MessageCreationData) (domain
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		var err error
 		msgID, err = s.createMessage(tx, creationData)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Add attachments in the same transaction
+		if len(attachments) > 0 {
+			if err := s.addAttachments(tx, creationData.Board, creationData.ThreadId, msgID, attachments); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	})
 	return msgID, err
 }
@@ -144,6 +157,28 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 // deleteMessage contains the core logic for removing a message record and updating
 // parent metadata. It is unexported and accepts a Querier.
 func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error {
+	// Collect file IDs BEFORE cascade delete (while attachments still exist)
+	rows, err := q.Query(`
+		SELECT DISTINCT file_id FROM attachments
+		WHERE board = $1 AND thread_id = $2 AND message_id = $3`,
+		board, threadId, id)
+	if err != nil {
+		return fmt.Errorf("failed to get file IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var fileIDs []int64
+	for rows.Next() {
+		var fileID int64
+		if err := rows.Scan(&fileID); err != nil {
+			return fmt.Errorf("failed to scan file ID: %w", err)
+		}
+		fileIDs = append(fileIDs, fileID)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating file IDs: %w", err)
+	}
+
 	// Update the board's last_activity timestamp to reflect the deletion.
 	deletedTs := time.Now().UTC().Round(time.Microsecond)
 	result, err := q.Exec(`
@@ -166,6 +201,32 @@ func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, threadId
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return &internal_errors.ErrorWithStatusCode{Message: "Message not found", StatusCode: http.StatusNotFound}
+	}
+
+	// Decrement the thread's message count to maintain consistency
+	_, err = q.Exec(`
+		UPDATE threads SET message_count = message_count - 1
+		WHERE board = $1 AND id = $2`,
+		board, threadId,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update thread message count: %w", err)
+	}
+
+	// Delete file records in batch (attachments are already cascade-deleted)
+	// FK constraint will prevent deletion if files are still referenced elsewhere
+	// This is best-effort - if it fails, the GC will clean up later
+	if len(fileIDs) > 0 {
+		_, err = q.Exec(`DELETE FROM files WHERE id = ANY($1)`, pq.Array(fileIDs))
+		if err != nil {
+			// Log warning but don't fail - GC will clean up orphaned files
+			logger.Log.Warn("failed to delete file records during message deletion",
+				"board", board,
+				"thread_id", threadId,
+				"message_id", id,
+				"file_count", len(fileIDs),
+				"error", err)
+		}
 	}
 
 	return nil
@@ -293,17 +354,6 @@ func (s *Storage) getMessageRepliesFrom(q Querier, board domain.BoardShortName, 
 		replies = append(replies, &reply)
 	}
 	return replies, rows.Err()
-}
-
-// AddAttachments adds attachments to an existing message.
-// This is used when files are uploaded and saved after the message is created.
-func (s *Storage) AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	return s.withTx(ctx, func(tx *sql.Tx) error {
-		return s.addAttachments(tx, board, threadId, messageID, attachments)
-	})
 }
 
 // addAttachments is the internal method to add attachments within a transaction

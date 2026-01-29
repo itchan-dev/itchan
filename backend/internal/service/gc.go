@@ -23,6 +23,7 @@ type CleanupStats struct {
 	FilesScanned       int
 	OrphanedFiles      int
 	FilesDeleted       int
+	FileRecordsDeleted int   // Number of orphaned file records deleted from DB
 	BytesReclaimed     int64
 	DurationMs         int64
 	Errors             []string
@@ -31,6 +32,7 @@ type CleanupStats struct {
 // GCStorage defines the database operations needed for garbage collection.
 type GCStorage interface {
 	GetAllFilePaths() ([]string, error)
+	DeleteOrphanedFileRecords() (int64, error)
 }
 
 // GCMediaStorage defines the filesystem operations needed for garbage collection.
@@ -80,6 +82,7 @@ func (gc *MediaGarbageCollector) StartBackgroundCleanup(ctx context.Context, int
 						"scanned", stats.FilesScanned,
 						"orphans", stats.OrphanedFiles,
 						"deleted", stats.FilesDeleted,
+						"db_records_deleted", stats.FileRecordsDeleted,
 						"bytes_reclaimed", stats.BytesReclaimed,
 						"duration_ms", stats.DurationMs,
 						"errors", len(stats.Errors))
@@ -100,6 +103,24 @@ func (gc *MediaGarbageCollector) RunCleanup() error {
 	stats := CleanupStats{
 		RunAt:  startTime,
 		Errors: []string{},
+	}
+
+	// Step 0: Delete orphaned file records from database (BEFORE disk cleanup)
+	// This is critical - deleting DB records creates new orphaned files on disk
+	// which will be cleaned up in the next steps
+	count, err := gc.storage.DeleteOrphanedFileRecords()
+	if err != nil {
+		logger.Log.Error("failed to delete orphaned file records",
+			"component", "media_gc",
+			"error", err)
+		stats.Errors = append(stats.Errors, "failed to delete file records: "+err.Error())
+	} else {
+		stats.FileRecordsDeleted = int(count)
+		if count > 0 {
+			logger.Log.Info("deleted orphaned file records",
+				"component", "media_gc",
+				"count", count)
+		}
 	}
 
 	// Step 1: Get all file paths from the database

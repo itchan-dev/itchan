@@ -31,10 +31,9 @@ type Message struct {
 }
 
 type MessageStorage interface {
-	CreateMessage(creationData domain.MessageCreationData) (msgId domain.MsgId, err error)
+	CreateMessage(creationData domain.MessageCreationData, attachments domain.Attachments) (msgId domain.MsgId, err error)
 	GetMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error)
 	DeleteMessage(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error
-	AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error
 }
 
 type MessageValidator interface {
@@ -78,35 +77,44 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 		}
 	}
 
-	// Always create message metadata first (without files) to get msgId
-	creationDataWithoutFiles := creationData
-	creationDataWithoutFiles.PendingFiles = nil
+	// Process and save files FIRST (before any DB operations)
+	// This ensures no DB pollution if file processing fails
+	var attachments domain.Attachments
+	var savedFiles []string
 
-	msgID, err := b.storage.CreateMessage(creationDataWithoutFiles)
-	if err != nil {
-		return 0, err
+	if len(creationData.PendingFiles) > 0 {
+		var err error
+		attachments, savedFiles, err = b.processAndSaveFiles(
+			creationData.Board,
+			creationData.ThreadId,
+			creationData.PendingFiles,
+		)
+		if err != nil {
+			return 0, err // No DB pollution if file processing fails
+		}
 	}
 
-	// Then handle files if present
-	if len(creationData.PendingFiles) > 0 {
-		if err := b.saveAndAttachFiles(creationData.Board, creationData.ThreadId, msgID, creationData.PendingFiles); err != nil {
-			// Cleanup: delete the message since we failed to save attachments
-			b.storage.DeleteMessage(creationData.Board, creationData.ThreadId, msgID)
-			return 0, err
+	// Create message + attachments in SINGLE atomic transaction
+	msgID, err := b.storage.CreateMessage(creationData, attachments)
+	if err != nil {
+		// Cleanup: delete files saved in previous step
+		for _, path := range savedFiles {
+			b.mediaStorage.DeleteFile(path)
 		}
+		return 0, err
 	}
 
 	return msgID, nil
 }
 
-// saveAndAttachFiles saves files to storage and adds them as attachments to a message.
-// It handles cleanup of saved files if any step fails.
-func (b *Message) saveAndAttachFiles(
+// processAndSaveFiles processes pending files (sanitization, thumbnail generation)
+// and saves them to storage. Returns the attachment metadata and list of saved file paths.
+// If any step fails, it cleans up all previously saved files and returns an error.
+func (b *Message) processAndSaveFiles(
 	board domain.BoardShortName,
 	threadID domain.ThreadId,
-	messageID domain.MsgId,
 	pendingFiles []*domain.PendingFile,
-) error {
+) (domain.Attachments, []string, error) {
 	var attachments domain.Attachments
 	savedFiles := make([]string, 0) // Track for cleanup on error
 
@@ -123,7 +131,7 @@ func (b *Message) saveAndAttachFiles(
 				for _, p := range savedFiles {
 					b.mediaStorage.DeleteFile(p)
 				}
-				return err
+				return nil, nil, err
 			}
 
 			// Extract thumbnail from temp file before move (while we have full path)
@@ -143,7 +151,7 @@ func (b *Message) saveAndAttachFiles(
 				for _, p := range savedFiles {
 					b.mediaStorage.DeleteFile(p)
 				}
-				return fmt.Errorf("failed to move video file: %w", err)
+				return nil, nil, fmt.Errorf("failed to move video file: %w", err)
 			}
 			// Track saved file immediately after saving
 			savedFiles = append(savedFiles, filePath)
@@ -166,7 +174,7 @@ func (b *Message) saveAndAttachFiles(
 				for _, p := range savedFiles {
 					b.mediaStorage.DeleteFile(p)
 				}
-				return err
+				return nil, nil, err
 			}
 
 			var imageSize int64
@@ -181,7 +189,7 @@ func (b *Message) saveAndAttachFiles(
 				for _, p := range savedFiles {
 					b.mediaStorage.DeleteFile(p)
 				}
-				return fmt.Errorf("failed to save image file: %w", err)
+				return nil, nil, fmt.Errorf("failed to save image file: %w", err)
 			}
 			// Track saved file immediately after saving
 			savedFiles = append(savedFiles, filePath)
@@ -201,7 +209,7 @@ func (b *Message) saveAndAttachFiles(
 
 		} else {
 			// Unsupported file type (should not happen if validation is correct)
-			return fmt.Errorf("unsupported file type: %s", pendingFile.MimeType)
+			return nil, nil, fmt.Errorf("unsupported file type: %s", pendingFile.MimeType)
 		}
 
 		// Create file metadata ONCE with both original and sanitized data
@@ -213,27 +221,16 @@ func (b *Message) saveAndAttachFiles(
 			ThumbnailPath:      thumbnailPath,
 		}
 
-		// Create attachment
+		// Create attachment (MessageId will be set by storage layer)
 		attachment := &domain.Attachment{
-			Board:     board,
-			MessageId: messageID,
-			File:      fileData,
+			Board: board,
+			File:  fileData,
 		}
 
 		attachments = append(attachments, attachment)
 	}
 
-	// Add attachments to DB
-	err := b.storage.AddAttachments(board, threadID, messageID, attachments)
-	if err != nil {
-		// Cleanup: delete saved files
-		for _, savedPath := range savedFiles {
-			b.mediaStorage.DeleteFile(savedPath)
-		}
-		return fmt.Errorf("failed to save attachments to DB: %w", err)
-	}
-
-	return nil
+	return attachments, savedFiles, nil
 }
 
 func (b *Message) Get(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
