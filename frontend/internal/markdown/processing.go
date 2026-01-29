@@ -3,11 +3,10 @@ package markdown
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"golang.org/x/net/html"
 
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -17,12 +16,15 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 
 	ghtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
 )
 
 var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)#(\d+)`)
+var whitespaceBetweenTagsRegex = regexp.MustCompile(`>\s+<`)
+var htmlTagRegex = regexp.MustCompile(`<[^>]*>`)
 
 // Cached sanitizer policy - compiled once at startup
 var sanitizerPolicy = func() *bluemonday.Policy {
@@ -31,6 +33,8 @@ var sanitizerPolicy = func() *bluemonday.Policy {
 	p.AllowAttrs("data-board", "data-message-id", "data-thread-id").OnElements("a")
 	p.RequireNoFollowOnLinks(false)
 	p.AllowRelativeURLs(true)
+	// Allow greentext spans
+	p.AllowAttrs("class").Matching(regexp.MustCompile("^greentext$")).OnElements("span")
 	return p
 }()
 
@@ -62,6 +66,7 @@ func New(cfg *config.Public) *TextProcessor {
 			// util.Prioritized(parser.NewListItemParser(), 400),
 			// util.Prioritized(parser.NewCodeBlockParser(), 500),
 			// util.Prioritized(parser.NewATXHeadingParser(), 600),
+			util.Prioritized(NewGreentextParser(), 650),
 			util.Prioritized(parser.NewFencedCodeBlockParser(), 700),
 			// util.Prioritized(parser.NewBlockquoteParser(), 800),
 			// util.Prioritized(parser.NewHTMLBlockParser(), 900),
@@ -81,8 +86,15 @@ func New(cfg *config.Public) *TextProcessor {
 
 	md := goldmark.New(
 		goldmark.WithParser(p),
-		goldmark.WithRendererOptions(ghtml.WithUnsafe()),
+		goldmark.WithRendererOptions(
+			ghtml.WithUnsafe(),
+		),
 		goldmark.WithExtensions(extension.Strikethrough),
+		goldmark.WithRendererOptions(
+			renderer.WithNodeRenderers(
+				util.Prioritized(NewGreentextHTMLRenderer(), 100),
+			),
+		),
 	)
 	return &TextProcessor{
 		md:  md,
@@ -101,6 +113,9 @@ func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, domain.
 	processedText, matches := tp.processMessageLinks(message)
 	// Sanitize html
 	sanitizedText := tp.sanitizeText(processedText)
+	// Remove newlines between HTML tags to prevent spacing issues with white-space: pre-wrap
+	// This must be done after sanitization as bluemonday may add newlines back
+	sanitizedText = whitespaceBetweenTagsRegex.ReplaceAllString(sanitizedText, "><")
 	// Check if message actually has payload
 	hasPayload, err := tp.hasPayload(sanitizedText)
 	if err != nil {
@@ -197,27 +212,15 @@ func (tp *TextProcessor) sanitizeText(text string) string {
 }
 
 // hasPayload checks if an HTML string contains any text content that is not just whitespace.
+// Uses fast regex-based approach: strip all HTML tags and check if any text remains.
+// This is much faster than full HTML parsing since we already sanitized the HTML with Bluemonday.
 func (tp *TextProcessor) hasPayload(htmlString string) (bool, error) {
-	doc, err := html.Parse(strings.NewReader(htmlString))
-	if err != nil {
-		return false, err
-	}
+	// Strip all HTML tags (including <br>, <span>, <p>, etc.)
+	textOnly := htmlTagRegex.ReplaceAllString(htmlString, "")
 
-	var traverse func(*html.Node) bool
-	traverse = func(n *html.Node) bool {
-		if n.Type == html.TextNode {
-			if strings.TrimSpace(n.Data) != "" {
-				return true
-			}
-		}
+	// Decode HTML entities (&gt;, &lt;, etc.) and check if any text remains
+	textOnly = html.UnescapeString(textOnly)
 
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			if traverse(c) {
-				return true
-			}
-		}
-		return false
-	}
-
-	return traverse(doc), nil
+	// Check if there's any non-whitespace text
+	return strings.TrimSpace(textOnly) != "", nil
 }

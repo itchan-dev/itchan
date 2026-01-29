@@ -58,17 +58,25 @@ blockquote {
     padding: 0;
 }
 
+/* Greentext (lines starting with >) */
+.greentext {
+    color: #789922; /* Classic imageboard green */
+    display: block; /* Make it a block element to prevent spacing issues */
+    margin: 0; /* Remove default margins */
+}
+
 /* Code blocks and inline code */
 pre {
     background-color: #f0f0f0; /* Light grey background for code blocks */
     border: 1px solid #ccc;
     border-left: 3px solid #999; /* Accent border */
     padding: 8px 10px;
-    margin: 8px 0;
+    margin: 0; /* Remove margins to prevent spacing issues */
     overflow-x: auto; /* Horizontal scroll for long lines */
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.9em;
     line-height: 1.4;
+    display: block; /* Ensure block-level display */
 }
 
 pre code {
