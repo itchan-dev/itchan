@@ -29,14 +29,14 @@ func createDefaultTestConfig() *config.Public {
 
 // MockMessageStorage mocks the MessageStorage interface.
 type MockMessageStorage struct {
-	createMessageFunc  func(creationData domain.MessageCreationData) (domain.MsgId, error)
-	getMessageFunc     func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error)
-	deleteMessageFunc  func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error
-	addAttachmentsFunc func(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error
+	createMessageFunc func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error)
+	getMessageFunc    func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error)
+	deleteMessageFunc func(board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) error
 
 	mu                       sync.Mutex
 	createMessageCalled      bool
 	createMessageArg         domain.MessageCreationData
+	createMessageAttachments domain.Attachments
 	getMessageCalled         bool
 	getMessageArgThreadId    domain.ThreadId
 	getMessageArgId          domain.MsgId
@@ -51,6 +51,7 @@ func (m *MockMessageStorage) ResetCallTracking() {
 	defer m.mu.Unlock()
 	m.createMessageCalled = false
 	m.createMessageArg = domain.MessageCreationData{}
+	m.createMessageAttachments = nil
 	m.getMessageCalled = false
 	m.getMessageArgThreadId = 0
 	m.getMessageArgId = 0
@@ -60,14 +61,15 @@ func (m *MockMessageStorage) ResetCallTracking() {
 	m.deleteMessageArgId = 0
 }
 
-func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData) (domain.MsgId, error) {
+func (m *MockMessageStorage) CreateMessage(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
 	m.mu.Lock()
 	m.createMessageCalled = true
 	m.createMessageArg = creationData
+	m.createMessageAttachments = attachments
 	m.mu.Unlock()
 
 	if m.createMessageFunc != nil {
-		return m.createMessageFunc(creationData)
+		return m.createMessageFunc(creationData, attachments)
 	}
 	// Default success returns an arbitrary ID (e.g., 1)
 	return 1, nil
@@ -97,13 +99,6 @@ func (m *MockMessageStorage) DeleteMessage(board domain.BoardShortName, threadId
 
 	if m.deleteMessageFunc != nil {
 		return m.deleteMessageFunc(board, threadId, id)
-	}
-	return nil // Default success
-}
-
-func (m *MockMessageStorage) AddAttachments(board domain.BoardShortName, threadId domain.ThreadId, messageID domain.MsgId, attachments domain.Attachments) error {
-	if m.addAttachmentsFunc != nil {
-		return m.addAttachmentsFunc(board, threadId, messageID, attachments)
 	}
 	return nil // Default success
 }
@@ -153,8 +148,9 @@ func TestMessageCreate(t *testing.T) {
 			assert.Equal(t, testCreationData.Text, text)
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
 			assert.Equal(t, testCreationData, creationData)
+			assert.Empty(t, attachments) // No attachments for text-only message
 			return expectedCreatedId, nil // Storage create succeeds
 		}
 
@@ -184,7 +180,7 @@ func TestMessageCreate(t *testing.T) {
 		validator.textFunc = func(text domain.MsgText) error {
 			return nil // Validation passes
 		}
-		storage.createMessageFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+		storage.createMessageFunc = func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
 			assert.Equal(t, testCreationData, creationData)
 			return 0, storageError // Storage create fails
 		}

@@ -94,7 +94,7 @@ func TestBoardViewConcurrentRefresh(t *testing.T) {
 				Author:   domain.User{Id: userID},
 				Text:     "Message 1",
 				ThreadId: threadID,
-			})
+			}, nil) // No attachments
 			require.NoError(t, err)
 
 			var wg sync.WaitGroup

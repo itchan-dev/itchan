@@ -152,3 +152,25 @@ func (s *Storage) GetAllFilePaths() ([]string, error) {
 
 	return paths, nil
 }
+
+// DeleteOrphanedFileRecords deletes file records not referenced by any attachment.
+// Returns the number of records deleted.
+// This is used by the garbage collector to clean up orphaned database records.
+func (s *Storage) DeleteOrphanedFileRecords() (int64, error) {
+	result, err := s.db.Exec(`
+		DELETE FROM files
+		WHERE id NOT IN (
+			SELECT DISTINCT file_id FROM attachments
+		)
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete orphaned file records: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return affected, nil
+}
