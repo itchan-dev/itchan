@@ -414,6 +414,9 @@ allowed_image_mime_types:
 allowed_video_mime_types:
   - video/mp4
   - video/webm
+
+# Registration restrictions
+allowed_registration_domains: []       # Empty = allow all domains. Example: ["gmail.com", "company.com"]
 ```
 
 ### `config/private.yaml` (Backend only - never commit to git!)
@@ -639,6 +642,7 @@ Integration tests use a separate test database and clean up after execution.
 - **Secure cookie storage** with HttpOnly and Secure flags (when enabled)
 - **Password hashing** using bcrypt
 - **Email confirmation** required for registration
+- **Registration domain restrictions**: Optional email domain allowlist for registration
 - **Admin role** for moderation capabilities
 
 ### Rate Limiting

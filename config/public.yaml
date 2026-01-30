@@ -25,3 +25,6 @@ min_account_age_for_invites: 720h    # 30 days (1 month)
 
 # User activity page settings
 user_messages_page_limit: 50          # Number of messages/replies shown on account page
+
+# Registration restrictions
+allowed_registration_domains: []      # Empty = allow all domains. Example: ["gmail.com", "company.com"]
