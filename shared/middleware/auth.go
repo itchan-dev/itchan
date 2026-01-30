@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -52,16 +53,26 @@ func (a *Auth) AdminOnly() func(http.Handler) http.Handler {
 func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Try to get token from cookie first (for browser clients)
+			var tokenString string
 			accessCookie, err := r.Cookie("accessToken")
-			if err == http.ErrNoCookie {
+			if err == nil {
+				tokenString = accessCookie.Value
+			} else {
+				// If no cookie, try Authorization header (for API/mobile clients)
+				authHeader := r.Header.Get("Authorization")
+				if strings.HasPrefix(authHeader, "Bearer ") {
+					tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+				}
+			}
+
+			// If no token found in either location, return unauthorized
+			if tokenString == "" {
 				http.Error(w, "Please sign-in", http.StatusUnauthorized)
 				return
-			} else if err != nil {
-				logger.Log.Error("cookie read error", "error", err)
-				http.Error(w, "Invalid cookie", http.StatusInternalServerError)
-				return
 			}
-			token, err := a.jwtService.DecodeToken(accessCookie.Value)
+
+			token, err := a.jwtService.DecodeToken(tokenString)
 			if err != nil {
 				utils.WriteErrorAndStatusCode(w, err)
 				return

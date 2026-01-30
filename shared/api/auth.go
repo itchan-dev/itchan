@@ -26,7 +26,8 @@ type RegisterResponse struct {
 }
 
 type LoginResponse struct {
-	Message string `json:"message"`
+	Message     string `json:"message"`
+	AccessToken string `json:"access_token,omitempty"` // Token for non-cookie clients (mobile, API clients)
 }
 
 type LogoutResponse struct {

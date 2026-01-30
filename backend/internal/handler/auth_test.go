@@ -256,7 +256,7 @@ func TestAuthLoginHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.JSONEq(t, `{"message":"You logged in"}`, rr.Body.String())
+		assert.JSONEq(t, `{"message":"You logged in","access_token":"test_access_token"}`, rr.Body.String())
 
 		cookies := rr.Result().Cookies()
 		require.Len(t, cookies, 1)
