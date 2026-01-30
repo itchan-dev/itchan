@@ -70,7 +70,6 @@
 {{/* Post header with all standard elements */}}
 {{define "post-header"}}
 <div class="post-header">
-    <input type="checkbox" name="delete" value="{{.Message.Id}}">
     {{/* Show pinned indicator for OP messages (id=1) */}}
     {{if and .Message.IsOp .Message.Context.IsPinned}}<span class="pinned-indicator" title="Pinned thread">[Pinned]</span>{{end}}
     {{if .Message.Context.Subject}}<span class="post-subject">{{.Message.Context.Subject}}</span>{{end}}
@@ -79,11 +78,6 @@
     <span class="post-id"><a href="/{{.Message.Board}}/{{.Message.ThreadId}}" class="thread-link">No.</a>{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-link" "Text" .Message.Id)}}</span>
     <span class="post-reply">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Anchor" "reply-" "Class" "post-reply-link" "Text" "[reply]")}}</span>
     <span class="post-reply-popup">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-reply-popup-link" "Text" "[popup-reply]")}}</span>
-    {{if .Message.Replies}}
-        {{range .Message.Replies}}
-            <span class="reply-link">{{template "message-link" (dict "Board" .Board "ThreadId" .FromThreadId "MessageId" .From "Page" .FromPage)}}</span>
-        {{end}}
-    {{end}}
     {{if .User}}
         {{if .User.Admin}}
             {{/* Show pin toggle for OP messages (id=1) */}}
@@ -92,6 +86,11 @@
             {{end}}
             {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete" "CSRFToken" $.CSRFToken}}
             {{template "blacklist-button" dict "UserId" .Message.Author.Id "CSRFToken" $.CSRFToken}}
+        {{end}}
+    {{end}}
+    {{if .Message.Replies}}
+        {{range .Message.Replies}}
+            <span class="reply-link">{{template "message-link" (dict "Board" .Board "ThreadId" .FromThreadId "MessageId" .From "Page" .FromPage)}}</span>
         {{end}}
     {{end}}
 </div>
@@ -182,27 +181,27 @@
 
 {{/* Generic delete button form */}}
 {{define "delete-button"}}
-<form method="POST" action="{{.Action}}" class="delete-form" onsubmit="return confirm('{{.ConfirmMessage}}');">
+<form method="POST" action="{{.Action}}" class="delete-form js-confirm-form" data-confirm-message="{{.ConfirmMessage}}">
     {{template "csrf-field" .}}
-    [<button type="submit" class="delete-button">{{.ButtonText}}</button>]
+    <button type="submit" class="delete-button">{{.ButtonText}}</button>
 </form>
 {{end}}
 
 {{/* Blacklist button form */}}
 {{define "blacklist-button"}}
-<form method="POST" action="/blacklist/user" class="blacklist-form" onsubmit="return promptBlacklistReason(event);">
+<form method="POST" action="/blacklist/user" class="blacklist-form">
     {{template "csrf-field" .}}
     <input type="hidden" name="userId" value="{{.UserId}}">
     <input type="hidden" name="reason" value="">
-    [<button type="submit" class="blacklist-button">blacklist</button>]
+    <button type="submit" class="blacklist-button">blacklist</button>
 </form>
 {{end}}
 
 {{/* Pin toggle button form */}}
 {{define "pin-toggle-button"}}
-<form method="POST" action="{{.Action}}" class="pin-form">
+<form method="POST" action="{{.Action}}" class="pin-form js-confirm-form">
     {{template "csrf-field" .}}
-    [<button type="submit" class="pin-button">{{if .IsPinned}}unpin{{else}}pin{{end}}</button>]
+    <button type="submit" class="pin-button">{{if .IsPinned}}unpin{{else}}pin{{end}}</button>
 </form>
 {{end}}
 
