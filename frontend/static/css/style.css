@@ -1,675 +1,589 @@
 /* ==========================================
-   Futaba/4chan Style CSS - Minimalist
+   ITchan - Old School Gray Theme
    ========================================== */
 
+:root {
+    --bg-page: #e2e2e2;
+    --bg-post: #d3d3d3;
+    --bg-form: #d3d3d3;
+    --bg-input: #f8f9fa;
+
+    --text: #212529;
+    --text-dim: #495057;
+    --text-dark: #6c757d;
+
+    --border: #b4b4b4;
+
+    --link: #495057;
+    --link-hover: #212529;
+
+    --green: #789922;
+    --red: #c92a2a;
+    --orange: #e67700;
+
+    --font: Verdana, Geneva, sans-serif;
+    --font-mono: Consolas, 'Courier New', monospace;
+}
+
 /* ==========================================
-   Reset and General Styles
+   Reset
    ========================================== */
-   body {
-    font-family: sans-serif; /* Or Arial, Verdana */
+* { box-sizing: border-box; }
+
+body {
+    font-family: var(--font);
     font-size: 10pt;
     margin: 0;
-    padding: 8px; /* Padding around the edge */
-    background-color: #eee; /* Light grey page background */
-    color: #000; /* Black text */
-    line-height: 1.4;
+    padding: 4px;
+    background: var(--bg-page);
+    color: var(--text);
+    line-height: 1.3;
 }
 
 a {
-    color: #0000ee; /* Standard blue link */
+    color: var(--link);
     text-decoration: underline;
 }
-
 a:hover {
-    color: #dd0000; /* Red hover */
+    color: var(--link-hover);
 }
 
 h1, h2, h3 {
-    color: #af0a0f; /* Dark red for headings */
-    margin-top: 0.5em;
-    margin-bottom: 0.5em;
+    color: var(--text);
+    margin: 0.3em 0;
     font-weight: bold;
 }
-h1 { font-size: 1.4em; }
-h2 { font-size: 1.2em; }
-h3 { font-size: 1.1em; }
-
+h1 { font-size: 1.3em; }
+h2 { font-size: 1.1em; }
+h3 { font-size: 1em; }
 
 hr {
     border: 0;
     height: 1px;
-    background-color: #999; /* Grey horizontal rule */
-    margin: 10px 0;
+    background: var(--border);
+    margin: 8px 0;
 }
-
-hr.section-separator {
-    margin: 20px 0;
-}
-hr.thread-separator {
-    margin: 15px 0;
-}
-hr.post-separator {
-    margin: 10px 0;
-}
-
 
 blockquote {
-    margin: 0.5em 0 0.5em 0.5em; /* Remove default large margins */
+    margin: 0.3em 0 0.3em 0.3em;
     padding: 0;
 }
 
-/* Greentext (lines starting with >) */
 .greentext {
-    color: #789922; /* Classic imageboard green */
-    display: block; /* Make it a block element to prevent spacing issues */
-    margin: 0; /* Remove default margins */
+    color: var(--green);
+    display: block;
+    margin: 0;
 }
 
-/* Code blocks and inline code */
+/* Code */
 pre {
-    background-color: #f0f0f0; /* Light grey background for code blocks */
-    border: 1px solid #ccc;
-    border-left: 3px solid #999; /* Accent border */
-    padding: 8px 10px;
-    margin: 0; /* Remove margins to prevent spacing issues */
-    overflow-x: auto; /* Horizontal scroll for long lines */
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.9em;
-    line-height: 1.4;
-    display: block; /* Ensure block-level display */
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--text-dim);
+    padding: 4px 6px;
+    margin: 2px 0;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    line-height: 1.3;
 }
 
 pre code {
-    background-color: transparent; /* No background when inside pre */
+    background: none;
     border: none;
     padding: 0;
-    color: #000;
 }
 
 code {
-    background-color: #f5f5f5; /* Subtle background for inline code */
-    border: 1px solid #ddd;
-    padding: 1px 4px;
-    border-radius: 2px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.9em;
-    color: #000;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    padding: 0 3px;
+    font-family: var(--font-mono);
+    font-size: 9pt;
 }
-
 
 /* ==========================================
-   Header Styles
+   Header
    ========================================== */
 .site-header {
-    background-color: #d6daf0; /* Light blue/purple header bg */
-    padding: 2px 5px;
-    border-bottom: 1px solid #999;
-    font-size: 0.9em;
-    margin-bottom: 10px;
+    background: var(--bg-form);
+    padding: 2px 6px;
+    border-bottom: 1px solid var(--border);
+    font-size: 9pt;
+    margin-bottom: 8px;
 }
+
 .header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
+
 .header-left {
     display: flex;
     align-items: center;
 }
+
 .site-title {
-    margin: 0 15px 0 0;
-    font-size: 1.2em; /* Slightly larger */
-    color: #af0a0f; /* Match heading color */
-    font-weight: bold;
+    margin: 0 10px 0 0;
+    font-size: 1.1em;
 }
 .site-title a {
-    color: inherit;
+    color: var(--text);
     text-decoration: none;
 }
 .site-title a:hover {
     text-decoration: none;
+    color: var(--link-hover);
 }
-.main-nav a {
-    margin: 0 3px;
-    font-weight: bold;
-    color: #0000ee;
-}
+
 .auth-links {
-    font-size: 0.9em;
+    font-size: 9pt;
 }
-.auth-links a, .auth-links span {
-    margin-left: 8px;
-    color: #0000ee;
+.auth-links a {
+    margin-left: 4px;
 }
 .auth-links span.user-info {
-     color: #555; /* Grey for user email */
-     font-weight: bold;
+    color: var(--text-dim);
 }
 
-
 /* ==========================================
-   Main Content Area
+   Content
    ========================================== */
+.content {
+    padding: 0 4px;
+}
+
+/* Center only homepage/board list */
+.index-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.index-container h1 {
+    text-align: center;
+}
 
 /* ==========================================
-   Board List Styles (Index Page)
+   Board List
    ========================================== */
 .boards-list {
-    list-style-type: none;
+    list-style: none;
     padding: 0;
-    margin: 0 0 20px 0;
-    line-height: 1.6;
+    margin: 0 0 10px 0;
+    line-height: 1.8;
+    font-size: 11pt;
+    text-align: center;
 }
 
 .boards-list li {
-    margin-bottom: 2px;
+    margin-bottom: 3px;
 }
 
 .boards-list a {
     font-weight: bold;
 }
 
-.boards-list form.delete-form {
-    display: inline; /* Keep on same line */
-    margin-left: 5px;
+.boards-list .delete-form {
+    margin-left: 4px;
 }
-.boards-list form.delete-form button.delete-button {
-     font-size: 0.8em;
-     color: #dd0000;
-     background: none;
-     border: none;
-     padding: 0;
-     text-decoration: underline;
-     cursor: pointer;
-     font-family: sans-serif; /* Inherit */
-}
-.boards-list form.delete-form button.delete-button:hover {
-    color: #ff0000;
-}
-
-/* Blacklist button */
-.blacklist-form {
+/* Shared form styles for inline action buttons */
+.delete-form, .blacklist-form, .pin-form {
     display: inline;
     margin: 0;
     padding: 0;
 }
 
-.blacklist-button {
-    background: none;
-    border: none;
-    color: #d00;
-    text-decoration: none;
-    cursor: pointer;
-    padding: 0;
-    margin: 0;
-    font-size: 10pt;
-    font-family: inherit;
-}
-
-.blacklist-button:hover {
-    color: #f00;
-    text-decoration: underline;
-}
-
-/* Pinned indicator - visible to all users */
-.pinned-indicator {
-    color: #ff6600;
-    font-weight: bold;
-    margin-right: 5px;
-}
-
-/* Pin toggle form - inline with other buttons */
-.pin-form {
-    display: inline;
-    margin: 0;
-    padding: 0;
-}
-
-/* Pin toggle button */
+/* Shared action button base styles */
+.action-button,
+.delete-button,
+.blacklist-button,
 .pin-button {
     background: none;
     border: none;
-    color: #ff6600;
-    text-decoration: none;
     cursor: pointer;
     padding: 0;
     margin: 0;
-    font-size: 10pt;
-    font-family: inherit;
+    font-size: 9pt;
+    font-family: var(--font);
+    color: inherit;
+    text-decoration: none;
 }
-
+.action-button:hover,
+.delete-button:hover,
+.blacklist-button:hover,
 .pin-button:hover {
-    color: #ff9900;
     text-decoration: underline;
 }
 
+/* Board-specific delete button styling */
+.boards-list .delete-button {
+    color: var(--red);
+    text-decoration: underline;
+}
+
+.pinned-indicator {
+    color: var(--orange);
+    font-weight: bold;
+    margin-right: 3px;
+}
+
 /* ==========================================
-   General Form Styles (Tables)
+   Forms
    ========================================== */
 .post-form-container, .admin-panel, .auth-form {
-    background-color: #d6daf0; /* Same as header bg */
-    padding: 5px;
-    margin-bottom: 10px;
-    border: 1px solid #999;
-    display: inline-block; /* Shrink wrap */
+    background: var(--bg-form);
+    padding: 4px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    display: inline-block;
     vertical-align: top;
 }
 
 .form-table {
     border-collapse: collapse;
-    width: auto;
-    margin: 0;
 }
 
 .form-table td {
-    padding: 2px 4px;
+    padding: 1px 3px;
     vertical-align: middle;
-    font-size: 1em; /* Should be 10pt */
+    font-size: 10pt;
 }
 
 .form-table td.form-label {
     text-align: left;
     font-weight: bold;
-    color: #333;
-    padding-right: 8px;
+    color: var(--text-dim);
+    padding-right: 6px;
     white-space: nowrap;
 }
+
 .form-table tr:has(textarea) td.form-label {
-     vertical-align: top;
-     padding-top: 4px; /* Align better with textarea */
+    vertical-align: top;
+    padding-top: 3px;
 }
 
-/* Inputs and Textareas */
 .form-table input[type="text"],
 .form-table input[type="password"],
 .form-table input[type="email"],
 .form-table textarea {
     margin: 0;
-    padding: 3px;
-    border: 1px solid #999; /* Grey border */
-    border-radius: 0; /* Sharp corners */
-    background-color: #fff;
-    color: #000;
-    font-size: 10pt; /* Match body */
-    font-family: sans-serif;
-    box-sizing: border-box;
+    padding: 2px 3px;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 10pt;
+    font-family: var(--font);
 }
 
-.form-table input[type="text"]:focus,
-.form-table input[type="password"]:focus,
-.form-table input[type="email"]:focus,
+.form-table textarea {
+    width: 100%;
+}
+
+.form-table input:focus,
 .form-table textarea:focus {
-    border-color: #555; /* Darker focus border */
+    border-color: var(--text-dim);
     outline: none;
 }
 
 .form-table textarea {
     resize: vertical;
     line-height: 1.3;
-    min-height: 50px; /* Chan textareas are often small */
-    max-width: 100%; /* Prevent overflow in tables */
+    min-height: 40px;
 }
 
-/* Buttons */
-.form-table button[type="submit"] {
-    padding: 3px 8px;
-    background-color: #eee;
-    border: 1px solid #999;
-    border-radius: 0; /* Sharp corners */
-    color: #000;
+.form-table button[type="submit"],
+button[type="submit"] {
+    padding: 2px 6px;
+    background: var(--bg-post);
+    border: 1px solid var(--border);
+    color: var(--text);
     cursor: pointer;
-    font-weight: normal; /* Not usually bold */
     font-size: 10pt;
-    font-family: sans-serif;
+    font-family: var(--font);
 }
-.form-table button[type="submit"]:hover {
-    background-color: #ddd;
+.form-table button[type="submit"]:hover,
+button[type="submit"]:hover {
+    background: var(--bg-form);
 }
 
-/* Small text/hints in forms */
 .form-table small {
-    font-size: 0.9em;
-    color: #555;
+    font-size: 9pt;
+    color: var(--text-dark);
 }
 
-/* Admin panel specifics */
 .admin-panel {
-    width: auto;
-    max-width: 700px; /* Limit width */
+    max-width:  1200px;
 }
 .admin-panel h2 {
     margin-top: 0;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #999;
-    margin-bottom: 10px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
 }
 
 /* ==========================================
-   Post Styles (Common to Board & Thread)
+   Posts
    ========================================== */
 .post {
-    background-color: #d6daf0; /* Base background */
-    margin: 4px 0; /* Adjust vertical margin */
-    padding: 2px 5px 5px 5px;
-    border: 1px solid #b7c5d9; /* Default border for replies */
-    border-radius: 0;
+    background: var(--bg-post);
+    margin: 2px 0;
+    padding: 2px 4px 4px 4px;
+    border: 1px solid var(--border);
     overflow: hidden;
     line-height: 1.3;
     display: block;
-    box-sizing: border-box;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .post.op-post {
-    border-color: #999; /* Slightly darker/more grey border for OP */
+    background: var(--bg-page);
+    border: none;
+    /* border-left: 2px solid var(--text-dim); */
 }
 
 .post.reply-post {
-    /* Replies often have same background as OP */
-    margin-left: 20px; /* Indent replies */
-    /* max-width adjusted via inline-block nature and parent width */
+    margin-left: 15px;
 }
 
 .post-header {
-    font-size: 0.9em; /* Slightly smaller metadata */
-    color: #117743; /* Green name/metadata color */
-    margin-bottom: 4px;
+    font-size: 9pt;
+    color: var(--text-dim);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow-x: auto;
 }
 .post-header input[type="checkbox"] {
-    margin: 0 5px 0 0;
+    margin: 0 3px 0 0;
     vertical-align: middle;
-    padding: 0;
 }
 
 .post-subject {
-    color: #cc1105; /* Subject color */
+    color: #5b6eb5;
     font-weight: bold;
-    margin-right: 8px;
+    margin-right: 5px;
+    font-size: 10pt;
 }
 
 .post-author {
     font-weight: bold;
-    margin-right: 8px;
+    color: var(--text);
+    margin-right: 5px;
 }
 
 .post-author .admin-badge {
-    color: #af0a0f; /* Dark red to highlight admin status */
-    font-weight: bold;
-    font-size: 0.9em;
+    color: var(--orange);
+    font-size: 9pt;
 }
 
 .post-date {
-    margin-right: 8px;
+    margin-right: 5px;
+    color: var(--text-dark);
 }
 
 .post-id {
-    margin-right: 8px;
+    margin-right: 5px;
 }
 .post-id a {
-    color: inherit; /* Use header color */
-    text-decoration: none; /* No underline on No. */
+    color: var(--link);
+    text-decoration: none;
 }
 .post-id a:hover {
-    color: #dd0000; /* Red hover */
+    color: var(--link-hover);
     text-decoration: underline;
 }
 
-.post-reply {
-    margin-right: 8px;
-}
-.post-reply a {
-    color: inherit;
-    text-decoration: none;
-}
-.post-reply a:hover {
-    color: #dd0000; /* Red hover */
-    text-decoration: underline;
-}
-
+.post-reply,
 .post-reply-popup {
-    margin-right: 8px;
+    margin-right: 5px;
 }
+.post-reply a,
 .post-reply-popup a {
-    color: inherit;
+    color: var(--text-dark);
     text-decoration: none;
 }
+.post-reply a:hover,
 .post-reply-popup a:hover {
-    color: #dd0000; /* Red hover */
+    color: var(--text-dim);
     text-decoration: underline;
 }
 
 .reply-links {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    white-space: normal;
-    vertical-align: top;
-    max-height: 3.6em;
-    overflow-y: auto;
+    display: inline;
+}
+.reply-link {
+    margin-right: 3px;
 }
 .reply-link a {
-    color: #0000ee;
+    color: var(--link);
     text-decoration: underline;
-}
-.reply-link a:hover {
-    color: #dd0000;
+    font-size: 9pt;
 }
 
 .reply-to-info {
-    color: #117743; /* Green color for reply-to info */
-    margin-left: 5px;
-    font-size: 0.9em;
+    color: var(--text-dark);
+    margin-left: 3px;
+    font-size: 9pt;
     font-style: italic;
 }
 .reply-to-info a {
-    color: #0000ee; /* Standard link blue */
-    text-decoration: underline;
-}
-.reply-to-info a:hover {
-    color: #dd0000;
+    color: var(--link);
 }
 
-
+/* Attachments */
 .post-attachments {
-    font-size: 0.9em;
-    margin-top: 4px;
-    margin-bottom: 4px;
-    padding-left: 25px; /* Indent file info */
-    word-wrap: break-word;
-    max-width: 100%;
-    color: #555; /* Grey file info text */
+    font-size: 9pt;
+    margin: 3px 0;
+    padding-left: 15px;
+    color: var(--text-dark);
     display: flex;
     flex-wrap: wrap;
-    gap: 15px; /* Space between attachments */
-    align-items: flex-start; /* Align items to the top */
+    gap: 10px;
 }
 
 .attachment-item {
     display: flex;
     flex-direction: column;
-    max-width: 250px;
+    max-width: 200px;
 }
 
 .attachment-link {
     display: block;
-    line-height: 0; /* Remove extra space below inline images */
+    line-height: 0;
 }
 
 .attachment-thumbnail {
-    max-width: 250px;
-    max-height: 250px;
-    width: auto;
-    height: auto;
-    object-fit: contain; /* Preserve aspect ratio */
+    max-width: 200px;
+    max-height: 200px;
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
+    border: 1px solid var(--border);
 }
 
 .attachment-info {
-    font-size: 0.85em;
+    font-size: 8pt;
     word-break: break-word;
-    max-width: 250px;
 }
-/* Style .post-attachments a specifically if needed */
 
 .post-body {
-    color: #000; /* Black post text */
-    line-height: 1.4; /* Slightly more readable line height */
+    color: var(--text);
+    line-height: 1.4;
     word-wrap: break-word;
     overflow-x: hidden;
-    overflow-y: auto; /* Enable scrolling for overflow */
-    max-width: 100%;
-    max-height: 800px; /* Limit height */
+    overflow-y: auto;
+    max-height: 600px;
     white-space: pre-wrap;
-    /* blockquote used inside */
 }
-.post-body p { /* Reset potential paragraph margins if blockquote isn't used */
+.post-body p {
     margin: 0;
-    padding: 0;
 }
 
-/* ==========================================
-   User Message Highlighting
-   ========================================== */
-
-/* Messages written by current user */
 .post.my-message {
-    background-color: #d6daf0; /* Light blue tint (same as base, but distinct with border) */
-    border-left: 3px solid #34558b; /* Blue accent border */
-}
-
-/* Optional: Subtle hover effect */
-.post.my-message:hover {
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: box-shadow 0.2s ease-in-out;
+    border-left: 2px dotted #5b6eb5;
 }
 
 /* ==========================================
-   Board Page Specifics
+   Board Page
    ========================================== */
 .board-header h1 {
-    margin-bottom: 5px;
     text-align: center;
-    font-size: 2.3em;
+    font-size: 1.8em;
+    margin-bottom: 4px;
 }
-
 .board-header h1 a {
-    color: inherit;
+    color: var(--text);
     text-decoration: none;
 }
-
 .board-header h1 a:hover {
     text-decoration: underline;
 }
 
 .reply-summary {
-    font-size: 0.9em;
-    margin-left: 20px; /* Indent summary like replies */
-    margin-top: 5px;
-    margin-bottom: 5px;
-    color: #555;
+    font-size: 9pt;
+    margin-left: 15px;
+    margin-top: 3px;
+    color: var(--text-dark);
     font-style: italic;
 }
 
-
 /* ==========================================
-   Thread Page Specifics
+   Thread Page
    ========================================== */
 .thread-header {
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
-.thread-header .nav-links {
-    font-size: 0.9em;
-    font-weight: bold;
+.thread-header .nav-links,
+.nav-links {
+    font-size: 9pt;
 }
-.thread-header .nav-links a {
-     margin: 0 5px;
+.nav-links a {
+    margin: 0 3px;
+    color: var(--link);
 }
 
-/* Anchor for #bottom link */
 #bottom {
     display: block;
-    height: 1px; /* Make it take up minimal space */
-    margin-bottom: -1px;
+    height: 1px;
 }
 
-
 /* ==========================================
-   Utility Messages
+   Messages
    ========================================== */
-.success-message,
-.error-message {
-    border: 1px solid #999;
-    padding: 5px 8px;
-    margin: 10px 0;
-    font-size: 1em;
+.success-message, .error-message {
+    border: 1px solid var(--border);
+    padding: 4px 6px;
+    margin: 6px 0;
+    font-size: 10pt;
     font-weight: bold;
-    display: block;
-    box-sizing: border-box; /* Good practice with padding/border */
 }
 
 .success-message {
-    background-color: #dff0d8; /* Light green */
-    color: #3c763d; /* Dark green */
-    border-color: #d6e9c6;
+    background: #d4edda;
+    color: #155724;
+    border-color: #28a745;
 }
 
 .error-message {
-    background-color: #f2dede; /* Light red */
-    color: #a94442; /* Dark red */
-    border-color: #ebccd1;
+    background: #f8d7da;
+    color: #721c24;
+    border-color: #dc3545;
 }
-
 
 /* ==========================================
-   Footer Styles
+   Footer
    ========================================== */
 .site-footer {
-    border-top: 1px solid #999;
-    padding: 5px 0;
+    border-top: 1px solid var(--border);
+    padding: 4px 0;
     text-align: center;
-    color: #555;
-    font-size: 0.8em; /* Smaller footer text */
-    margin-top: 20px;
-    clear: both;
-}
-
-.footer-nav {
-    margin-bottom: 5px;
-}
-.footer-nav a {
-    margin: 0 5px;
-    color: #0000ee;
+    color: var(--text-dark);
+    font-size: 8pt;
+    margin-top: 15px;
 }
 
 .footer-info p {
-    margin: 2px 0;
+    margin: 1px 0;
 }
 
 /* ==========================================
-   Pagination Styles
+   Pagination
    ========================================== */
-   .pagination {
-    text-align: center; /* Center the pagination links */
-    margin: 15px 0; /* Add some space around it */
-    font-size: 1.1em; /* Make links slightly larger */
+.pagination {
+    text-align: center;
+    margin: 8px 0;
+    font-size: 10pt;
     font-weight: bold;
 }
 
 .pagination span {
-    /* Style for the current page number (not a link) */
-    color: #555; /* Grey out the current page */
-    margin: 0 3px; /* Add spacing */
+    color: var(--text-dark);
+    margin: 0 2px;
 }
 
 .pagination a {
-    text-decoration: none; /* Remove underline from page numbers */
-    margin: 0 3px; /* Add spacing */
-    color: #0000ee; /* Standard link blue */
-}
-
-.pagination a:hover {
-    color: #dd0000; /* Red hover */
-    text-decoration: underline;
+    text-decoration: none;
+    margin: 0 2px;
 }
 
 .pagination .page-form {
@@ -677,186 +591,127 @@ code {
 }
 
 .pagination .page-input {
-    width: 3em;
+    width: 2.5em;
     text-align: center;
-    border: 1px solid #999;
-    font-size: inherit;
-    font-weight: inherit;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 10pt;
+    padding: 1px;
 }
 
 /* ==========================================
-   End of Pagination Styles
+   Message Preview
    ========================================== */
-
-   .message-preview {
-    /* Preview-specific styles only */
+.message-preview {
     position: absolute;
-    max-width: 700px;
-    min-width: 300px;
-    box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    max-width: 500px;
+    min-width: 250px;
+    background: var(--bg-post);
+    border: 1px solid var(--text-dim);
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     z-index: 1000;
-    pointer-events: auto;
-    transition: opacity 0.2s ease-in-out;
-    opacity: 1;
-    animation: fadeIn 0.2s ease-in-out;
 }
 
-/* Inherit post-header styles when both classes are present */
 .message-preview .post-header {
-    /* This inherits all .post-header styles automatically */
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 5px;
     align-items: center;
 }
 
-.message-preview .post-header .post-author {
-    font-weight: bold;
-    color: #117743;
-}
-
-.message-preview .post-header .post-date {
-    color: #666;
-    font-size: 0.75em;
-}
-
-.message-preview .post-header .post-id {
-    color: #0000ee;
-    font-weight: bold;
-}
-
-.message-preview .post-header .reply-links {
-    color: #0000ee;
-    font-size: 0.75em;
-}
-
 .message-preview .post-body {
-    margin: 0;
-    padding: 0;
-    max-height: 300px; /* Limit height */
-    overflow-y: auto; /* Enable scrolling for overflow */
-    overflow-x: hidden;
-    line-height: 1.4;
-    word-wrap: break-word;
-    white-space: pre-wrap; /* Preserve line breaks and wrap text */
+    max-height: 250px;
+    overflow-y: auto;
 }
 
-/* Error preview styling */
 .message-preview.error-preview {
-    background-color: #ffe6e6;
-    border-color: #ff6b6b;
+    background: #f8d7da;
+    border-color: var(--red);
 }
-
 .message-preview.error-preview .post-header {
-    color: #d63031;
-    border-bottom-color: #ff6b6b;
+    color: var(--red);
 }
-
 .message-preview.error-preview .post-body {
-    color: #d63031;
+    color: var(--red);
     font-style: italic;
 }
 
-/* Loading state */
 .message-preview.loading .post-body {
-    color: #666;
+    color: var(--text-dark);
     font-style: italic;
 }
 
-/* Style for the message links */
 .message-link {
     cursor: pointer;
-    text-decoration: none;
-    color: #0000ee;
-}
-
-.message-link:hover {
-    text-decoration: underline;
-}
-
-/* Smooth transitions for preview */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-5px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    color: var(--link);
 }
 
 /* ==========================================
-   Popup Reply Form Styles
+   Popup Reply
    ========================================== */
-
-/* This class now ONLY handles the positioning and layering.
-   Background, border, and padding are inherited from .post-form-container. */
-   .popup-reply-container {
+.popup-reply-container {
     position: absolute;
     z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    /* The display: inline-block from .post-form-container is fine;
-       position: absolute removes it from the normal document flow. */
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
 .popup-close-btn {
     position: absolute;
-    top: 2px;
-    right: 5px;
+    top: 1px;
+    right: 4px;
     background: none;
     border: none;
-    font-size: 1.5em;
+    font-size: 2em;
     cursor: pointer;
-    color: #800000;
+    color: var(--text-dark);
+}
+.popup-close-btn:hover {
+    color: var(--red);
 }
 
 /* ==========================================
-   File Preview Styles
+   File Preview
    ========================================== */
-
 .file-hint {
-    font-size: 0.85em;
-    color: #666;
+    font-size: 8pt;
+    color: var(--text-dark);
     font-style: italic;
-    margin-top: 2px;
-    margin-bottom: 5px;
+    margin: 2px 0 4px;
 }
 
 .file-preview-list {
-    margin-top: 8px;
+    margin-top: 6px;
 }
 
 .file-preview-header {
-    font-size: 0.9em;
+    font-size: 9pt;
     font-weight: bold;
-    color: #333;
-    margin-bottom: 5px;
+    color: var(--text-dim);
+    margin-bottom: 3px;
 }
 
 .file-preview-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background-color: #f5f5f5;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    padding: 5px 8px;
-    margin-bottom: 5px;
-    font-size: 0.85em;
+    gap: 6px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    padding: 3px 5px;
+    margin-bottom: 3px;
+    font-size: 9pt;
 }
 
 .file-preview-thumbnail {
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 30px;
     object-fit: cover;
-    border-radius: 2px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
 }
 
 .file-preview-icon {
-    font-size: 24px;
-    width: 40px;
+    font-size: 20px;
+    width: 30px;
     text-align: center;
 }
 
@@ -865,91 +720,43 @@ code {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #333;
 }
 
 .file-preview-size {
-    color: #666;
-    white-space: nowrap;
-    font-size: 0.9em;
+    color: var(--text-dark);
+    font-size: 8pt;
 }
 
 .file-preview-remove {
-    background-color: #dc3545;
-    color: white;
+    background: var(--red);
+    color: #fff;
     border: none;
-    border-radius: 3px;
-    width: 24px;
-    height: 24px;
+    width: 18px;
+    height: 18px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 14px;
     line-height: 1;
     padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.file-preview-remove:hover {
-    background-color: #c82333;
 }
 
 /* ==========================================
-   Account Page Styles
+   Account Page
    ========================================== */
-
 .account-info {
-    background: #f5f5f5;
-    padding: 15px;
-    margin: 15px 0;
-    border-radius: 5px;
+    background: var(--bg-form);
+    padding: 8px;
+    margin: 8px 0;
+    border: 1px solid var(--border);
 }
 
 .account-info p {
-    margin: 5px 0;
-}
-
-.activity-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 15px 0;
-}
-
-.activity-table th,
-.activity-table td {
-    padding: 10px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
-}
-
-.activity-table th {
-    background-color: #f5f5f5;
-    font-weight: bold;
-}
-
-.activity-table tr:hover {
-    background-color: #f9f9f9;
-}
-
-.text-preview {
-    max-width: 400px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: #666;
-    font-size: 0.9em;
-}
-
-.message-link {
-    font-family: monospace;
-    color: #0066cc;
-    text-decoration: none;
-}
-
-.message-link:hover {
-    text-decoration: underline;
+    margin: 3px 0;
 }
 
 /* ==========================================
-   End of Stylesheet
+   Selection
    ========================================== */
+::selection {
+    background: var(--text-dim);
+    color: var(--bg-input);
+}

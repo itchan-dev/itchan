@@ -690,6 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.uploadPreviewManager = new UploadPreviewManager();
     console.log('Upload preview manager initialized');
 
+    // Setup form confirmation handlers
+    setupFormHandlers();
+
     // Add form validation for message posting (text OR attachments required)
     document.addEventListener('submit', (e) => {
         const form = e.target;
@@ -707,22 +710,37 @@ document.addEventListener('DOMContentLoaded', () => {
 // Handle hash changes on same page (thread page clicks)
 window.addEventListener('hashchange', handleReplyHash);
 
-// Blacklist prompt handler
-function promptBlacklistReason(event) {
-    const reason = prompt("Enter reason for blacklist (optional):");
-    if (reason === null) {
-        // User clicked Cancel
-        return false;
-    }
+// Setup form handlers (delete confirmations, blacklist prompts)
+function setupFormHandlers() {
+    // Handle all form submissions with event delegation
+    document.addEventListener('submit', (e) => {
+        const form = e.target;
 
-    // Set the reason value in the hidden input
-    const form = event.target;
-    const reasonInput = form.querySelector('input[name="reason"]');
-    if (reasonInput) {
-        reasonInput.value = reason || '';
-    }
+        // Handle delete forms with confirmation
+        if (form.classList.contains('js-confirm-form')) {
+            const confirmMsg = form.dataset.confirmMessage || 'Are you sure you want to do this?';
+            if (!confirm(confirmMsg)) {
+                e.preventDefault();
+                return false;
+            }
+        }
 
-    return true; // Allow form submission
+        // Handle blacklist forms with prompt
+        if (form.classList.contains('blacklist-form')) {
+            const reason = prompt("Enter reason for blacklist (optional):");
+            if (reason === null) {
+                // User clicked Cancel
+                e.preventDefault();
+                return false;
+            }
+
+            // Set the reason value in the hidden input
+            const reasonInput = form.querySelector('input[name="reason"]');
+            if (reasonInput) {
+                reasonInput.value = reason || '';
+            }
+        }
+    });
 }
 
 // Validation: Ensure message forms have either text OR attachments
