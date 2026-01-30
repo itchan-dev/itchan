@@ -105,6 +105,37 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		return err
 	}
 
+	// Check domain restrictions
+	if len(a.cfg.AllowedRegistrationDomains) > 0 {
+		emailDomain, err := a.emailCrypto.ExtractDomain(email)
+		if err != nil {
+			logger.Log.Warn("failed to extract domain during registration",
+				"error", err)
+			return &errors.ErrorWithStatusCode{
+				Message:    "Invalid email format",
+				StatusCode: http.StatusBadRequest,
+			}
+		}
+
+		// Case-insensitive exact domain matching
+		allowed := false
+		for _, allowedDomain := range a.cfg.AllowedRegistrationDomains {
+			if strings.EqualFold(emailDomain, allowedDomain) {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			logger.Log.Info("registration blocked - domain not allowed",
+				"domain", emailDomain)
+			return &errors.ErrorWithStatusCode{
+				Message:    "Registration is restricted to specific email domains",
+				StatusCode: http.StatusForbidden,
+			}
+		}
+	}
+
 	// Hash email for storage lookups
 	emailHash := a.emailCrypto.Hash(email)
 

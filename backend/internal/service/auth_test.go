@@ -473,6 +473,202 @@ func TestRegister(t *testing.T) {
 	})
 }
 
+func TestRegisterWithDomainRestrictions(t *testing.T) {
+	t.Run("Empty allowed domains - allows all domains", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		email := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		service := NewAuth(storage, email, jwt, &config.Public{
+			ConfirmationCodeLen:        8,
+			ConfirmationCodeTTL:        10 * time.Minute,
+			AllowedRegistrationDomains: []string{}, // Empty = allow all
+		}, nil, emailCrypto)
+
+		saveCalled := false
+		sendCalled := false
+		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
+			saveCalled = true
+			return nil
+		}
+		email.SendFunc = func(recipientEmail, subject, body string) error {
+			sendCalled = true
+			return nil
+		}
+
+		// Act
+		err := service.Register(domain.Credentials{Email: "user@anydomain.com", Password: "password"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, saveCalled)
+		assert.True(t, sendCalled)
+	})
+
+	t.Run("Allowed domain - registration succeeds", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		email := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		service := NewAuth(storage, email, jwt, &config.Public{
+			ConfirmationCodeLen:        8,
+			ConfirmationCodeTTL:        10 * time.Minute,
+			AllowedRegistrationDomains: []string{"gmail.com"},
+		}, nil, emailCrypto)
+
+		saveCalled := false
+		sendCalled := false
+		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
+			saveCalled = true
+			return nil
+		}
+		email.SendFunc = func(recipientEmail, subject, body string) error {
+			sendCalled = true
+			return nil
+		}
+
+		// Act
+		err := service.Register(domain.Credentials{Email: "user@gmail.com", Password: "password"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, saveCalled)
+		assert.True(t, sendCalled)
+	})
+
+	t.Run("Blocked domain - registration fails with 403", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		email := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		service := NewAuth(storage, email, jwt, &config.Public{
+			ConfirmationCodeLen:        8,
+			ConfirmationCodeTTL:        10 * time.Minute,
+			AllowedRegistrationDomains: []string{"gmail.com"},
+		}, nil, emailCrypto)
+
+		saveCalled := false
+		sendCalled := false
+		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
+			saveCalled = true
+			return nil
+		}
+		email.SendFunc = func(recipientEmail, subject, body string) error {
+			sendCalled = true
+			return nil
+		}
+
+		// Act
+		err := service.Register(domain.Credentials{Email: "user@yahoo.com", Password: "password"})
+
+		// Assert
+		require.Error(t, err)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusForbidden, errWithStatus.StatusCode)
+		assert.Contains(t, err.Error(), "Registration is restricted to specific email domains")
+		assert.False(t, saveCalled, "SaveConfirmationData should NOT be called for blocked domains")
+		assert.False(t, sendCalled, "Send should NOT be called for blocked domains")
+	})
+
+	t.Run("Multiple allowed domains - both work", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		email := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		service := NewAuth(storage, email, jwt, &config.Public{
+			ConfirmationCodeLen:        8,
+			ConfirmationCodeTTL:        10 * time.Minute,
+			AllowedRegistrationDomains: []string{"gmail.com", "company.com"},
+		}, nil, emailCrypto)
+
+		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
+			return nil
+		}
+		email.SendFunc = func(recipientEmail, subject, body string) error {
+			return nil
+		}
+
+		// Act & Assert - Test first allowed domain
+		err1 := service.Register(domain.Credentials{Email: "user@gmail.com", Password: "password"})
+		require.NoError(t, err1)
+
+		// Act & Assert - Test second allowed domain
+		err2 := service.Register(domain.Credentials{Email: "admin@company.com", Password: "password"})
+		require.NoError(t, err2)
+
+		// Act & Assert - Test blocked domain
+		err3 := service.Register(domain.Credentials{Email: "hacker@evil.com", Password: "password"})
+		require.Error(t, err3)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err3, &errWithStatus))
+		assert.Equal(t, http.StatusForbidden, errWithStatus.StatusCode)
+	})
+
+	t.Run("Case-insensitive domain matching", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		email := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		service := NewAuth(storage, email, jwt, &config.Public{
+			ConfirmationCodeLen:        8,
+			ConfirmationCodeTTL:        10 * time.Minute,
+			AllowedRegistrationDomains: []string{"gmail.com"}, // lowercase in config
+		}, nil, emailCrypto)
+
+		saveCalled := false
+		sendCalled := false
+		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
+			saveCalled = true
+			return nil
+		}
+		email.SendFunc = func(recipientEmail, subject, body string) error {
+			sendCalled = true
+			return nil
+		}
+
+		// Act - User enters uppercase domain
+		err := service.Register(domain.Credentials{Email: "user@Gmail.COM", Password: "password"})
+
+		// Assert - Should succeed (case insensitive)
+		require.NoError(t, err)
+		assert.True(t, saveCalled)
+		assert.True(t, sendCalled)
+	})
+
+	t.Run("ExtractDomain error - domain extraction fails", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		email := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{
+			ExtractDomainFunc: func(email string) (string, error) {
+				return "", errors.New("domain extraction failed")
+			},
+		}
+		service := NewAuth(storage, email, jwt, &config.Public{
+			ConfirmationCodeLen:        8,
+			ConfirmationCodeTTL:        10 * time.Minute,
+			AllowedRegistrationDomains: []string{"gmail.com"},
+		}, nil, emailCrypto)
+
+		// Act - Use valid email format so IsCorrect passes
+		err := service.Register(domain.Credentials{Email: "user@example.com", Password: "password"})
+
+		// Assert
+		require.Error(t, err)
+		var errWithStatus *internal_errors.ErrorWithStatusCode
+		require.True(t, errors.As(err, &errWithStatus))
+		assert.Equal(t, http.StatusBadRequest, errWithStatus.StatusCode)
+		assert.Contains(t, err.Error(), "Invalid email format")
+	})
+}
+
 func TestCheckConfirmationCode(t *testing.T) {
 	storage := &MockAuthStorage{}
 	emailMock := &MockEmail{} // Renamed to avoid conflict with package name

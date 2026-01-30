@@ -62,6 +62,9 @@ type Public struct {
 
 	// Message processing settings
 	MaxRepliesPerMessage int `yaml:"max_replies_per_message"` // Maximum number of >>thread#msg reply links per message
+
+	// Registration restrictions
+	AllowedRegistrationDomains []string `yaml:"allowed_registration_domains"` // Empty = allow all domains. Example: ["gmail.com", "company.com"]
 }
 
 type Pg struct {
@@ -237,5 +240,10 @@ func applyValidationDefaults(public *Public) {
 	// Message processing defaults
 	if public.MaxRepliesPerMessage == 0 {
 		public.MaxRepliesPerMessage = 50
+	}
+
+	// Registration domain restrictions (empty = allow all)
+	if public.AllowedRegistrationDomains == nil {
+		public.AllowedRegistrationDomains = []string{}
 	}
 }
