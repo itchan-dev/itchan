@@ -61,7 +61,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, cookie)
 
-	writeJSON(w, api.LoginResponse{Message: "You logged in"})
+	writeJSON(w, api.LoginResponse{
+		Message:     "You logged in",
+		AccessToken: accessToken,
+	})
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

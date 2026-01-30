@@ -42,6 +42,7 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 ### Authentication & Authorization
 - **User Registration**: Email-based registration with confirmation codes
 - **JWT Authentication**: Secure, stateless authentication using JWT tokens
+- **Dual Auth Methods**: Cookie-based (browsers) and Bearer token (API/mobile clients) support
 - **Admin Roles**: Special privileges for board and content moderation
 - **User Blacklist**: Admin-managed user blacklist with cached validation for banned users
 - **Board Permissions**: Domain-based access control (restrict boards to specific email domains)
@@ -69,10 +70,18 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 ┌─────────────────────────────────────────────────────────────┐
 │                      Docker Compose                          │
 ├──────────────┬──────────────────────┬──────────────────────┤
-│   Frontend   │      Backend API      │   PostgreSQL 17.6    │
-│   (Go HTML)  │    (REST Service)     │   (Partitioned DB)   │
-│   Port 8081  │      Port 8080        │      Port 5432       │
+│   Frontend   │   Backend API        │   PostgreSQL 17.6    │
+│   (Go HTML)  │   (REST Service)     │   (Partitioned DB)   │
+│   Port 8081  │   Port 8080          │      Port 5432       │
+│              │   Frontend-Agnostic  │                      │
+│              │   JSON API           │                      │
 └──────────────┴──────────────────────┴──────────────────────┘
+                       ▲
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+    Web Browsers   Mobile Apps    API Clients
+    (Cookies)      (Bearer)       (Bearer)
 
 Backend Layers:
   Handler    ← HTTP routing, JSON I/O, validation
@@ -91,11 +100,11 @@ Shared Modules:
 
 ## Tech Stack
 
-- **Backend**: Go 1.24+
-- **Frontend**: Go templates (html/template)
+- **Backend**: Go 1.24+ (frontend-agnostic JSON REST API)
+- **Frontend**: Go templates (html/template) - replaceable with any client
 - **Database**: PostgreSQL 17.6 with partitioning
 - **Router**: Chi (go-chi/chi)
-- **Auth**: JWT (golang-jwt/jwt)
+- **Auth**: JWT (golang-jwt/jwt) with dual-mode support (Cookie + Bearer)
 - **Markdown**: Goldmark
 - **Media Processing**: ffmpeg (for metadata sanitization)
 - **Monitoring**: Prometheus + Grafana (optional)
@@ -431,18 +440,46 @@ email:
 
 ## API Endpoints
 
-### Authentication
+### Authentication Methods
+
+The API supports **two authentication methods**:
+
+1. **Cookie-based** (automatic for browsers):
+   - Login sets an HTTP-only cookie with the JWT
+   - Subsequent requests include the cookie automatically
+   - Best for browser-based clients
+
+2. **Bearer Token** (for API/mobile clients):
+   - Login returns `access_token` in response body
+   - Include token in requests: `Authorization: Bearer <token>`
+   - Best for mobile apps, CLI tools, third-party integrations
+
+### Authentication Endpoints
 ```
 POST   /v1/auth/register                 - Register new user (rate limited: 1/10s per IP)
 POST   /v1/auth/check_confirmation_code  - Verify email confirmation code
-POST   /v1/auth/login                    - Login with credentials
+POST   /v1/auth/login                    - Login with credentials (returns access_token)
 POST   /v1/auth/logout                   - Logout (clear cookies)
+```
+
+**Login Response:**
+```json
+{
+  "message": "You logged in",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
 ```
 
 ### Boards (Authenticated)
 ```
 GET    /v1/boards                        - List all accessible boards
 GET    /v1/{board}                       - Get board with threads (paginated)
+```
+
+**Example with Bearer Token:**
+```bash
+curl -H "Authorization: Bearer <your_token>" \
+  http://localhost:8080/v1/boards
 ```
 
 ### Threads (Authenticated)
@@ -478,6 +515,50 @@ POST   /v1/admin/blacklist/refresh       - Manually refresh blacklist cache
 - **Get Board**: 10 RPS per user
 - **General authenticated**: 100 RPS per user
 - **Admin**: No rate limits
+
+### Example Usage
+
+**Browser/Frontend (Cookie-based):**
+```javascript
+// Login - cookie set automatically
+await fetch('http://localhost:8080/v1/auth/login', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'user@example.com', password: 'pass' })
+});
+
+// Subsequent requests - cookie sent automatically
+await fetch('http://localhost:8080/v1/boards', { credentials: 'include' });
+```
+
+**API/Mobile Clients (Bearer Token):**
+```bash
+# Login and extract token
+TOKEN=$(curl -X POST http://localhost:8080/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"pass"}' \
+  | jq -r '.access_token')
+
+# Use token in requests
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/boards
+```
+
+**Python:**
+```python
+import requests
+
+# Login
+response = requests.post('http://localhost:8080/v1/auth/login',
+    json={'email': 'user@example.com', 'password': 'pass'})
+token = response.json()['access_token']
+
+# Use token
+headers = {'Authorization': f'Bearer {token}'}
+boards = requests.get('http://localhost:8080/v1/boards', headers=headers)
+```
+
+See [BEARER_AUTH_EXAMPLE.md](BEARER_AUTH_EXAMPLE.md) for more examples (React Native, Flutter, Node.js, etc.)
 
 ## Frontend
 
@@ -553,6 +634,7 @@ Integration tests use a separate test database and clean up after execution.
 
 ### Authentication & Authorization
 - **JWT-based authentication** with configurable TTL
+- **Dual authentication support**: Cookie-based (browsers) and Bearer token (API clients)
 - **Blacklist cache validation**: Automatic JWT rejection for blacklisted users with cached validation
 - **Secure cookie storage** with HttpOnly and Secure flags (when enabled)
 - **Password hashing** using bcrypt
