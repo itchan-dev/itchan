@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/itchan-dev/itchan/shared/blacklist"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
@@ -1613,6 +1614,431 @@ func TestGenerateInvite(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.Nil(t, invite)
+		assert.True(t, errors.Is(err, mockError))
+	})
+}
+
+func TestGetUserInvites(t *testing.T) {
+	storage := &MockAuthStorage{}
+	emailMock := &MockEmail{}
+	jwt := &MockJwt{}
+	emailCrypto := &MockEmailCrypto{}
+	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto)
+
+	userId := domain.UserId(42)
+
+	t.Run("successfully get user invites", func(t *testing.T) {
+		// Arrange
+		expectedInvites := []domain.InviteCode{
+			{CodeHash: "hash1", CreatedBy: userId},
+			{CodeHash: "hash2", CreatedBy: userId},
+		}
+		storage.GetInvitesByUserFunc = func(id domain.UserId) ([]domain.InviteCode, error) {
+			assert.Equal(t, userId, id)
+			return expectedInvites, nil
+		}
+		defer func() { storage.GetInvitesByUserFunc = nil }()
+
+		// Act
+		invites, err := service.GetUserInvites(userId)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, expectedInvites, invites)
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		// Arrange
+		mockError := errors.New("storage error")
+		storage.GetInvitesByUserFunc = func(id domain.UserId) ([]domain.InviteCode, error) {
+			return nil, mockError
+		}
+		defer func() { storage.GetInvitesByUserFunc = nil }()
+
+		// Act
+		invites, err := service.GetUserInvites(userId)
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, invites)
+		assert.True(t, errors.Is(err, mockError))
+	})
+}
+
+func TestRevokeInvite(t *testing.T) {
+	storage := &MockAuthStorage{}
+	emailMock := &MockEmail{}
+	jwt := &MockJwt{}
+	emailCrypto := &MockEmailCrypto{}
+	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto)
+
+	userId := domain.UserId(42)
+	codeHash := "test_hash_123"
+
+	t.Run("successfully revoke invite", func(t *testing.T) {
+		// Arrange
+		storage.InviteCodeByHashFunc = func(hash string) (domain.InviteCode, error) {
+			assert.Equal(t, codeHash, hash)
+			return domain.InviteCode{
+				CodeHash:  codeHash,
+				CreatedBy: userId, // Owned by the user
+				UsedBy:    nil,    // Not used
+			}, nil
+		}
+		storage.DeleteInviteCodeFunc = func(hash string) error {
+			assert.Equal(t, codeHash, hash)
+			return nil
+		}
+		defer func() {
+			storage.InviteCodeByHashFunc = nil
+			storage.DeleteInviteCodeFunc = nil
+		}()
+
+		// Act
+		err := service.RevokeInvite(userId, codeHash)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		// Arrange
+		mockError := errors.New("storage error")
+		storage.InviteCodeByHashFunc = func(hash string) (domain.InviteCode, error) {
+			return domain.InviteCode{
+				CodeHash:  codeHash,
+				CreatedBy: userId,
+				UsedBy:    nil,
+			}, nil
+		}
+		storage.DeleteInviteCodeFunc = func(hash string) error {
+			return mockError
+		}
+		defer func() {
+			storage.InviteCodeByHashFunc = nil
+			storage.DeleteInviteCodeFunc = nil
+		}()
+
+		// Act
+		err := service.RevokeInvite(userId, codeHash)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
+}
+
+// =========================================================================
+// Blacklist Tests
+// =========================================================================
+
+type MockBlacklistCacheStorage struct {
+	GetRecentlyBlacklistedUsersFunc func(since time.Time) ([]domain.UserId, error)
+}
+
+func (m *MockBlacklistCacheStorage) GetRecentlyBlacklistedUsers(since time.Time) ([]domain.UserId, error) {
+	if m.GetRecentlyBlacklistedUsersFunc != nil {
+		return m.GetRecentlyBlacklistedUsersFunc(since)
+	}
+	return []domain.UserId{}, nil
+}
+
+func TestBlacklistUser(t *testing.T) {
+	targetUserId := domain.UserId(10)
+	adminUserId := domain.UserId(1)
+	reason := "Spam violation"
+
+	t.Run("successfully blacklist user", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		blacklistCalled := false
+		deleteInvitesCalled := false
+		cacheUpdateCalled := false
+
+		storage.BlacklistUserFunc = func(userId domain.UserId, r string, blacklistedBy domain.UserId) error {
+			blacklistCalled = true
+			assert.Equal(t, targetUserId, userId)
+			assert.Equal(t, reason, r)
+			assert.Equal(t, adminUserId, blacklistedBy)
+			return nil
+		}
+		storage.DeleteInvitesByUserFunc = func(userId domain.UserId) error {
+			deleteInvitesCalled = true
+			assert.Equal(t, targetUserId, userId)
+			return nil
+		}
+		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
+			cacheUpdateCalled = true
+			return []domain.UserId{}, nil
+		}
+
+		// Act
+		err := service.BlacklistUser(targetUserId, reason, adminUserId)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, blacklistCalled)
+		assert.True(t, deleteInvitesCalled)
+		assert.True(t, cacheUpdateCalled)
+	})
+
+	t.Run("storage blacklist error", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		mockError := errors.New("storage error")
+		storage.BlacklistUserFunc = func(userId domain.UserId, r string, blacklistedBy domain.UserId) error {
+			return mockError
+		}
+
+		// Act
+		err := service.BlacklistUser(targetUserId, reason, adminUserId)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
+
+	t.Run("delete invites error does not fail request", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		storage.BlacklistUserFunc = func(userId domain.UserId, r string, blacklistedBy domain.UserId) error {
+			return nil
+		}
+		storage.DeleteInvitesByUserFunc = func(userId domain.UserId) error {
+			return errors.New("delete invites error")
+		}
+		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
+			return []domain.UserId{}, nil
+		}
+
+		// Act
+		err := service.BlacklistUser(targetUserId, reason, adminUserId)
+
+		// Assert - Should succeed despite delete invites error
+		require.NoError(t, err)
+	})
+
+	t.Run("cache update error does not fail request", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		storage.BlacklistUserFunc = func(userId domain.UserId, r string, blacklistedBy domain.UserId) error {
+			return nil
+		}
+		storage.DeleteInvitesByUserFunc = func(userId domain.UserId) error {
+			return nil
+		}
+		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
+			return nil, errors.New("cache update error")
+		}
+
+		// Act
+		err := service.BlacklistUser(targetUserId, reason, adminUserId)
+
+		// Assert - Should succeed despite cache update error
+		require.NoError(t, err)
+	})
+}
+
+func TestUnblacklistUser(t *testing.T) {
+	userId := domain.UserId(10)
+
+	t.Run("successfully unblacklist user", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		unblacklistCalled := false
+		cacheUpdateCalled := false
+
+		storage.UnblacklistUserFunc = func(id domain.UserId) error {
+			unblacklistCalled = true
+			assert.Equal(t, userId, id)
+			return nil
+		}
+		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
+			cacheUpdateCalled = true
+			return []domain.UserId{}, nil
+		}
+
+		// Act
+		err := service.UnblacklistUser(userId)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, unblacklistCalled)
+		assert.True(t, cacheUpdateCalled)
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		mockError := errors.New("storage error")
+		storage.UnblacklistUserFunc = func(id domain.UserId) error {
+			return mockError
+		}
+
+		// Act
+		err := service.UnblacklistUser(userId)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, mockError))
+	})
+
+	t.Run("cache update error does not fail request", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		storage.UnblacklistUserFunc = func(id domain.UserId) error {
+			return nil
+		}
+		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
+			return nil, errors.New("cache update error")
+		}
+
+		// Act
+		err := service.UnblacklistUser(userId)
+
+		// Assert - Should succeed despite cache update error
+		require.NoError(t, err)
+	})
+}
+
+func TestGetBlacklistedUsersWithDetails(t *testing.T) {
+	storage := &MockAuthStorage{}
+	emailMock := &MockEmail{}
+	jwt := &MockJwt{}
+	emailCrypto := &MockEmailCrypto{}
+	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto)
+
+	t.Run("successfully get blacklisted users", func(t *testing.T) {
+		// Arrange
+		expectedEntries := []domain.BlacklistEntry{
+			{UserId: 1, Reason: "Spam", BlacklistedBy: 100},
+			{UserId: 2, Reason: "Harassment", BlacklistedBy: 100},
+		}
+		storage.GetBlacklistedUsersWithDetailsFunc = func() ([]domain.BlacklistEntry, error) {
+			return expectedEntries, nil
+		}
+		defer func() { storage.GetBlacklistedUsersWithDetailsFunc = nil }()
+
+		// Act
+		entries, err := service.GetBlacklistedUsersWithDetails()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, expectedEntries, entries)
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		// Arrange
+		mockError := errors.New("storage error")
+		storage.GetBlacklistedUsersWithDetailsFunc = func() ([]domain.BlacklistEntry, error) {
+			return nil, mockError
+		}
+		defer func() { storage.GetBlacklistedUsersWithDetailsFunc = nil }()
+
+		// Act
+		entries, err := service.GetBlacklistedUsersWithDetails()
+
+		// Assert
+		require.Error(t, err)
+		assert.Nil(t, entries)
+		assert.True(t, errors.Is(err, mockError))
+	})
+}
+
+func TestRefreshBlacklistCache(t *testing.T) {
+	t.Run("successfully refresh cache", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		updateCalled := false
+		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
+			updateCalled = true
+			return []domain.UserId{}, nil
+		}
+
+		// Act
+		err := service.RefreshBlacklistCache()
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, updateCalled)
+	})
+
+	t.Run("cache update error", func(t *testing.T) {
+		// Arrange
+		storage := &MockAuthStorage{}
+		emailMock := &MockEmail{}
+		jwt := &MockJwt{}
+		emailCrypto := &MockEmailCrypto{}
+		mockBlacklistStorage := &MockBlacklistCacheStorage{}
+		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto)
+
+		mockError := errors.New("cache update error")
+		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
+			return nil, mockError
+		}
+
+		// Act
+		err := service.RefreshBlacklistCache()
+
+		// Assert
+		require.Error(t, err)
 		assert.True(t, errors.Is(err, mockError))
 	})
 }
