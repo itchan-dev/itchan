@@ -372,8 +372,9 @@ button[type="submit"]:hover {
 
 .post-author {
     font-weight: bold;
-    color: var(--text);
+    color: var(--text-dim);
     margin-right: 5px;
+    font-size: 8pt;
 }
 
 .post-author .admin-badge {
