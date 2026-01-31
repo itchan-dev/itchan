@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -74,8 +75,9 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		})
 	})
 
-	// Static file server
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// Static file server with caching
+	fileServer := http.FileServer(http.Dir("static"))
+	r.Handle("/static/*", http.StripPrefix("/static/", cacheStaticFiles(fileServer, deps.Public.StaticCacheMaxAge)))
 
 	// Create frontend auth middleware wrapper
 	authMw := frontend_mw.NewAuth(deps.AuthMiddleware)
@@ -142,4 +144,13 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	})
 
 	return r
+}
+
+// cacheStaticFiles wraps an http.Handler to add Cache-Control headers for static files
+func cacheStaticFiles(h http.Handler, maxAge time.Duration) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set Cache-Control header for browser caching (max-age expects seconds)
+		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(maxAge.Seconds())))
+		h.ServeHTTP(w, r)
+	})
 }

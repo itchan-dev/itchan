@@ -23,7 +23,7 @@ type Public struct {
 	NLastMsg                    int           `yaml:"n_last_msg" validate:"required"` // number of last messages shown in board preview (materialized view)
 	BumpLimit                   int           `yaml:"bump_limit" validate:"required"` // if thread have more messages it will not get "bumped"
 	BoardPreviewRefreshInterval time.Duration `yaml:"board_preview_refresh_internval" validate:"required"`
-	BoardActivityWindow         time.Duration `yaml:"board_activity_window"` // How far back to check for board activity (should be > refresh interval)
+	BoardActivityWindow         time.Duration `yaml:"board_activity_window"`                        // How far back to check for board activity (should be > refresh interval)
 	BlacklistCacheInterval      int           `yaml:"blacklist_cache_interval" validate:"required"` // Interval in seconds to refresh blacklist cache
 
 	// Security settings
@@ -62,6 +62,9 @@ type Public struct {
 
 	// Message processing settings
 	MaxRepliesPerMessage int `yaml:"max_replies_per_message"` // Maximum number of >>thread#msg reply links per message
+
+	// Static file caching
+	StaticCacheMaxAge time.Duration `yaml:"static_cache_max_age"` // Cache duration in seconds for static files (CSS, JS, images)
 
 	// Registration restrictions
 	AllowedRegistrationDomains []string `yaml:"allowed_registration_domains"` // Empty = allow all domains. Example: ["gmail.com", "company.com"]
@@ -213,7 +216,7 @@ func applyValidationDefaults(public *Public) {
 			public.MaxInvitesPerUser = 5
 		}
 		if public.MinAccountAgeForInvites == 0 {
-			public.MinAccountAgeForInvites = 720 * time.Hour // 30 days (1 month)
+			public.MinAccountAgeForInvites = 720 * time.Hour // 30 days
 		}
 	}
 
@@ -240,6 +243,11 @@ func applyValidationDefaults(public *Public) {
 	// Message processing defaults
 	if public.MaxRepliesPerMessage == 0 {
 		public.MaxRepliesPerMessage = 50
+	}
+
+	// Static file caching default (1 day)
+	if public.StaticCacheMaxAge == 0 {
+		public.StaticCacheMaxAge = 240 * time.Hour // 10 days
 	}
 
 	// Registration domain restrictions (empty = allow all)
