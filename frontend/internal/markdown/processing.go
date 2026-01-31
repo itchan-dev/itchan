@@ -23,7 +23,6 @@ import (
 )
 
 var messageLinkRegex = regexp.MustCompile(`&gt;&gt;(\d+)#(\d+)`)
-var whitespaceBetweenTagsRegex = regexp.MustCompile(`>\s+<`)
 var htmlTagRegex = regexp.MustCompile(`<[^>]*>`)
 
 // Cached sanitizer policy - compiled once at startup
@@ -113,9 +112,6 @@ func (tp *TextProcessor) ProcessMessage(message domain.Message) (string, domain.
 	processedText, matches := tp.processMessageLinks(message)
 	// Sanitize html
 	sanitizedText := tp.sanitizeText(processedText)
-	// Remove newlines between HTML tags to prevent spacing issues with white-space: pre-wrap
-	// This must be done after sanitization as bluemonday may add newlines back
-	sanitizedText = whitespaceBetweenTagsRegex.ReplaceAllString(sanitizedText, "><")
 	// Check if message actually has payload
 	hasPayload, err := tp.hasPayload(sanitizedText)
 	if err != nil {

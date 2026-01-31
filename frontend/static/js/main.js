@@ -115,7 +115,7 @@ class MessagePreview {
         const parentPost = linkElement.closest('.post');
         const parentPostKey = this.getKey(parentPost);
         if (!key || !parentPostKey) {
-            console.debug(`Can't get key element. Shit should not happen.`);
+            console.debug(`Can't get key element. This should not happen.`);
             return
         };
         linkElement.dataset.key = key;
