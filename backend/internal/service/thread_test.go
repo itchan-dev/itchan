@@ -369,3 +369,85 @@ func TestThreadDelete(t *testing.T) {
 		storage.mu.Unlock()
 	})
 }
+
+func TestThreadTogglePinned(t *testing.T) {
+	// Common test data
+	testBoard := domain.BoardShortName("tst")
+	testId := domain.ThreadId(42)
+
+	t.Run("Successfully toggle pinned status to true", func(t *testing.T) {
+		// Arrange
+		storage := &MockThreadStorage{}
+		validator := &MockThreadValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		messageService := &MockMessageService{}
+		service := NewThread(storage, validator, messageService, mediaStorage)
+
+		toggleCalled := false
+		storage.togglePinnedStatusFunc = func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+			toggleCalled = true
+			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testId, threadId)
+			return true, nil // Thread is now pinned
+		}
+
+		// Act
+		newStatus, err := service.TogglePinned(testBoard, testId)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, newStatus, "Should return new pinned status as true")
+		assert.True(t, toggleCalled, "Storage TogglePinnedStatus should be called")
+	})
+
+	t.Run("Successfully toggle pinned status to false", func(t *testing.T) {
+		// Arrange
+		storage := &MockThreadStorage{}
+		validator := &MockThreadValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		messageService := &MockMessageService{}
+		service := NewThread(storage, validator, messageService, mediaStorage)
+
+		toggleCalled := false
+		storage.togglePinnedStatusFunc = func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+			toggleCalled = true
+			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testId, threadId)
+			return false, nil // Thread is now unpinned
+		}
+
+		// Act
+		newStatus, err := service.TogglePinned(testBoard, testId)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, newStatus, "Should return new pinned status as false")
+		assert.True(t, toggleCalled, "Storage TogglePinnedStatus should be called")
+	})
+
+	t.Run("Storage error during toggle", func(t *testing.T) {
+		// Arrange
+		storage := &MockThreadStorage{}
+		validator := &MockThreadValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		messageService := &MockMessageService{}
+		service := NewThread(storage, validator, messageService, mediaStorage)
+
+		storageError := errors.New("database connection error")
+		toggleCalled := false
+		storage.togglePinnedStatusFunc = func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
+			toggleCalled = true
+			assert.Equal(t, testBoard, board)
+			assert.Equal(t, testId, threadId)
+			return false, storageError
+		}
+
+		// Act
+		_, err := service.TogglePinned(testBoard, testId)
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, storageError))
+		assert.True(t, toggleCalled, "Storage TogglePinnedStatus should have been called")
+	})
+}
