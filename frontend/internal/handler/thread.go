@@ -60,10 +60,15 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	text := r.FormValue("text")
-	processedText, domainReplies, hasPayload := h.processMessageText(text, domain.MessageMetadata{
+	processedText, domainReplies, hasPayload, err := h.processMessageText(text, domain.MessageMetadata{
 		Board:    shortName,
 		ThreadId: domain.ThreadId(threadId),
 	})
+	if err != nil {
+		logger.Log.Error("processing message text", "error", err)
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		return
+	}
 
 	// Check if message has either text OR attachments (align with backend validation)
 	hasAttachments := r.MultipartForm != nil && r.MultipartForm.File != nil && len(r.MultipartForm.File["attachments"]) > 0
