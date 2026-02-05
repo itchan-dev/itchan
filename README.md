@@ -105,7 +105,7 @@ Shared Modules:
 - **Database**: PostgreSQL 17.6 with partitioning
 - **Router**: Chi (go-chi/chi)
 - **Auth**: JWT (golang-jwt/jwt) with dual-mode support (Cookie + Bearer)
-- **Markdown**: Goldmark
+- **Markdown**: Custom parser
 - **Media Processing**: ffmpeg (for metadata sanitization)
 - **Monitoring**: Prometheus + Grafana (optional)
 - **Container**: Docker & Docker Compose
@@ -230,8 +230,8 @@ itchan/
 │   │   │   ├── thread.go
 │   │   │   └── message.go
 │   │   ├── markdown/          # Markdown processing
-│   │   │   ├── parser.go      # Custom parser
-│   │   │   └── processing.go  # Text processing
+│   │   │   ├── parser.go      # Custom parser with block/inline rules
+│   │   │   └── trie.go        # Trie for fast marker matching
 │   │   ├── router/            # Route configuration
 │   │   │   └── router.go
 │   │   └── setup/             # Dependency setup
@@ -578,12 +578,11 @@ The frontend is a server-rendered Go application using `html/template`.
 
 ### Markdown Support
 
-The frontend includes a custom markdown parser built on Goldmark:
-- Code blocks with syntax highlighting
+The frontend includes a lightweight custom markdown parser optimized for imageboard use:
+- Code blocks (fenced with ```)
 - Inline code, bold, italic, strikethrough
-- Links (auto-detected and manually created)
-- Quote blocks
-- Lists (ordered and unordered)
+- Greentext (lines starting with >)
+- Message links (>>threadId#msgId) with hover previews
 
 ### Interactive Features
 
