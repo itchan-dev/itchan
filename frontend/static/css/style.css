@@ -71,8 +71,20 @@ blockquote {
 
 .greentext {
     color: var(--green);
-    display: block;
-    margin: 0;
+}
+
+/* Inline formatting */
+strong {
+    font-weight: bold;
+}
+
+em {
+    font-style: italic;
+}
+
+del {
+    text-decoration: line-through;
+    color: var(--text-dark);
 }
 
 /* Code */
@@ -478,7 +490,6 @@ button[type="submit"]:hover {
     overflow-x: hidden;
     overflow-y: auto;
     max-height: 600px;
-    white-space: pre-wrap;
 }
 .post-body p {
     margin: 0;

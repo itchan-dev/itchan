@@ -95,16 +95,15 @@ func splitAndTrim(s string) []string {
 	return result
 }
 
-
 // processMessageText processes user-submitted text and builds reply references.
 // Returns the processed text, domain replies, and whether the message has valid payload.
-func (h *Handler) processMessageText(text string, msgMetadata domain.MessageMetadata) (processedText string, replies *domain.Replies, hasPayload bool) {
-	processedText, replyTo, hasPayload := h.TextProcessor.ProcessMessage(domain.Message{
+func (h *Handler) processMessageText(text string, msgMetadata domain.MessageMetadata) (processedText string, replies *domain.Replies, hasPayload bool, err error) {
+	processedText, replyTo, hasPayload, err := h.TextProcessor.ProcessMessage(domain.Message{
 		Text:            text,
 		MessageMetadata: msgMetadata,
 	})
 
-	return processedText, &replyTo, hasPayload
+	return processedText, &replyTo, hasPayload, err
 }
 
 // parseAndValidateMultipartForm validates request size and parses the multipart form.
