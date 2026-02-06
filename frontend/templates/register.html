@@ -2,6 +2,9 @@
 {{define "content"}}
 <h2>Register / Reset Password</h2>
 <p>Enter your email and desired password. A confirmation code will be sent to your email.</p>
+{{if .Validation.AllowedRegistrationDomains}}
+<p><strong>Note:</strong> Registration is restricted to the following email domains: {{range $i, $d := .Validation.AllowedRegistrationDomains}}{{if $i}}, {{end}}{{$d}}{{end}}</p>
+{{end}}
 <form method="POST" action="/register" class="auth-form">
     <table class="form-table">
         <tbody>
