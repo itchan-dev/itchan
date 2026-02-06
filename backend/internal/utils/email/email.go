@@ -38,38 +38,44 @@ func (e *Email) Send(recipientEmail, subject, body string) error {
 	msg := e.buildMessage(recipientEmail, subject, body)
 	address := fmt.Sprintf("%s:%d", e.config.SMTPServer, e.config.SMTPPort)
 
-	// Use TLS if configured
-	if e.config.UseTLS {
-		return e.sendWithTLS(address, recipientEmail, msg)
+	// Port 465 = implicit TLS, otherwise STARTTLS
+	if e.config.SMTPPort == 465 {
+		return e.sendImplicitTLS(address, recipientEmail, msg)
 	}
-
-	// Fallback to non-TLS (not recommended for production)
-	err := smtp.SendMail(address, e.auth, e.config.Username, []string{recipientEmail}, msg)
-	if err != nil {
-		logger.Log.Error("failed to send email", "recipient", recipientEmail, "error", err)
-		return err
-	}
-
-	return nil
+	return e.sendSTARTTLS(address, recipientEmail, msg)
 }
 
-// sendWithTLS sends email using STARTTLS for secure connection
-func (e *Email) sendWithTLS(address, recipientEmail string, msg []byte) error {
-	// Set timeout
+func (e *Email) timeout() time.Duration {
 	timeout := time.Duration(e.config.Timeout) * time.Second
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
+	return timeout
+}
 
-	// Connect to SMTP server
-	conn, err := net.DialTimeout("tcp", address, timeout)
+// sendImplicitTLS sends email over a connection that is TLS from the start (port 465).
+func (e *Email) sendImplicitTLS(address, recipientEmail string, msg []byte) error {
+	tlsConfig := &tls.Config{ServerName: e.config.SMTPServer}
+
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: e.timeout()}, "tcp", address, tlsConfig)
+	if err != nil {
+		logger.Log.Error("failed to connect to SMTP server (implicit TLS)", "address", address, "error", err)
+		return err
+	}
+	defer conn.Close()
+
+	return e.sendOverConn(conn, recipientEmail, msg)
+}
+
+// sendSTARTTLS sends email by upgrading a plain connection to TLS (port 587).
+func (e *Email) sendSTARTTLS(address, recipientEmail string, msg []byte) error {
+	conn, err := net.DialTimeout("tcp", address, e.timeout())
 	if err != nil {
 		logger.Log.Error("failed to connect to SMTP server", "address", address, "error", err)
 		return err
 	}
 	defer conn.Close()
 
-	// Create SMTP client
 	client, err := smtp.NewClient(conn, e.config.SMTPServer)
 	if err != nil {
 		logger.Log.Error("failed to create SMTP client", "error", err)
@@ -77,56 +83,60 @@ func (e *Email) sendWithTLS(address, recipientEmail string, msg []byte) error {
 	}
 	defer client.Close()
 
-	// Configure TLS
-	tlsConfig := &tls.Config{
-		ServerName:         e.config.SMTPServer,
-		InsecureSkipVerify: e.config.InsecureSkipVerify,
-	}
-
-	// Start TLS
+	tlsConfig := &tls.Config{ServerName: e.config.SMTPServer}
 	if err = client.StartTLS(tlsConfig); err != nil {
 		logger.Log.Error("failed to start TLS", "error", err)
 		return err
 	}
 
-	// Authenticate
-	if err = client.Auth(e.auth); err != nil {
+	return e.sendViaClient(client, recipientEmail, msg)
+}
+
+// sendOverConn creates an SMTP client from an existing connection and sends the message.
+func (e *Email) sendOverConn(conn net.Conn, recipientEmail string, msg []byte) error {
+	client, err := smtp.NewClient(conn, e.config.SMTPServer)
+	if err != nil {
+		logger.Log.Error("failed to create SMTP client", "error", err)
+		return err
+	}
+	defer client.Close()
+
+	return e.sendViaClient(client, recipientEmail, msg)
+}
+
+// sendViaClient performs auth, sets sender/recipient, and sends the message body.
+func (e *Email) sendViaClient(client *smtp.Client, recipientEmail string, msg []byte) error {
+	if err := client.Auth(e.auth); err != nil {
 		logger.Log.Error("SMTP authentication failed", "error", err)
 		return err
 	}
 
-	// Set sender
-	if err = client.Mail(e.config.Username); err != nil {
+	if err := client.Mail(e.config.Username); err != nil {
 		logger.Log.Error("failed to set sender", "error", err)
 		return err
 	}
 
-	// Set recipient
-	if err = client.Rcpt(recipientEmail); err != nil {
+	if err := client.Rcpt(recipientEmail); err != nil {
 		logger.Log.Error("failed to set recipient", "recipient", recipientEmail, "error", err)
 		return err
 	}
 
-	// Send message
 	w, err := client.Data()
 	if err != nil {
 		logger.Log.Error("failed to get data writer", "error", err)
 		return err
 	}
 
-	_, err = w.Write(msg)
-	if err != nil {
+	if _, err = w.Write(msg); err != nil {
 		logger.Log.Error("failed to write message", "error", err)
 		return err
 	}
 
-	err = w.Close()
-	if err != nil {
+	if err = w.Close(); err != nil {
 		logger.Log.Error("failed to close data writer", "error", err)
 		return err
 	}
 
-	// Quit
 	return client.Quit()
 }
 

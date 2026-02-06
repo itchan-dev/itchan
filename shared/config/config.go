@@ -79,14 +79,12 @@ type Pg struct {
 }
 
 type Email struct {
-	SMTPServer         string `yaml:"smtp_server" validate:"required"`
-	SMTPPort           int    `yaml:"smtp_port" validate:"required"`
-	Username           string `yaml:"username" validate:"required"`
-	Password           string `yaml:"password" validate:"required"`
-	SenderName         string `yaml:"sender_name" validate:"required"`
-	Timeout            int    `yaml:"timeout"`
-	UseTLS             bool   `yaml:"use_tls"`
-	InsecureSkipVerify bool   `yaml:"skip_verify"`
+	SMTPServer string `yaml:"smtp_server" validate:"required"`
+	SMTPPort   int    `yaml:"smtp_port" validate:"required"`
+	Username   string `yaml:"username" validate:"required"`
+	Password   string `yaml:"password" validate:"required"`
+	SenderName string `yaml:"sender_name" validate:"required"`
+	Timeout    int    `yaml:"timeout"`
 }
 
 type Private struct {

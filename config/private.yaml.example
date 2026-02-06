@@ -18,6 +18,4 @@ email:
   username: "your-email@example.com"
   password: "your-app-password"
   sender_name: "Itchan"
-  timeout: 180
-  use_tls: true
-  skip_verify: false
+  timeout: 10
