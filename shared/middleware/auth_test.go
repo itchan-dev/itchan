@@ -129,6 +129,122 @@ func (m *mockBlacklistCache) IsBlacklisted(userId domain.UserId) bool {
 	return m.blacklistedUsers[userId]
 }
 
+func TestAuthWithBearerToken(t *testing.T) {
+	jwtService := jwt_internal.New("test_secret", time.Hour)
+	admin := &domain.User{Id: 1, EmailDomain: "example.com", Admin: true}
+	tokenAdmin, _ := jwtService.NewToken(*admin)
+	user := &domain.User{Id: 2, EmailDomain: "example.com", Admin: false}
+	token, _ := jwtService.NewToken(*user)
+
+	tests := []struct {
+		name           string
+		adminOnly      bool
+		authHeader     string
+		expectedStatus int
+		expectedUser   *domain.User
+	}{
+		{
+			name:           "Valid Bearer token - Admin",
+			adminOnly:      true,
+			authHeader:     "Bearer " + tokenAdmin,
+			expectedStatus: http.StatusOK,
+			expectedUser:   admin,
+		},
+		{
+			name:           "Valid Bearer token - Non-admin",
+			adminOnly:      false,
+			authHeader:     "Bearer " + token,
+			expectedStatus: http.StatusOK,
+			expectedUser:   user,
+		},
+		{
+			name:           "Invalid Bearer token",
+			adminOnly:      false,
+			authHeader:     "Bearer invalid_token",
+			expectedStatus: http.StatusUnauthorized,
+			expectedUser:   nil,
+		},
+		{
+			name:           "Non-admin Bearer accessing admin route",
+			adminOnly:      true,
+			authHeader:     "Bearer " + token,
+			expectedStatus: http.StatusForbidden,
+			expectedUser:   nil,
+		},
+		{
+			name:           "Missing Bearer prefix",
+			adminOnly:      false,
+			authHeader:     token, // No "Bearer " prefix
+			expectedStatus: http.StatusUnauthorized,
+			expectedUser:   nil,
+		},
+		{
+			name:           "Empty Authorization header",
+			adminOnly:      false,
+			authHeader:     "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedUser:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "http://example.com", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			rr := httptest.NewRecorder()
+			authMw := NewAuth(jwtService, nil, false)
+			var middleware func(http.Handler) http.Handler
+			if tt.adminOnly {
+				middleware = authMw.AdminOnly()
+			} else {
+				middleware = authMw.NeedAuth()
+			}
+			handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				user := GetUserFromContext(r)
+				require.NotNil(t, user, "Auth should always propagate user thru context")
+				if tt.expectedUser != nil {
+					assert.Equal(t, tt.expectedUser.Id, user.Id)
+					assert.Equal(t, tt.expectedUser.EmailDomain, user.EmailDomain)
+					assert.Equal(t, tt.expectedUser.Admin, user.Admin)
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectedStatus, rr.Code, "handler returned wrong status code")
+		})
+	}
+}
+
+func TestAuthCookieTakesPrecedenceOverBearer(t *testing.T) {
+	jwtService := jwt_internal.New("test_secret", time.Hour)
+	cookieUser := &domain.User{Id: 1, EmailDomain: "cookie.com", Admin: false}
+	bearerUser := &domain.User{Id: 2, EmailDomain: "bearer.com", Admin: true}
+
+	cookieToken, _ := jwtService.NewToken(*cookieUser)
+	bearerToken, _ := jwtService.NewToken(*bearerUser)
+
+	req := httptest.NewRequest("GET", "http://example.com", nil)
+	req.AddCookie(&http.Cookie{Name: "accessToken", Value: cookieToken})
+	req.Header.Set("Authorization", "Bearer "+bearerToken)
+
+	rr := httptest.NewRecorder()
+	authMw := NewAuth(jwtService, nil, false)
+	handler := authMw.NeedAuth()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := GetUserFromContext(r)
+		require.NotNil(t, user)
+		// Cookie should take precedence
+		assert.Equal(t, cookieUser.Id, user.Id)
+		assert.Equal(t, cookieUser.EmailDomain, user.EmailDomain)
+		w.WriteHeader(http.StatusOK)
+	}))
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
 func TestAuthWithBlacklist(t *testing.T) {
 	jwtService := jwt_internal.New("test_secret", time.Hour)
 	user := &domain.User{Id: 1, EmailDomain: "example.com", Admin: false}

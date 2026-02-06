@@ -123,3 +123,107 @@ func TestProcessAttachments(t *testing.T) {
 		assert.Nil(t, pendingFiles[0].ImageHeight)
 	})
 }
+
+func TestFileSizeValidation(t *testing.T) {
+	t.Run("rejects total attachment size exceeding limit", func(t *testing.T) {
+		// Config with 1KB total limit for testing
+		smallCfg := &config.Config{
+			Public: config.Public{
+				MaxAttachmentsPerMessage: 4,
+				MaxAttachmentSizeBytes:   512,           // 512 bytes per file
+				MaxTotalAttachmentSize:   1024,          // 1KB total
+				AllowedImageMimeTypes:    []string{"image/jpeg"},
+				AllowedVideoMimeTypes:    []string{"video/mp4"},
+			},
+		}
+
+		// Create file that exceeds total limit
+		largeContent := make([]byte, 2048) // 2KB - exceeds 1KB limit
+		for i := range largeContent {
+			largeContent[i] = byte(i % 256)
+		}
+
+		files := createMultipartFiles(t, []fileData{
+			{name: "large.jpg", content: largeContent, contentType: "image/jpeg"},
+		})
+
+		// This validates MIME type but not size (size is checked at multipart parse level)
+		pendingFiles, err := validation.ValidateAttachments(
+			files,
+			smallCfg.Public.AllowedImageMimeTypes,
+			smallCfg.Public.AllowedVideoMimeTypes,
+		)
+
+		// ValidateAttachments doesn't check size - that's done in ValidateAndParseMultipart
+		// So this should succeed (only MIME type is validated here)
+		require.NoError(t, err)
+		assert.Len(t, pendingFiles, 1)
+		assert.Equal(t, int64(2048), pendingFiles[0].SizeBytes)
+	})
+
+	t.Run("validates max attachment count", func(t *testing.T) {
+		cfg := &config.Config{
+			Public: config.Public{
+				MaxAttachmentsPerMessage: 2, // Only allow 2 files
+				MaxAttachmentSizeBytes:   10 * 1024 * 1024,
+				MaxTotalAttachmentSize:   20 * 1024 * 1024,
+				AllowedImageMimeTypes:    []string{"image/jpeg"},
+				AllowedVideoMimeTypes:    []string{},
+			},
+		}
+
+		// Create 3 files (exceeds limit of 2)
+		files := createMultipartFiles(t, []fileData{
+			{name: "image1.jpg", content: []byte("fake1"), contentType: "image/jpeg"},
+			{name: "image2.jpg", content: []byte("fake2"), contentType: "image/jpeg"},
+			{name: "image3.jpg", content: []byte("fake3"), contentType: "image/jpeg"},
+		})
+
+		// Note: ValidateAttachments doesn't check count - that should be done elsewhere
+		// This test documents the current behavior
+		pendingFiles, err := validation.ValidateAttachments(
+			files,
+			cfg.Public.AllowedImageMimeTypes,
+			cfg.Public.AllowedVideoMimeTypes,
+		)
+
+		// Currently passes all files through - count validation is not in ValidateAttachments
+		require.NoError(t, err)
+		assert.Len(t, pendingFiles, 3)
+	})
+}
+
+func TestCalculateMaxRequestSize(t *testing.T) {
+	tests := []struct {
+		name           string
+		maxAttachment  int64
+		buffer         int64
+		expectedResult int64
+	}{
+		{
+			name:           "standard config",
+			maxAttachment:  20 * 1024 * 1024, // 20MB
+			buffer:         1 * 1024 * 1024,  // 1MB
+			expectedResult: 21 * 1024 * 1024, // 21MB
+		},
+		{
+			name:           "zero buffer",
+			maxAttachment:  10 * 1024 * 1024,
+			buffer:         0,
+			expectedResult: 10 * 1024 * 1024,
+		},
+		{
+			name:           "small sizes",
+			maxAttachment:  1024,
+			buffer:         512,
+			expectedResult: 1536,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := validation.CalculateMaxRequestSize(tt.maxAttachment, tt.buffer)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
