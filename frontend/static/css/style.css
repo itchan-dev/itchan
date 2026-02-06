@@ -32,12 +32,13 @@
 
 body {
     font-family: var(--font);
-    font-size: 10pt;
+    font-size: 14px;
     margin: 0;
     padding: 4px;
     background: var(--bg-page);
     color: var(--text);
     line-height: 1.3;
+    -webkit-text-size-adjust: 100%;  /* Prevent font scaling in landscape */
 }
 
 a {
@@ -53,9 +54,9 @@ h1, h2, h3 {
     margin: 0.3em 0;
     font-weight: bold;
 }
-h1 { font-size: 1.3em; }
-h2 { font-size: 1.1em; }
-h3 { font-size: 1em; }
+h1 { font-size: 1.5em; }
+h2 { font-size: 1.25em; }
+h3 { font-size: 1.1em; }
 
 hr {
     border: 0;
@@ -96,7 +97,7 @@ pre {
     margin: 2px 0;
     overflow-x: auto;
     font-family: var(--font-mono);
-    font-size: 9pt;
+    font-size: 12px;
     line-height: 1.3;
 }
 
@@ -111,7 +112,7 @@ code {
     border: 1px solid var(--border);
     padding: 0 3px;
     font-family: var(--font-mono);
-    font-size: 9pt;
+    font-size: 12px;
 }
 
 /* ==========================================
@@ -121,7 +122,7 @@ code {
     background: var(--bg-form);
     padding: 2px 6px;
     border-bottom: 1px solid var(--border);
-    font-size: 9pt;
+    font-size: 12px;
     margin-bottom: 8px;
 }
 
@@ -150,7 +151,7 @@ code {
 }
 
 .auth-links {
-    font-size: 9pt;
+    font-size: 12px;
 }
 .auth-links a {
     margin-left: 4px;
@@ -184,7 +185,7 @@ code {
     padding: 0;
     margin: 0 0 10px 0;
     line-height: 1.8;
-    font-size: 11pt;
+    font-size: 15px;
     text-align: center;
 }
 
@@ -216,7 +217,7 @@ code {
     cursor: pointer;
     padding: 0;
     margin: 0;
-    font-size: 9pt;
+    font-size: 12px;
     font-family: var(--font);
     color: inherit;
     text-decoration: none;
@@ -259,7 +260,7 @@ code {
 .form-table td {
     padding: 1px 3px;
     vertical-align: middle;
-    font-size: 10pt;
+    font-size: 14px;
 }
 
 .form-table td.form-label {
@@ -284,24 +285,22 @@ code {
     border: 1px solid var(--border);
     background: var(--bg-input);
     color: var(--text);
-    font-size: 10pt;
+    font-size: 14px;
     font-family: var(--font);
 }
 
 .form-table textarea {
     width: 100%;
+    max-width: 100%;
+    resize: vertical;
+    line-height: 1.3;
+    min-height: 40px;
 }
 
 .form-table input:focus,
 .form-table textarea:focus {
     border-color: var(--text-dim);
     outline: none;
-}
-
-.form-table textarea {
-    resize: vertical;
-    line-height: 1.3;
-    min-height: 40px;
 }
 
 .form-table button[type="submit"],
@@ -311,7 +310,7 @@ button[type="submit"] {
     border: 1px solid var(--border);
     color: var(--text);
     cursor: pointer;
-    font-size: 10pt;
+    font-size: 14px;
     font-family: var(--font);
 }
 .form-table button[type="submit"]:hover,
@@ -320,7 +319,7 @@ button[type="submit"]:hover {
 }
 
 .form-table small {
-    font-size: 9pt;
+    font-size: 12px;
     color: var(--text-dark);
 }
 
@@ -360,7 +359,7 @@ button[type="submit"]:hover {
 }
 
 .post-header {
-    font-size: 9pt;
+    font-size: 12px;
     color: var(--text-dim);
     margin-bottom: 2px;
     /* white-space: nowrap; */
@@ -379,19 +378,19 @@ button[type="submit"]:hover {
     color: #5b6eb5;
     font-weight: bold;
     margin-right: 5px;
-    font-size: 10pt;
+    font-size: 14px;
 }
 
 .post-author {
     font-weight: bold;
     color: var(--text-dim);
     margin-right: 5px;
-    font-size: 8pt;
+    font-size: 11px;
 }
 
 .post-author .admin-badge {
     color: var(--orange);
-    font-size: 9pt;
+    font-size: 12px;
 }
 
 .post-date {
@@ -435,13 +434,13 @@ button[type="submit"]:hover {
 .reply-link a {
     color: var(--link);
     text-decoration: underline;
-    font-size: 8pt;
+    font-size: 11px;
 }
 
 .reply-to-info {
     color: var(--text-dark);
     margin-left: 3px;
-    font-size: 9pt;
+    font-size: 12px;
     font-style: italic;
 }
 .reply-to-info a {
@@ -450,7 +449,7 @@ button[type="submit"]:hover {
 
 /* Attachments */
 .post-attachments {
-    font-size: 9pt;
+    font-size: 12px;
     margin: 3px 0;
     padding-left: 15px;
     color: var(--text-dark);
@@ -479,7 +478,7 @@ button[type="submit"]:hover {
 }
 
 .attachment-info {
-    font-size: 8pt;
+    font-size: 11px;
     word-break: break-word;
 }
 
@@ -516,7 +515,7 @@ button[type="submit"]:hover {
 }
 
 .reply-summary {
-    font-size: 9pt;
+    font-size: 12px;
     margin-left: 15px;
     margin-top: 3px;
     color: var(--text-dark);
@@ -531,7 +530,7 @@ button[type="submit"]:hover {
 }
 .thread-header .nav-links,
 .nav-links {
-    font-size: 9pt;
+    font-size: 12px;
 }
 .nav-links a {
     margin: 0 3px;
@@ -550,7 +549,7 @@ button[type="submit"]:hover {
     border: 1px solid var(--border);
     padding: 4px 6px;
     margin: 6px 0;
-    font-size: 10pt;
+    font-size: 14px;
     font-weight: bold;
 }
 
@@ -574,7 +573,7 @@ button[type="submit"]:hover {
     padding: 4px 0;
     text-align: center;
     color: var(--text-dark);
-    font-size: 8pt;
+    font-size: 11px;
     margin-top: 15px;
 }
 
@@ -588,7 +587,7 @@ button[type="submit"]:hover {
 .pagination {
     text-align: center;
     margin: 8px 0;
-    font-size: 10pt;
+    font-size: 14px;
     font-weight: bold;
 }
 
@@ -612,7 +611,7 @@ button[type="submit"]:hover {
     border: 1px solid var(--border);
     background: var(--bg-input);
     color: var(--text);
-    font-size: 10pt;
+    font-size: 14px;
     padding: 1px;
 }
 
@@ -690,7 +689,7 @@ button[type="submit"]:hover {
    File Preview
    ========================================== */
 .file-hint {
-    font-size: 8pt;
+    font-size: 11px;
     color: var(--text-dark);
     font-style: italic;
     margin: 2px 0 4px;
@@ -701,7 +700,7 @@ button[type="submit"]:hover {
 }
 
 .file-preview-header {
-    font-size: 9pt;
+    font-size: 12px;
     font-weight: bold;
     color: var(--text-dim);
     margin-bottom: 3px;
@@ -715,7 +714,7 @@ button[type="submit"]:hover {
     border: 1px solid var(--border);
     padding: 3px 5px;
     margin-bottom: 3px;
-    font-size: 9pt;
+    font-size: 12px;
 }
 
 .file-preview-thumbnail {
@@ -740,7 +739,7 @@ button[type="submit"]:hover {
 
 .file-preview-size {
     color: var(--text-dark);
-    font-size: 8pt;
+    font-size: 11px;
 }
 
 .file-preview-remove {
@@ -775,4 +774,155 @@ button[type="submit"]:hover {
 ::selection {
     background: var(--text-dim);
     color: var(--bg-input);
+}
+
+/* ==========================================
+   Mobile Responsive Adjustments
+   ========================================== */
+@media (max-width: 768px) {
+    body {
+        font-size: 16px;
+        padding: 2px;
+    }
+
+    /* Increase touch target sizes */
+    .form-table button[type="submit"],
+    button[type="submit"] {
+        padding: 8px 12px;
+        font-size: 16px;  /* Prevent iOS zoom on focus */
+        min-height: 44px; /* iOS recommended touch target */
+    }
+
+    .form-table input[type="text"],
+    .form-table input[type="password"],
+    .form-table input[type="email"],
+    .form-table textarea {
+        font-size: 16px;  /* Prevent iOS zoom on focus */
+        padding: 8px;
+        max-width: 100%;
+    }
+
+    /* Stack form vertically on mobile */
+    .form-table,
+    .form-table tbody,
+    .form-table tr {
+        display: block;
+        width: 100%;
+    }
+
+    .form-table td {
+        display: block;
+        width: 100%;
+        padding: 2px 0;
+    }
+
+    .form-table td.form-label {
+        padding-bottom: 4px;
+        white-space: normal;
+    }
+
+    /* Header adjustments */
+    .header-content {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+
+    .site-header {
+        padding: 8px;
+    }
+
+    .auth-links {
+        font-size: 14px;
+    }
+
+    /* Board list readability */
+    .boards-list {
+        font-size: 16px;
+        line-height: 2;
+    }
+
+    /* Post adjustments */
+    .post {
+        padding: 8px;
+        margin: 4px 0;
+    }
+
+    .post.reply-post {
+        margin-left: 8px;  /* Reduce indentation on mobile */
+    }
+
+    .post-header {
+        font-size: 13px;
+    }
+
+    .post-subject {
+        font-size: 15px;
+    }
+
+    /* Attachment thumbnails */
+    .attachment-thumbnail {
+        max-width: 150px;
+        max-height: 150px;
+    }
+
+    /* Pagination */
+    .pagination {
+        font-size: 14px;
+    }
+
+    .pagination .page-input {
+        font-size: 16px;  /* Prevent iOS zoom */
+        padding: 4px;
+        min-height: 32px;
+    }
+
+    /* Message preview popups */
+    .message-preview {
+        max-width: 90vw;  /* Don't overflow screen */
+    }
+
+    /* Thread header */
+    .board-header h1 {
+        font-size: 1.5em;
+    }
+
+    /* Footer */
+    .site-footer {
+        font-size: 11px;
+    }
+
+    /* Forms */
+    .post-form-container,
+    .admin-panel,
+    .auth-form {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Index container */
+    .index-container {
+        max-width: 100%;
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+    body {
+        font-size: 15px;
+        padding: 1px;
+    }
+
+    .post-attachments {
+        padding-left: 4px;
+    }
+
+    .attachment-thumbnail {
+        max-width: 120px;
+        max-height: 120px;
+    }
+
+    .post-body {
+        max-height: 400px;  /* Reduce height on small screens */
+    }
 }
