@@ -49,105 +49,130 @@ func (a *Auth) AdminOnly() func(http.Handler) http.Handler {
 	return a.auth(true)
 }
 
+// OptionalAuth returns middleware that populates user context if token is valid, but doesn't require auth
+func (a *Auth) OptionalAuth() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user, _ := a.extractUser(r)
+			if user != nil {
+				ctx := context.WithValue(r.Context(), UserClaimsKey, user)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// extractUser extracts and validates user from JWT token in request
+// Returns (user, nil) on success, (nil, error) on failure
+func (a *Auth) extractUser(r *http.Request) (*domain.User, error) {
+	// Try to get token from cookie first (for browser clients)
+	var tokenString string
+	accessCookie, err := r.Cookie("accessToken")
+	if err == nil {
+		tokenString = accessCookie.Value
+	} else if token, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
+		// If no cookie, try Authorization header (for API/mobile clients)
+		tokenString = token
+	}
+
+	if tokenString == "" {
+		return nil, errNoToken
+	}
+
+	token, err := a.jwtService.DecodeToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errInvalidClaims
+	}
+
+	uidFloat, ok := claims["uid"].(float64)
+	if !ok {
+		return nil, errInvalidClaims
+	}
+
+	emailDomain, ok := claims["email_domain"].(string)
+	if !ok {
+		return nil, errInvalidClaims
+	}
+
+	isAdmin, ok := claims["admin"].(bool)
+	if !ok {
+		return nil, errInvalidClaims
+	}
+
+	createdAtFloat, ok := claims["created_at"].(float64)
+	if !ok {
+		return nil, errInvalidClaims
+	}
+
+	user := &domain.User{
+		Id:          int64(uidFloat),
+		EmailDomain: emailDomain,
+		Admin:       isAdmin,
+		CreatedAt:   time.Unix(int64(createdAtFloat), 0),
+	}
+
+	if a.blacklistCache != nil && a.blacklistCache.IsBlacklisted(user.Id) {
+		return nil, errBlacklisted
+	}
+
+	return user, nil
+}
+
+// Sentinel errors for extractUser
+var (
+	errNoToken       = errorString("no token")
+	errInvalidClaims = errorString("invalid claims")
+	errBlacklisted   = errorString("blacklisted")
+)
+
+type errorString string
+
+func (e errorString) Error() string { return string(e) }
+
 // auth is the internal method that implements the authentication logic
 func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Try to get token from cookie first (for browser clients)
-			var tokenString string
-			accessCookie, err := r.Cookie("accessToken")
-			if err == nil {
-				tokenString = accessCookie.Value
-			} else {
-				// If no cookie, try Authorization header (for API/mobile clients)
-				authHeader := r.Header.Get("Authorization")
-				if strings.HasPrefix(authHeader, "Bearer ") {
-					tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-				}
-			}
-
-			// If no token found in either location, return unauthorized
-			if tokenString == "" {
-				http.Error(w, "Please sign-in", http.StatusUnauthorized)
-				return
-			}
-
-			token, err := a.jwtService.DecodeToken(tokenString)
+			user, err := a.extractUser(r)
 			if err != nil {
-				utils.WriteErrorAndStatusCode(w, err)
+				switch err {
+				case errNoToken:
+					http.Error(w, "Please sign-in", http.StatusUnauthorized)
+				case errBlacklisted:
+					// Clear JWT cookie to force re-login
+					cookie := &http.Cookie{
+						Path:     "/",
+						Name:     "accessToken",
+						Value:    "",
+						MaxAge:   -1,
+						HttpOnly: true,
+						Secure:   a.secureCookies,
+						SameSite: http.SameSiteLaxMode,
+					}
+					http.SetCookie(w, cookie)
+					http.Error(w, "Account suspended", http.StatusForbidden)
+				case errInvalidClaims:
+					logger.Log.Error("invalid jwt claims")
+					http.Error(w, "Invalid token", http.StatusUnauthorized)
+				default:
+					// Token decode error
+					utils.WriteErrorAndStatusCode(w, err)
+				}
 				return
 			}
 
-			claims, ok := token.Claims.(jwt.MapClaims)
-			if !ok {
-				logger.Log.Error("invalid jwt claims format")
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
-
-			// Extract and validate required claims
-			uidFloat, ok := claims["uid"].(float64)
-			if !ok {
-				logger.Log.Error("missing or invalid uid claim in jwt")
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
-
-			// Email no longer stored in JWT for privacy/security
-			// Email domain stored for board access control (not sensitive)
-			emailDomain, ok := claims["email_domain"].(string)
-			if !ok {
-				logger.Log.Error("missing or invalid email_domain claim in jwt")
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
-
-			isAdmin, ok := claims["admin"].(bool)
-			if !ok {
-				logger.Log.Error("missing or invalid admin claim in jwt")
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
-
-			if adminOnly && !isAdmin {
+			if adminOnly && !user.Admin {
 				http.Error(w, "Access denied. Only for admin", http.StatusForbidden)
 				return
 			}
 
-			createdAtFloat, ok := claims["created_at"].(float64)
-			if !ok {
-				logger.Log.Error("missing or invalid created_at claim in jwt")
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
-			createdAt := time.Unix(int64(createdAtFloat), 0)
-
-			// Create a User struct from the claims
-			user := &domain.User{
-				Id:          int64(uidFloat),
-				EmailDomain: emailDomain,
-				Admin:       isAdmin,
-				CreatedAt:   createdAt,
-			}
-
-			// Check if user is blacklisted
-			if a.blacklistCache != nil && a.blacklistCache.IsBlacklisted(user.Id) {
-				// Clear JWT cookie to force re-login
-				cookie := &http.Cookie{
-					Path:     "/",
-					Name:     "accessToken",
-					Value:    "",
-					MaxAge:   -1,
-					HttpOnly: true,
-					Secure:   a.secureCookies,
-					SameSite: http.SameSiteLaxMode,
-				}
-				http.SetCookie(w, cookie)
-				http.Error(w, "Account suspended", http.StatusForbidden)
-				return
-			}
-
-			// Store the user in the request context
 			ctx := context.WithValue(r.Context(), UserClaimsKey, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

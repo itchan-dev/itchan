@@ -27,6 +27,11 @@ func (a *Auth) AdminOnly() func(http.Handler) http.Handler {
 	return wrapWithRedirect(a.sharedAuth.AdminOnly())
 }
 
+// OptionalAuth returns middleware that populates user context if available (no redirect needed)
+func (a *Auth) OptionalAuth() func(http.Handler) http.Handler {
+	return a.sharedAuth.OptionalAuth()
+}
+
 // authRedirectWriter intercepts 401/403 errors and redirects to login
 type authRedirectWriter struct {
 	http.ResponseWriter

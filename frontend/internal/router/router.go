@@ -55,6 +55,15 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	r.Get("/register_invite", deps.Handler.RegisterInviteGetHandler)
 	r.Get("/check_confirmation_code", deps.Handler.ConfirmEmailGetHandler)
 
+	// Create frontend auth middleware wrapper (needed for optional auth routes below)
+	authMw := frontend_mw.NewAuth(deps.AuthMiddleware)
+
+	// Public routes with optional auth (shows user info if logged in)
+	r.Group(func(optionalAuthRouter chi.Router) {
+		optionalAuthRouter.Use(authMw.OptionalAuth())
+		optionalAuthRouter.Get("/faq", deps.Handler.FAQGetHandler)
+	})
+
 	// Public POST routes (rate limited to prevent abuse)
 	r.Group(func(publicPosts chi.Router) {
 		publicPosts.Use(mw.GlobalRateLimit(rl.Rps100()))                            // 100 global RPS
@@ -78,9 +87,6 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	// Static file server with caching
 	fileServer := http.FileServer(http.Dir("static"))
 	r.Handle("/static/*", http.StripPrefix("/static/", cacheStaticFiles(fileServer, deps.Public.StaticCacheMaxAge)))
-
-	// Create frontend auth middleware wrapper
-	authMw := frontend_mw.NewAuth(deps.AuthMiddleware)
 
 	// Admin-only routes (register before generic path patterns to avoid conflicts)
 	r.Group(func(adminRouter chi.Router) {
