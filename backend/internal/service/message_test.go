@@ -150,7 +150,7 @@ func TestMessageCreate(t *testing.T) {
 		}
 		storage.createMessageFunc = func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
 			assert.Equal(t, testCreationData, creationData)
-			assert.Empty(t, attachments) // No attachments for text-only message
+			assert.Empty(t, attachments)  // No attachments for text-only message
 			return expectedCreatedId, nil // Storage create succeeds
 		}
 

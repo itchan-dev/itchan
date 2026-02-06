@@ -8,7 +8,7 @@ type Credentials struct {
 }
 
 type User struct {
-	Id        UserId
+	Id UserId
 	// Stored fields - encrypted and hashed email data
 	EmailEncrypted []byte
 	EmailDomain    string
@@ -41,12 +41,12 @@ type BlacklistEntry struct {
 
 // InviteCode represents an invite code in the system
 type InviteCode struct {
-	CodeHash   string
-	CreatedBy  UserId
-	CreatedAt  time.Time
-	ExpiresAt  time.Time
-	UsedBy     *UserId    // nil if unused
-	UsedAt     *time.Time // nil if unused
+	CodeHash  string
+	CreatedBy UserId
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	UsedBy    *UserId    // nil if unused
+	UsedAt    *time.Time // nil if unused
 }
 
 // InviteCodeWithPlaintext is returned when generating a new invite

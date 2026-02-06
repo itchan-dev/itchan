@@ -130,8 +130,8 @@ func TestFileSizeValidation(t *testing.T) {
 		smallCfg := &config.Config{
 			Public: config.Public{
 				MaxAttachmentsPerMessage: 4,
-				MaxAttachmentSizeBytes:   512,           // 512 bytes per file
-				MaxTotalAttachmentSize:   1024,          // 1KB total
+				MaxAttachmentSizeBytes:   512,  // 512 bytes per file
+				MaxTotalAttachmentSize:   1024, // 1KB total
 				AllowedImageMimeTypes:    []string{"image/jpeg"},
 				AllowedVideoMimeTypes:    []string{"video/mp4"},
 			},

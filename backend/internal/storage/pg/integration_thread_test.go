@@ -87,9 +87,9 @@ func TestThreadOperations(t *testing.T) {
 				Text:   "Pinned Post",
 			}
 			threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
-				Title:    "Pinned Thread",
-				Board:    boardShortName,
-				IsPinned: true,
+				Title:     "Pinned Thread",
+				Board:     boardShortName,
+				IsPinned:  true,
 				OpMessage: opMsg,
 			})
 			require.NoError(t, err)

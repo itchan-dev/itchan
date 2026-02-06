@@ -183,7 +183,6 @@ func (m *SharedMockMediaStorage) DeleteBoard(boardID string) error {
 	return nil
 }
 
-
 // --- Helper Functions ---
 
 func createTestConfig() *config.Public {

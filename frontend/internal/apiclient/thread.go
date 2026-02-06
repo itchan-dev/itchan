@@ -162,7 +162,6 @@ func (c *APIClient) CreateReply(r *http.Request, shortName, threadID string, dat
 	return response.Page, nil
 }
 
-
 func (c *APIClient) DeleteThread(r *http.Request, shortName, threadID string) error {
 	path := fmt.Sprintf("/v1/admin/%s/%s", shortName, threadID)
 	resp, err := c.do("DELETE", path, nil, r.Cookies()...)

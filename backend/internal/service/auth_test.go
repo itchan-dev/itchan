@@ -273,7 +273,7 @@ func TestRegister(t *testing.T) {
 			assert.NotEmpty(t, data.EmailHash)
 			assert.NotEmpty(t, data.PasswordHash)
 			assert.NotEmpty(t, data.ConfirmationCodeHash)
-			assert.True(t, data.Expires.After(time.Now().UTC().Add(-1*time.Minute))) // Allow for slight clock skew
+			assert.True(t, data.Expires.After(time.Now().UTC().Add(-1*time.Minute)))  // Allow for slight clock skew
 			assert.True(t, data.Expires.Before(time.Now().UTC().Add(11*time.Minute))) // Should be around 10 mins expiry
 			// Check if password was hashed correctly
 			err := bcrypt.CompareHashAndPassword([]byte(data.PasswordHash), []byte(creds.Password))
@@ -454,7 +454,7 @@ func TestRegister(t *testing.T) {
 	t.Run("email.Send error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock SendFunc error")
-		storage.ConfirmationDataFunc = nil                                         // Ensure default "not found"
+		storage.ConfirmationDataFunc = nil                                                         // Ensure default "not found"
 		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error { return nil } // Assume save works
 		email.SendFunc = func(recipientEmail, subject, body string) error {
 			return mockError
@@ -749,7 +749,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 			assert.NotEmpty(t, user.EmailDomain)
 			assert.Equal(t, correctPassHash, user.PassHash)
 			assert.False(t, user.Admin) // Ensure default admin status is false
-			return 5, nil          // Return some user ID
+			return 5, nil               // Return some user ID
 		}
 		storage.DeleteConfirmationDataFunc = func(emailHash []byte) error {
 			deleteCalled = true

@@ -543,4 +543,3 @@ func (s *Storage) lastThreadId(q Querier, board domain.BoardShortName) (domain.M
 	}
 	return id, nil
 }
-

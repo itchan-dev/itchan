@@ -193,7 +193,6 @@ func TestThreadCreate(t *testing.T) {
 		storage.mu.Unlock()
 	})
 
-
 	t.Run("Validation error", func(t *testing.T) {
 		// Arrange
 		storage := &MockThreadStorage{}
