@@ -130,41 +130,6 @@ func (e *Email) sendWithTLS(address, recipientEmail string, msg []byte) error {
 	return client.Quit()
 }
 
-// func (e *Email) Close() error {
-// 	e.mu.Lock()
-// 	defer e.mu.Unlock()
-
-// 	var errs []error
-// 	if e.client != nil {
-// 		if err := e.client.Quit(); err != nil {
-// 			errs = append(errs, fmt.Errorf("SMTP quit error: %w", err))
-// 		}
-// 		e.client = nil
-// 	}
-// 	if e.conn != nil {
-// 		if err := e.conn.Close(); err != nil {
-// 			errs = append(errs, fmt.Errorf("connection close error: %w", err))
-// 		}
-// 		e.conn = nil
-// 	}
-
-// 	if len(errs) > 0 {
-// 		return fmt.Errorf("error closing connection: %v", errs)
-// 	}
-// 	return nil
-// }
-
-// func (e *Email) resetConnection() {
-// 	if e.client != nil {
-// 		e.client.Close()
-// 		e.client = nil
-// 	}
-// 	if e.conn != nil {
-// 		e.conn.Close()
-// 		e.conn = nil
-// 	}
-// }
-
 func (e *Email) buildMessage(recipient, subject, body string) []byte {
 	return []byte(fmt.Sprintf(
 		"To: %s\r\nFrom: %s <%s>\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\n\r\n%s",
@@ -175,18 +140,3 @@ func (e *Email) buildMessage(recipient, subject, body string) []byte {
 		body,
 	))
 }
-
-// func (e *Email) connect() (net.Conn, error) {
-// 	address := fmt.Sprintf("%s:%d", e.config.SMTPServer, e.config.SMTPPort)
-// 	dialer := net.Dialer{Timeout: time.Duration(e.config.Timeout) * time.Second}
-
-// 	if e.config.UseTLS {
-// 		tlsConfig := &tls.Config{
-// 			ServerName:         e.config.SMTPServer,
-// 			InsecureSkipVerify: e.config.InsecureSkipVerify,
-// 		}
-// 		return tls.DialWithDialer(&dialer, "tcp", address, tlsConfig)
-// 	}
-
-// 	return dialer.Dial("tcp", address)
-// }
