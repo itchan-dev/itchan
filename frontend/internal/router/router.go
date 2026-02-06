@@ -62,6 +62,10 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	r.Group(func(optionalAuthRouter chi.Router) {
 		optionalAuthRouter.Use(authMw.OptionalAuth())
 		optionalAuthRouter.Get("/faq", deps.Handler.FAQGetHandler)
+		optionalAuthRouter.Get("/about", deps.Handler.AboutGetHandler)
+		optionalAuthRouter.Get("/terms", deps.Handler.TermsGetHandler)
+		optionalAuthRouter.Get("/privacy", deps.Handler.PrivacyGetHandler)
+		optionalAuthRouter.Get("/contacts", deps.Handler.ContactsGetHandler)
 	})
 
 	// Public POST routes (rate limited to prevent abuse)

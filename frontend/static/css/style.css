@@ -878,6 +878,155 @@ button[type="submit"]:hover {
 }
 
 /* ==========================================
+   Legal Pages (About, Terms, Privacy, Contacts)
+   ========================================== */
+.legal-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.legal-container h1 {
+    font-size: 2em;
+    margin-bottom: 20px;
+    color: var(--text);
+}
+
+.legal-container h2 {
+    font-size: 1.5em;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 5px;
+    color: var(--text);
+}
+
+.legal-container h3 {
+    font-size: 1.2em;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    color: var(--text);
+}
+
+.legal-container p {
+    margin: 10px 0;
+}
+
+.legal-container ul,
+.legal-container ol {
+    margin-left: 20px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.legal-container li {
+    margin: 5px 0;
+}
+
+.legal-container table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+
+.legal-container table th,
+.legal-container table td {
+    border: 1px solid var(--border);
+    padding: 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.legal-container table th {
+    background: var(--bg-post);
+    font-weight: bold;
+}
+
+.legal-container pre {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    padding: 10px;
+    overflow-x: auto;
+    font-size: 12px;
+    margin: 10px 0;
+}
+
+.legal-container code {
+    background: var(--bg-input);
+    padding: 2px 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.legal-section {
+    margin-bottom: 30px;
+}
+
+.info-block {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.info-block ul {
+    margin-left: 0;
+    list-style-position: inside;
+}
+
+.legal-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 0.9em;
+    color: var(--text-dim);
+}
+
+/* ==========================================
+   Agreement Notice (Registration Forms)
+   ========================================== */
+.agreement-notice {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    margin: 10px 0;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+.agreement-notice p {
+    margin: 0;
+}
+
+.agreement-notice a {
+    color: var(--link);
+    text-decoration: underline;
+}
+
+.agreement-notice a:hover {
+    color: var(--link-hover);
+}
+
+/* ==========================================
+   Footer Links
+   ========================================== */
+.footer-links {
+    margin-top: 8px;
+    font-size: 0.95em;
+}
+
+.footer-links a {
+    color: var(--link);
+    text-decoration: underline;
+}
+
+.footer-links a:hover {
+    color: var(--link-hover);
+}
+
+/* ==========================================
    Mobile Responsive Adjustments
    ========================================== */
 @media (max-width: 768px) {
