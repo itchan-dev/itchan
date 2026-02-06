@@ -51,7 +51,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - ./pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
       - ./backend/internal/storage/pg/migrations:/docker-entrypoint-initdb.d
     healthcheck:
           test: ["CMD-SHELL", "pg_isready -h localhost -U $${POSTGRES_USER:-itchan} -d $${POSTGRES_DB:-itchan}"]
@@ -61,4 +61,5 @@ services:
           timeout: 10s
 
 volumes:
+  pgdata:
   media_data:
