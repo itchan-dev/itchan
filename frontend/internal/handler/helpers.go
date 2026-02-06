@@ -159,6 +159,9 @@ type ValidationData struct {
 
 	// User activity page settings
 	UserMessagesPageLimit int
+
+	// Registration restrictions
+	AllowedRegistrationDomains []string
 }
 
 // NewValidationData creates a ValidationData struct populated from the public config.
@@ -175,8 +178,9 @@ func (h *Handler) NewValidationData() ValidationData {
 		MaxTotalAttachmentSize:   h.Public.MaxTotalAttachmentSize,
 		MaxAttachmentSizeBytes:   h.Public.MaxAttachmentSizeBytes,
 		AllowedImageMimeTypes:    h.Public.AllowedImageMimeTypes,
-		AllowedVideoMimeTypes:    h.Public.AllowedVideoMimeTypes,
-		UserMessagesPageLimit:    h.Public.UserMessagesPageLimit,
+		AllowedVideoMimeTypes:      h.Public.AllowedVideoMimeTypes,
+		UserMessagesPageLimit:      h.Public.UserMessagesPageLimit,
+		AllowedRegistrationDomains: h.Public.AllowedRegistrationDomains,
 	}
 }
 
