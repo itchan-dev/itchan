@@ -54,8 +54,8 @@ func GenerateConfirmationCode(length int) string {
 	return GenerateRandomString(length, charset)
 }
 
-// GenerateRandomEmail creates a random @itchan.ru email address
-// Format: {random_12_chars}@itchan.ru
+// GenerateRandomEmail creates a random @invited.ru email address
+// Format: {random_12_chars}@invited.ru
 // This is used for invite-based registration to prevent email spoofing
 // and ensure users don't get access to private boards
 func GenerateRandomEmail() string {
