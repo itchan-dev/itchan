@@ -13,11 +13,11 @@ import (
 // --- Mocks for GC Tests ---
 
 type MockGCStorage struct {
-	mu                           sync.Mutex
-	getAllFilePathsFunc          func() ([]string, error)
+	mu                            sync.Mutex
+	getAllFilePathsFunc           func() ([]string, error)
 	deleteOrphanedFileRecordsFunc func() (int64, error)
-	getAllFilePathsCalls         int
-	deleteOrphanedRecordsCalls   int
+	getAllFilePathsCalls          int
+	deleteOrphanedRecordsCalls    int
 }
 
 func (m *MockGCStorage) GetAllFilePaths() ([]string, error) {
@@ -114,11 +114,11 @@ func TestMediaGarbageCollectorCleanup(t *testing.T) {
 
 		// Mock filesystem files (includes both DB files and orphaned files)
 		fsFiles := []string{
-			"tech/1/image1.jpg",      // In DB - keep
-			"tech/1/image2.png",      // In DB - keep
-			"tech/2/video1.mp4",      // In DB - keep
-			"tech/1/orphan1.jpg",     // NOT in DB - delete
-			"tech/3/orphan2.webm",    // NOT in DB - delete
+			"tech/1/image1.jpg",       // In DB - keep
+			"tech/1/image2.png",       // In DB - keep
+			"tech/2/video1.mp4",       // In DB - keep
+			"tech/1/orphan1.jpg",      // NOT in DB - delete
+			"tech/3/orphan2.webm",     // NOT in DB - delete
 			"tech/1/thumb_orphan.jpg", // NOT in DB - delete
 		}
 		mediaStorage.walkFilesFunc = func() ([]string, error) {
@@ -175,8 +175,8 @@ func TestMediaGarbageCollectorCleanup(t *testing.T) {
 
 		// Mock filesystem with orphaned files of different ages
 		fsFiles := []string{
-			"tech/1/old_orphan.jpg",    // Old - should delete
-			"tech/1/young_orphan.jpg",  // Young - should skip
+			"tech/1/old_orphan.jpg",   // Old - should delete
+			"tech/1/young_orphan.jpg", // Young - should skip
 		}
 		mediaStorage.walkFilesFunc = func() ([]string, error) {
 			return fsFiles, nil
@@ -225,9 +225,9 @@ func TestMediaGarbageCollectorCleanup(t *testing.T) {
 		}
 
 		fsFiles := []string{
-			"tech/1/image1.jpg",   // In DB - keep
-			"tech/1/orphan1.jpg",  // Orphan - delete
-			"tech/1/orphan2.jpg",  // Orphan - delete fails
+			"tech/1/image1.jpg",  // In DB - keep
+			"tech/1/orphan1.jpg", // Orphan - delete
+			"tech/1/orphan2.jpg", // Orphan - delete fails
 		}
 		mediaStorage.walkFilesFunc = func() ([]string, error) {
 			return fsFiles, nil

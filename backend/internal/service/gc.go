@@ -23,7 +23,7 @@ type CleanupStats struct {
 	FilesScanned       int
 	OrphanedFiles      int
 	FilesDeleted       int
-	FileRecordsDeleted int   // Number of orphaned file records deleted from DB
+	FileRecordsDeleted int // Number of orphaned file records deleted from DB
 	BytesReclaimed     int64
 	DurationMs         int64
 	Errors             []string
