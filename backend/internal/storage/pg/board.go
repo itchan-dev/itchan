@@ -95,7 +95,7 @@ func (s *Storage) LastThreadId(board domain.BoardShortName) (domain.MsgId, error
 // GetBoardsWithPermissions returns a map of board short names to their allowed email domains.
 // Returns nil for boards without restrictions (public boards).
 func (s *Storage) GetBoardsWithPermissions() (map[string][]string, error) {
-	return s.getBoardsWithPermissions(s.db)
+	return getBoardsWithPermissions(s.db)
 }
 
 // =========================================================================
@@ -418,6 +418,12 @@ func (s *Storage) getBoards(q Querier) ([]domain.Board, error) {
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating board rows: %w", err)
 	}
+
+	// Enrich boards with permissions (corporate vs public board distinction)
+	if err := enrichBoardsWithPermissions(q, boards); err != nil {
+		return nil, err
+	}
+
 	return boards, nil
 }
 
@@ -474,6 +480,12 @@ func (s *Storage) getBoardsByUser(q Querier, user domain.User) ([]domain.Board, 
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating board rows for user: %w", err)
 	}
+
+	// Enrich boards with permissions (corporate vs public board distinction)
+	if err := enrichBoardsWithPermissions(q, boards); err != nil {
+		return nil, err
+	}
+
 	return boards, nil
 }
 
@@ -532,31 +544,3 @@ func (s *Storage) lastThreadId(q Querier, board domain.BoardShortName) (domain.M
 	return id, nil
 }
 
-// getBoardsWithPermissions retrieves all board permissions and returns them as a map.
-// For boards without any permissions (public boards), the key will not be present in the map.
-func (s *Storage) getBoardsWithPermissions(q Querier) (map[string][]string, error) {
-	rows, err := q.Query(`
-		SELECT board_short_name, allowed_email_domain
-		FROM board_permissions
-		ORDER BY board_short_name, allowed_email_domain
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query board permissions: %w", err)
-	}
-	defer rows.Close()
-
-	permissions := make(map[string][]string)
-	for rows.Next() {
-		var boardShortName string
-		var allowedDomain string
-		if err := rows.Scan(&boardShortName, &allowedDomain); err != nil {
-			return nil, fmt.Errorf("failed to scan board permission row: %w", err)
-		}
-		permissions[boardShortName] = append(permissions[boardShortName], allowedDomain)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating board permission rows: %w", err)
-	}
-
-	return permissions, nil
-}

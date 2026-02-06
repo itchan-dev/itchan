@@ -197,6 +197,22 @@ code {
     font-weight: bold;
 }
 
+.board-category {
+    font-size: 1.1em;
+    margin: 15px 0 8px 0;
+    text-align: center;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+}
+
+.corporate-badge {
+    font-size: 14px;
+    margin-left: 4px;
+    cursor: help;
+    vertical-align: middle;
+}
+
 .boards-list .delete-form {
     margin-left: 4px;
 }
@@ -777,6 +793,91 @@ button[type="submit"]:hover {
 }
 
 /* ==========================================
+   Welcome Message
+   ========================================== */
+.welcome-message {
+    background: var(--bg-form);
+    border: 1px solid var(--border);
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    text-align: center;
+    line-height: 1.5;
+}
+
+.welcome-message p {
+    margin: 5px 0;
+}
+
+/* ==========================================
+   FAQ Page
+   ========================================== */
+.faq-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 10px;
+}
+
+.faq-container h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.faq-section {
+    background: var(--bg-form);
+    border: 1px solid var(--border);
+    padding: 12px 15px;
+    margin-bottom: 15px;
+}
+
+.faq-section h2 {
+    margin-top: 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.faq-section h3 {
+    margin-top: 12px;
+    color: var(--text-dim);
+}
+
+.faq-section ul {
+    margin: 8px 0;
+    padding-left: 25px;
+}
+
+.faq-section li {
+    margin-bottom: 4px;
+}
+
+.faq-examples-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+.faq-examples-table th,
+.faq-examples-table td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.faq-examples-table th {
+    background: var(--bg-post);
+    font-weight: bold;
+}
+
+.faq-examples-table td:first-child {
+    background: #d4edda;
+}
+
+.faq-examples-table td:last-child {
+    background: #f8d7da;
+}
+
+/* ==========================================
    Mobile Responsive Adjustments
    ========================================== */
 @media (max-width: 768px) {
@@ -903,6 +1004,30 @@ button[type="submit"]:hover {
     /* Index container */
     .index-container {
         max-width: 100%;
+    }
+
+    /* Welcome message */
+    .welcome-message {
+        padding: 8px 10px;
+        font-size: 14px;
+    }
+
+    /* FAQ page */
+    .faq-container {
+        padding: 0 5px;
+    }
+
+    .faq-section {
+        padding: 10px;
+    }
+
+    .faq-examples-table {
+        font-size: 12px;
+    }
+
+    .faq-examples-table th,
+    .faq-examples-table td {
+        padding: 6px;
     }
 }
 

@@ -1,18 +1,59 @@
 {{define "title"}}Home{{end}}
 {{define "content"}}
 <div class="index-container">
-<h1>Boards</h1>
+<div class="welcome-message">
+    <h2>Добро пожаловать на Itchan</h2>
+    <p>
+        <strong>Itchan</strong> — это анонимный имиджборд для IT-специалистов. 
+        Здесь можно обсуждать офферы, компании, технологии, зарплаты и начальство, не опасаясь, что это увидит ваш HR.
+    </p>
+    <hr>
+    <p>
+        <strong>Важно:</strong> Мы понимаем важность свободы слова, но сайт работает в правовом поле РФ. 
+        Пожалуйста, ознакомьтесь с <a href="/faq">FAQ и правилами</a> перед постингом. 
+        Мы вынуждены удалять контент, нарушающий Уголовный кодекс, чтобы ресурс не заблокировали.
+    </p>
+</div>
+<h1>Доски</h1>
 {{if .Boards}}
-<ul class="boards-list">
+    {{$publicBoards := list}}
+    {{$corporateBoards := list}}
     {{range .Boards}}
-    <li>
-        <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
-        {{if $.User.Admin}}
-        {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.CSRFToken}}
+        {{if .AllowedEmailDomains}}
+            {{$corporateBoards = append $corporateBoards .}}
+        {{else}}
+            {{$publicBoards = append $publicBoards .}}
         {{end}}
-    </li>
     {{end}}
-</ul>
+
+    {{if $publicBoards}}
+    <h2 class="board-category">Общие доски</h2>
+    <ul class="boards-list">
+        {{range $publicBoards}}
+        <li>
+            <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
+            {{if $.User.Admin}}
+            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.CSRFToken}}
+            {{end}}
+        </li>
+        {{end}}
+    </ul>
+    {{end}}
+
+    {{if $corporateBoards}}
+    <h2 class="board-category">Корпоративные доски</h2>
+    <ul class="boards-list corporate">
+        {{range $corporateBoards}}
+        <li>
+            <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
+            <span class="corporate-badge" title="Доступ только для: {{join .AllowedEmailDomains ", "}}">🏢</span>
+            {{if $.User.Admin}}
+            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.CSRFToken}}
+            {{end}}
+        </li>
+        {{end}}
+    </ul>
+    {{end}}
 {{else}}
 <p>No boards found.</p>
 {{end}}

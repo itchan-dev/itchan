@@ -190,6 +190,13 @@ var functionMap template.FuncMap = template.FuncMap{
 	"mimeTypeExtensions":    mimeTypeExtensions,
 	"formatAcceptMimeTypes": formatAcceptMimeTypes,
 	"derefStr":              derefStr,
+	"join":                  joinStrings,
+	"list": func() []any {
+		return []any{}
+	},
+	"append": func(list []any, item any) []any {
+		return append(list, item)
+	},
 }
 
 func mustLoadTemplates(tmplPath string) map[string]*template.Template {

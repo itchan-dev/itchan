@@ -12,10 +12,11 @@ type BoardCreationData struct {
 }
 
 type BoardMetadata struct {
-	Name           BoardName
-	ShortName      BoardShortName
-	CreatedAt      time.Time
-	LastActivityAt time.Time
+	Name                BoardName
+	ShortName           BoardShortName
+	CreatedAt           time.Time
+	LastActivityAt      time.Time
+	AllowedEmailDomains []string // nil means public board, non-empty means corporate board
 }
 
 type Board struct {
