@@ -1,0 +1,23 @@
+# Backend private configuration
+# Copy this file to private.yaml and set your values
+# IMPORTANT: Never commit private.yaml to version control
+
+jwt_key: "<generate-random-base64-string>"
+encryption_key: "<generate-random-base64-string>"
+
+pg:
+  host: "postgres"
+  port: 5432
+  user: "itchan"
+  password: "<your-postgres-password>"
+  dbname: "itchan"
+
+email:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  username: "your-email@example.com"
+  password: "your-app-password"
+  sender_name: "Itchan"
+  timeout: 180
+  use_tls: true
+  skip_verify: false
