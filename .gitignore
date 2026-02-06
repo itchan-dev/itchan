@@ -3,9 +3,11 @@ pgdata
 trash.txt
 *_mock.go
 fmtcoverage.html
+coverage.out
 .*
 !.env.example
 !.github
+!.editorconfig
 media
 *.exe
 CLAUDE.md
