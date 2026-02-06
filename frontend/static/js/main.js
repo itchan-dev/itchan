@@ -400,6 +400,11 @@ class UploadPreviewManager {
                 }
             }
         });
+
+        // Paste event listener for Ctrl+V file attachment support
+        document.addEventListener('paste', (e) => {
+            this.handlePaste(e);
+        });
     }
 
     ensureInputInitialized(input) {
@@ -408,6 +413,64 @@ class UploadPreviewManager {
             this.previewURLs.set(input, new Map());
             this.fileMaps.set(input, new Map());
         }
+    }
+
+    findTargetFileInput() {
+        // Priority 1: Paste in a textarea (most specific)
+        const activeElement = document.activeElement;
+        if (activeElement && activeElement.tagName === 'TEXTAREA') {
+            const form = activeElement.closest('form');
+            if (form) {
+                const fileInput = form.querySelector('input[type="file"][multiple]');
+                if (fileInput) return fileInput;
+            }
+        }
+
+        // Priority 2: Popup visible (medium specificity)
+        const popup = document.querySelector('.popup-reply-container');
+        if (popup && popup.style.display !== 'none') {
+            return popup.querySelector('input[type="file"][multiple]');
+        }
+
+        // Priority 3: Primary form on page (board or thread bottom form)
+        return document.querySelector('#attachments-reply-bottom, #attachments');
+    }
+
+    handlePaste(event) {
+        // Extract files from clipboard
+        const clipboardFiles = Array.from(event.clipboardData.files);
+        if (clipboardFiles.length === 0) return; // No files = text paste, exit
+
+        // Find target file input
+        const targetInput = this.findTargetFileInput();
+        if (!targetInput) return; // No form found, exit
+
+        const previewContainer = targetInput.parentElement.querySelector('.file-preview-list');
+        if (!previewContainer) return;
+
+        // Initialize storage for this input if first use
+        this.ensureInputInitialized(targetInput);
+
+        // Validate max files BEFORE appending
+        const existingFileMap = this.fileMaps.get(targetInput);
+        const maxFiles = parseInt(targetInput.getAttribute(UploadPreviewManager.ATTR_MAX_FILES)) || 0;
+
+        if (maxFiles > 0 && (existingFileMap.size + clipboardFiles.length) > maxFiles) {
+            this.showValidationError(
+                previewContainer,
+                `Cannot paste ${clipboardFiles.length} file(s). Max ${maxFiles} total allowed (${existingFileMap.size} already selected).`
+            );
+            return;
+        }
+
+        // Append files using DataTransfer API (same as removeFile() logic)
+        const newDataTransfer = new DataTransfer();
+        existingFileMap.forEach(file => newDataTransfer.items.add(file));
+        clipboardFiles.forEach(file => newDataTransfer.items.add(file));
+
+        // Update input.files and trigger validation/preview
+        targetInput.files = newDataTransfer.files;
+        targetInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     handleFileSelection(input, previewContainer) {
