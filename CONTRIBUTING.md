@@ -39,6 +39,65 @@ Storage  -> PostgreSQL operations, queries
 
 Please maintain this separation in your contributions. Do not put business logic in handlers or SQL in services.
 
+## Commit Messages
+
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+### Format
+
+```
+<type>(<scope>): <short summary>
+
+<optional body>
+```
+
+### Types
+
+| Type       | Description                                           |
+|------------|-------------------------------------------------------|
+| `feat`     | New feature                                           |
+| `fix`      | Bug fix                                               |
+| `refactor` | Code change that neither fixes a bug nor adds feature |
+| `docs`     | Documentation only                                    |
+| `test`     | Adding or fixing tests                                |
+| `chore`    | Build, CI, dependencies, tooling                      |
+| `perf`     | Performance improvement                               |
+| `ci`       | CI/CD changes                                         |
+
+### Scopes
+
+Optional, but encouraged: `backend`, `frontend`, `shared`, `config`, `ci`.
+
+### Examples
+
+```
+feat(backend): add thread pinning endpoint
+fix(frontend): prevent XSS in markdown preview
+refactor(shared): extract rate limiter into middleware
+docs: update API endpoint documentation
+chore(ci): switch deploy trigger to version tags
+```
+
+### Rules
+
+- Subject line under 72 characters
+- Use imperative mood: "add", not "added" or "adds"
+- No period at the end of the subject line
+- Body explains **why**, not **what** (the diff shows what)
+- One logical change per commit
+
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/). Releases are created by tagging commits on `main`:
+
+```
+v<MAJOR>.<MINOR>.<PATCH>
+```
+
+- **MAJOR** - breaking API or schema changes
+- **MINOR** - new features, backwards compatible
+- **PATCH** - bug fixes
+
 ## Making Changes
 
 1. **Write tests** for your changes
@@ -48,7 +107,7 @@ Please maintain this separation in your contributions. Do not put business logic
    cd ../frontend && go test ./...
    ```
 3. **Format your code**: `go fmt ./...`
-4. **Keep commits focused** - one logical change per commit
+4. **Keep commits focused** - one logical change per commit (see [Commit Messages](#commit-messages))
 
 ## Pull Request Process
 

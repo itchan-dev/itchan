@@ -1,10 +1,9 @@
-name: Test and Deploy
+name: Deploy
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - 'v*'
 
 jobs:
   test:
@@ -28,8 +27,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    environment: production 
-    if: github.event_name == 'push'
+    environment: production
     steps:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -40,5 +38,6 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ${{ secrets.VPS_PROJECT_PATH }}
-            git pull origin main
+            git fetch --tags
+            git checkout ${{ github.ref_name }}
             make deploy-monitoring
