@@ -435,12 +435,10 @@ pg:
 
 email:
   smtp_server: smtp.gmail.com
-  smtp_port: 587
+  smtp_port: 587                          # 587 = STARTTLS, 465 = implicit TLS (Yandex)
   username: your-email@gmail.com
   password: your-app-password
   sender_name: "Itchan Imageboard"
-  use_tls: true
-  skip_verify: false
   timeout: 10
 ```
 
