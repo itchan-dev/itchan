@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full Itchan setup: generates configs, obtains SSL certificate, sets up auto-renewal
+# First-time setup: generates .env with secrets, obtains SSL certificate, sets up auto-renewal
 # Usage: ./scripts/setup.sh <domain> <email>
 # Example: ./scripts/setup.sh itchan.example.com admin@example.com
 
@@ -22,43 +22,26 @@ fi
 generate_secret() { openssl rand -base64 48; }
 generate_password() { openssl rand -base64 32 | tr -d "=+/" | cut -c1-25; }
 
-# 1. Generate .env
+# 1. Generate .env with random secrets
 if [ ! -f ".env" ]; then
-    PG_PASSWORD=$(generate_password)
     cp .env.example .env
-    sed -i "s/<generate-strong-password-here>/${PG_PASSWORD}/g" .env
+    sed -i "s|DOMAIN=.*|DOMAIN=${DOMAIN}|" .env
+    sed -i "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(generate_password)|" .env
+    sed -i "s|JWT_KEY=.*|JWT_KEY=$(generate_secret)|" .env
+    sed -i "s|ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$(generate_secret)|" .env
     echo "✓ .env created"
+    echo ""
+    echo "⚠ Configure email settings in .env before deploying!"
+    echo "  SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD"
+    echo ""
 else
     echo "• .env already exists, skipping"
 fi
 
-# 2. Generate config/private.yaml
-if [ ! -f "config/private.yaml" ]; then
-    cp config/private.yaml.example config/private.yaml
-    sed -i "s|<generate-random-base64-string>|$(generate_secret)|" config/private.yaml
-    sed -i "s|<generate-random-base64-string>|$(generate_secret)|" config/private.yaml
-    source .env
-    sed -i "s|<your-postgres-password>|${POSTGRES_PASSWORD}|" config/private.yaml
-    echo "✓ config/private.yaml created"
-    echo ""
-    echo "⚠ Configure email settings in config/private.yaml before deploying!"
-    echo "  smtp_server, smtp_port, username, password, sender_name"
-    echo ""
-else
-    echo "• config/private.yaml already exists, skipping"
-fi
+# 2. Generate configs from templates + .env
+./scripts/gen-configs.sh
 
-# 3. Set domain in nginx.conf
-if [ ! -f "nginx/nginx.conf" ]; then
-	cp nginx/nginx.conf.example nginx/nginx.conf
-	sed -i "s/DOMAIN_PLACEHOLDER/${DOMAIN}/g" nginx/nginx.conf 2>/dev/null || true
-	echo "$DOMAIN" > nginx/.domain
-	echo "✓ nginx.conf configured for ${DOMAIN}"
-else
-    echo "• nginx/nginx.conf already exists, skipping"
-fi
-
-# 4. Obtain SSL certificate
+# 3. Obtain SSL certificate
 mkdir -p nginx/certs nginx/certbot
 echo "Obtaining SSL certificate for ${DOMAIN}..."
 docker compose down 2>/dev/null || true
@@ -75,7 +58,7 @@ docker run --rm \
 
 echo "✓ SSL certificate obtained"
 
-# 5. Setup auto-renewal cron (daily at 3 AM)
+# 4. Setup auto-renewal cron (daily at 3 AM)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CRON_CMD="0 3 * * * cd $(pwd) && ${SCRIPT_DIR}/renew-ssl.sh >> /var/log/itchan-ssl-renew.log 2>&1"
 
@@ -84,6 +67,6 @@ echo "✓ SSL auto-renewal cron installed (daily 3 AM)"
 
 echo ""
 echo "=== Setup complete ==="
-echo "1. Configure email in config/private.yaml"
+echo "1. Configure email in .env"
 echo "2. Run: make deploy"
 echo "3. Visit: https://${DOMAIN}"
