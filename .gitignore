@@ -1,15 +1,18 @@
 config/private.yaml
-pgdata
-trash.txt
-*_mock.go
-fmtcoverage.html
-coverage.out
-.*
-!.env.example
-!.github
-!.editorconfig
-media
+# Build artifacts
 *.exe
+coverage.out
+fmtcoverage.html
+
+# Generated mocks
+*_mock.go
+
+# IDE and OS
+.*
+!.github
+!.gitignore
+!.editorconfig
+!.env.example
+
 CLAUDE.md
 todo.md
-article.md
