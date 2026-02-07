@@ -96,6 +96,7 @@
             {{/* Show pin toggle for OP messages (id=1) */}}
             {{if .Message.IsOp}}
                 {{template "pin-toggle-button" dict "Action" (printf "/%s/%d/pin" $.Message.Board $.Message.ThreadId) "IsPinned" .Message.Context.IsPinned "CSRFToken" $.CSRFToken}}
+                {{template "delete-button" dict "Action" (printf "/%s/%d/delete" $.Message.Board $.Message.ThreadId) "ConfirmMessage" (printf "Delete thread #%d and all its messages?" $.Message.ThreadId) "ButtonText" "delete thread" "CSRFToken" $.CSRFToken}}
             {{end}}
             {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete" "CSRFToken" $.CSRFToken}}
             {{template "blacklist-button" dict "UserId" .Message.Author.Id "CSRFToken" $.CSRFToken}}
