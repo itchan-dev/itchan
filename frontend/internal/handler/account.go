@@ -44,6 +44,5 @@ func (h *Handler) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		templateData.ActivityMessages[i] = RenderMessage(msg)
 	}
 
-	// Render template
 	h.renderTemplate(w, "account.html", templateData)
 }

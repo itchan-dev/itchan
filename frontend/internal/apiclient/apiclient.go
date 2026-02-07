@@ -29,7 +29,6 @@ func (c *APIClient) do(method, path string, body io.Reader, cookies ...*http.Coo
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// Add any cookies that were passed in.
 	for _, cookie := range cookies {
 		req.AddCookie(cookie)
 	}

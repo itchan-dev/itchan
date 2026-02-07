@@ -33,7 +33,6 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 
 	body, pendingFiles, cleanup, err := parseMultipartRequest[api.CreateMessageRequest](w, r, h)
 	if err != nil {
-		// Return 413 Payload Too Large for size errors, 400 for other errors
 		statusCode := http.StatusBadRequest
 		if errors.Is(err, validation.ErrPayloadTooLarge) {
 			statusCode = http.StatusRequestEntityTooLarge
@@ -58,7 +57,6 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Calculate page from message ID (which is now per-thread sequential = ordinal)
 	page := 1
 	if h.cfg.Public.MessagesPerThreadPage > 0 && msgId > 0 {
 		page = (int(msgId)-1)/h.cfg.Public.MessagesPerThreadPage + 1

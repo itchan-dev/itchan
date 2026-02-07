@@ -40,7 +40,6 @@ func GenerateCSRFToken(config CSRFConfig) func(http.Handler) http.Handler {
 					return
 				}
 
-				// Set CSRF token cookie
 				http.SetCookie(w, &http.Cookie{
 					Name:     csrfCookieName,
 					Value:    token,
@@ -65,7 +64,6 @@ func GenerateCSRFToken(config CSRFConfig) func(http.Handler) http.Handler {
 func ValidateCSRFToken() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Only validate POST, PUT, PATCH, DELETE methods
 			if r.Method != http.MethodPost && r.Method != http.MethodPut &&
 				r.Method != http.MethodPatch && r.Method != http.MethodDelete {
 				next.ServeHTTP(w, r)

@@ -13,7 +13,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-// renderTemplate executes the given template with the provided data.
 func (h *Handler) renderTemplate(w http.ResponseWriter, name string, data interface{}) {
 	tmpl, ok := h.Templates[name]
 	if !ok {
@@ -45,8 +44,6 @@ func RenderMessage(message domain.Message) *frontend_domain.Message {
 	return &renderedMessage
 }
 
-// RenderThread transforms a domain.Thread into a frontend-specific view model.
-// Page values are already calculated by the backend.
 func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 	renderedThread := frontend_domain.Thread{Thread: thread, Messages: make([]*frontend_domain.Message, len(thread.Messages))}
 	for i, msg := range thread.Messages {
@@ -61,8 +58,6 @@ func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 	return &renderedThread
 }
 
-// RenderBoard transforms a domain.Board into a frontend-specific view model.
-// Page values are already calculated by the backend.
 func RenderBoard(board domain.Board) *frontend_domain.Board {
 	renderedBoard := frontend_domain.Board{Board: board, Threads: make([]*frontend_domain.Thread, len(board.Threads))}
 	for i, thread := range board.Threads {

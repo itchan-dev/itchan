@@ -60,13 +60,11 @@ func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user is eligible by age
 	templateData.IsEligibleByAge = templateData.User.Admin || accountAge >= requiredAge
 
-	// Render template
 	h.renderTemplate(w, "invites.html", templateData)
 }
 
 // GenerateInvitePostHandler generates a new invite code
 func (h *Handler) GenerateInvitePostHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse form
 	if err := r.ParseForm(); err != nil {
 		logger.Log.Error("parsing form", "error", err)
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
@@ -81,14 +79,12 @@ func (h *Handler) GenerateInvitePostHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Success - redirect with the plain code in success message (escape the code for safety)
 	successMsg := fmt.Sprintf("Invite code generated: %s (save this now, it won't be shown again)", template.HTMLEscapeString(invite.PlainCode))
 	h.redirectWithFlash(w, r, "/invites", flashCookieSuccess, successMsg)
 }
 
 // RevokeInvitePostHandler revokes (deletes) an unused invite code
 func (h *Handler) RevokeInvitePostHandler(w http.ResponseWriter, r *http.Request) {
-	// Parse form
 	if err := r.ParseForm(); err != nil {
 		logger.Log.Error("parsing form", "error", err)
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
@@ -110,6 +106,5 @@ func (h *Handler) RevokeInvitePostHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Success - redirect with success message
 	h.redirectWithFlash(w, r, "/invites", flashCookieSuccess, "Invite revoked successfully")
 }

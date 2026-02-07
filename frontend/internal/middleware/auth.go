@@ -44,7 +44,6 @@ func (w *authRedirectWriter) WriteHeader(statusCode int) {
 		return // Already handled
 	}
 
-	// Intercept auth errors and redirect
 	if statusCode == http.StatusUnauthorized {
 		w.redirected = true
 		redirectToLogin(w.ResponseWriter, w.request, "Please log in to continue")
@@ -57,7 +56,6 @@ func (w *authRedirectWriter) WriteHeader(statusCode int) {
 		return
 	}
 
-	// Pass through all other status codes
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 

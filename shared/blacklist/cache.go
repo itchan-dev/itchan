@@ -16,8 +16,6 @@ type BlacklistCacheStorage interface {
 	GetRecentlyBlacklistedUsers(since time.Time) ([]domain.UserId, error)
 }
 
-// Cache maintains an in-memory cache of recently blacklisted users
-// to avoid database queries on every authentication request.
 type Cache struct {
 	storage        BlacklistCacheStorage
 	cache          map[domain.UserId]bool
@@ -26,8 +24,6 @@ type Cache struct {
 	lastUpdateTime time.Time
 }
 
-// NewCache creates a new blacklist cache instance.
-// jwtTTL is used to determine how far back to query for blacklisted users.
 func NewCache(storage BlacklistCacheStorage, jwtTTL time.Duration) *Cache {
 	return &Cache{
 		storage: storage,
@@ -68,8 +64,6 @@ func (bc *Cache) Update() error {
 	return nil
 }
 
-// IsBlacklisted checks if a user ID is in the blacklist cache.
-// This is a thread-safe, high-performance read operation.
 func (bc *Cache) IsBlacklisted(userId domain.UserId) bool {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()

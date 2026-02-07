@@ -38,6 +38,5 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success - redirect with success message
 	h.redirectWithFlash(w, r, targetURL, flashCookieSuccess, "User blacklisted successfully")
 }

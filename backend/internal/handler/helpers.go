@@ -12,8 +12,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/validation"
 )
 
-// parseMultipartRequest parses a multipart form request and extracts the JSON payload
-// and any uploaded files. Returns the parsed body, pending files, and a cleanup function.
 func parseMultipartRequest[T any](w http.ResponseWriter, r *http.Request, h *Handler) (body T, pendingFiles []*domain.PendingFile, cleanup func(), err error) {
 	// Validate request size and parse multipart form
 	maxRequestSize := validation.CalculateMaxRequestSize(h.cfg.Public.MaxTotalAttachmentSize, 1<<20)
@@ -61,7 +59,6 @@ func parseMultipartRequest[T any](w http.ResponseWriter, r *http.Request, h *Han
 	return
 }
 
-// parseIntParam parses an integer parameter from a string and returns a meaningful error
 func parseIntParam(param string, paramName string) (int, error) {
 	val, err := strconv.Atoi(param)
 	if err != nil {

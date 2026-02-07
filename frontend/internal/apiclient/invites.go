@@ -11,20 +11,17 @@ import (
 
 // GetMyInvites fetches all invite codes created by the authenticated user
 func (c *APIClient) GetMyInvites(r *http.Request) ([]domain.InviteCode, error) {
-	// Make API call
 	resp, err := c.do("GET", "/v1/invites", nil, r.Cookies()...)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("failed to get invites: %s", string(bodyBytes))
 	}
 
-	// Parse response
 	var invites []domain.InviteCode
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -35,7 +32,6 @@ func (c *APIClient) GetMyInvites(r *http.Request) ([]domain.InviteCode, error) {
 		return nil, fmt.Errorf("failed to parse invites: %w", err)
 	}
 
-	// Return empty array instead of nil if no invites
 	if invites == nil {
 		invites = []domain.InviteCode{}
 	}
@@ -52,13 +48,11 @@ func (c *APIClient) GenerateInvite(r *http.Request) (*domain.InviteCodeWithPlain
 	}
 	defer resp.Body.Close()
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("failed to generate invite: %s", string(bodyBytes))
 	}
 
-	// Parse response
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
@@ -83,7 +77,6 @@ func (c *APIClient) GenerateInvite(r *http.Request) (*domain.InviteCodeWithPlain
 
 // RevokeInvite deletes an unused invite code owned by the authenticated user
 func (c *APIClient) RevokeInvite(r *http.Request, codeHash string) error {
-	// Make API call
 	path := fmt.Sprintf("/v1/invites/%s", codeHash)
 	resp, err := c.do("DELETE", path, nil, r.Cookies()...)
 	if err != nil {
@@ -91,7 +84,6 @@ func (c *APIClient) RevokeInvite(r *http.Request, codeHash string) error {
 	}
 	defer resp.Body.Close()
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("failed to revoke invite: %s", string(bodyBytes))

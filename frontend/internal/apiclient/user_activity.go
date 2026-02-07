@@ -19,13 +19,11 @@ func (c *APIClient) GetUserActivity(r *http.Request) (*api.UserActivityResponse,
 	}
 	defer resp.Body.Close()
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("failed to get user activity: %s", string(bodyBytes))
 	}
 
-	// Parse response
 	var activity api.UserActivityResponse
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -36,7 +34,6 @@ func (c *APIClient) GetUserActivity(r *http.Request) (*api.UserActivityResponse,
 		return nil, fmt.Errorf("failed to parse user activity: %w", err)
 	}
 
-	// Initialize empty array if nil
 	if activity.Messages == nil {
 		activity.Messages = []domain.Message{}
 	}

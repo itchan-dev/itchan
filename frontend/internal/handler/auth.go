@@ -35,11 +35,8 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 
-	// Handle specific case: confirmation needed
 	if resp.StatusCode == http.StatusTooEarly {
-		// Safely construct message without XSS risk - use template escaping
 		msg := template.HTMLEscapeString(string(bodyBytes)) + " Please check your email or use the confirmation page."
-		// Redirect to confirmation page with email pre-filled (via cookie) and error message
 		h.setFlash(w, flashCookieError, msg)
 		h.setFlash(w, emailPrefillCookie, email)
 		http.Redirect(w, r, "/check_confirmation_code", http.StatusSeeOther)
@@ -51,7 +48,6 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success (StatusOK): Redirect to confirmation page with email pre-filled (via cookie)W
 	h.redirectWithFlash(w, r, successURL, emailPrefillCookie, email)
 }
 
@@ -113,7 +109,6 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success: Forward cookies from the backend response to the user's browser
 	for _, cookie := range resp.Cookies() {
 		http.SetCookie(w, cookie)
 	}
@@ -122,7 +117,6 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	// Clear the access token cookie
 	cookie := &http.Cookie{
 		Path:     "/",
 		Name:     "accessToken",
@@ -134,8 +128,7 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, cookie)
 
-	// Redirect to login page
-	http.Redirect(w, r, "/login", http.StatusSeeOther) // Use SeeOther after logout action
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
 func (h *Handler) RegisterInviteGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -160,8 +153,6 @@ func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Success: Redirect to login page with generated email pre-filled (via cookie) and success message
-	// Note: HTML tags are intentional, but escape the email value for safety
 	successMsg := fmt.Sprintf("<strong>Registration successful!</strong> Your email is: <strong>%s</strong><br>Please save this - it cannot be recovered!", template.HTMLEscapeString(email))
 	h.setFlash(w, flashCookieSuccess, successMsg)
 	h.setFlash(w, emailPrefillCookie, email)

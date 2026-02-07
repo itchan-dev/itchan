@@ -46,8 +46,6 @@ func GenerateRandomString(length int, charset string) string {
 	return string(b)
 }
 
-// GenerateConfirmationCode generates a cryptographically secure random confirmation code
-// using alphanumeric characters (excluding ambiguous ones like 0, O, I, 1)
 func GenerateConfirmationCode(length int) string {
 	// Charset excludes ambiguous characters: 0, O, I, 1
 	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"

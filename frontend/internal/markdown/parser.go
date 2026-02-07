@@ -202,7 +202,6 @@ func (p *TextProcessor) ProcessMessage(msg domain.Message) (string, domain.Repli
 		}
 		emptyLineCount = 0
 
-		// Try to match a block rule using trie
 		if matches := p.blockTrie.Match(line, 0); len(matches) > 0 {
 			longestMatch := matches[len(matches)-1]
 			rule, ok := longestMatch.Rule.(*BlockRule)

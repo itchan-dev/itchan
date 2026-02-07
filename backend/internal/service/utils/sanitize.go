@@ -16,8 +16,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-// sanitizeVideo strips metadata using ffmpeg (internal helper)
-// Returns path to sanitized temp file (caller must clean up)
 func sanitizeVideo(inputPath string) (string, error) {
 	// Extract extension from input file so ffmpeg can determine output format
 	ext := filepath.Ext(inputPath)
@@ -51,14 +49,11 @@ func sanitizeVideo(inputPath string) (string, error) {
 	return outputPath, nil
 }
 
-// CheckFFmpegAvailable verifies ffmpeg is installed
 func CheckFFmpegAvailable() error {
 	cmd := exec.Command("ffmpeg", "-version")
 	return cmd.Run()
 }
 
-// SanitizeImage sanitizes an image by decoding it (which strips EXIF metadata).
-// Returns a SanitizedImage with decoded image ready for encoding/thumbnailing.
 func SanitizeImage(pendingFile *domain.PendingFile) (*domain.SanitizedImage, error) {
 	// Decode image once - this strips EXIF metadata automatically
 	img, format, err := image.Decode(pendingFile.Data)

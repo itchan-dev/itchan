@@ -77,8 +77,6 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 		}
 	}
 
-	// Process and save files FIRST (before any DB operations)
-	// This ensures no DB pollution if file processing fails
 	var attachments domain.Attachments
 	var savedFiles []string
 
@@ -94,10 +92,8 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 		}
 	}
 
-	// Create message + attachments in SINGLE atomic transaction
 	msgID, err := b.storage.CreateMessage(creationData, attachments)
 	if err != nil {
-		// Cleanup: delete files saved in previous step
 		for _, path := range savedFiles {
 			b.mediaStorage.DeleteFile(path)
 		}
@@ -107,9 +103,6 @@ func (b *Message) Create(creationData domain.MessageCreationData) (domain.MsgId,
 	return msgID, nil
 }
 
-// processAndSaveFiles processes pending files (sanitization, thumbnail generation)
-// and saves them to storage. Returns the attachment metadata and list of saved file paths.
-// If any step fails, it cleans up all previously saved files and returns an error.
 func (b *Message) processAndSaveFiles(
 	board domain.BoardShortName,
 	threadID domain.ThreadId,
@@ -254,15 +247,12 @@ func (b *Message) Delete(board domain.BoardShortName, threadId domain.ThreadId, 
 		return err
 	}
 
-	// Delete the actual files from filesystem
 	for _, attachment := range msg.Attachments {
 		if attachment.File != nil {
-			// Delete original file
 			if err := b.mediaStorage.DeleteFile(attachment.File.FilePath); err != nil {
 				// Best effort: log errors but don't fail the operation
 			}
 
-			// Delete thumbnail if it exists
 			if attachment.File.ThumbnailPath != nil {
 				if err := b.mediaStorage.DeleteFile(*attachment.File.ThumbnailPath); err != nil {
 					// Best effort: log errors but don't fail the operation
