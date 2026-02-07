@@ -33,6 +33,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    restart: unless-stopped
 
   frontend:
     container_name: frontend
@@ -54,6 +55,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
 
   db:
     container_name: postgres
@@ -69,11 +71,11 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./backend/internal/storage/pg/migrations:/docker-entrypoint-initdb.d
     healthcheck:
-          test: ["CMD-SHELL", "pg_isready -h localhost -U $${POSTGRES_USER:-itchan} -d $${POSTGRES_DB:-itchan}"]
-          interval: 10s
-          retries: 5
-          start_period: 30s
-          timeout: 10s
+      test: ["CMD-SHELL", "pg_isready -h localhost -U $${POSTGRES_USER:-itchan} -d $${POSTGRES_DB:-itchan}"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
 
 volumes:
   pgdata:
