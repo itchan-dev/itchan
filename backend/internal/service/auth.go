@@ -163,17 +163,20 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		return err
 	}
 
-	emailBody := fmt.Sprintf(`
-		Hello,
+	emailBody := fmt.Sprintf(`Здравствуйте.
 
-		Your confirmation code below
+Ваш код подтверждения для входа в Itchan:
 
-		%s
+%s
 
-		If you did not request this, please ignore this email.
-	`, confirmationCode)
+Код действителен в течение 15 минут.
 
-	err = a.email.Send(email, "Please confirm your email address", emailBody)
+Если вы не запрашивали этот код, просто проигнорируйте данное письмо.
+
+---
+Это автоматическое уведомление, пожалуйста, не отвечайте на него.`, confirmationCode)
+
+	err = a.email.Send(email, fmt.Sprintf("Код подтверждения: %s (Itchan)", confirmationCode), emailBody)
 	if err != nil {
 		logger.Log.Error("failed to send confirmation email", "email_hash_prefix", fmt.Sprintf("%x", emailHash[:8]), "error", err)
 		return err
