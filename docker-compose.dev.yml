@@ -1,0 +1,8 @@
+# Dev override: no nginx, frontend exposed directly on port 8081
+services:
+  nginx:
+    profiles: [disabled]
+
+  frontend:
+    ports:
+      - "8081:8081"
