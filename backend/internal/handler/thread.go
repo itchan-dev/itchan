@@ -23,7 +23,6 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 
 	body, pendingFiles, cleanup, err := parseMultipartRequest[api.CreateThreadRequest](w, r, h)
 	if err != nil {
-		// Return 413 Payload Too Large for size errors, 400 for other errors
 		statusCode := http.StatusBadRequest
 		if errors.Is(err, validation.ErrPayloadTooLarge) {
 			statusCode = http.StatusRequestEntityTooLarge
@@ -64,7 +63,6 @@ func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse page parameter (default to 1)
 	page := 1
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
 		if parsedPage, err := parseIntParam(pageStr, "page"); err == nil && parsedPage > 0 {

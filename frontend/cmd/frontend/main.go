@@ -45,11 +45,9 @@ func main() {
 	router := router.SetupRouter(deps)
 	server := configureServer(router)
 
-	// Channel to listen for interrupt or termination signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// Start server in a goroutine
 	go func() {
 		logger.Log.Info("starting frontend", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -58,18 +56,14 @@ func main() {
 		}
 	}()
 
-	// Block until a signal is received
 	<-sigChan
 	logger.Log.Info("shutdown signal received, initiating graceful shutdown")
 
-	// Cancel the root context, triggering cleanup in dependencies
 	deps.CancelFunc()
 
-	// Create shutdown context with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
-	// Attempt graceful shutdown
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Log.Error("frontend server shutdown error", "error", err)
 	} else {

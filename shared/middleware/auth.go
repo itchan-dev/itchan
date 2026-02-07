@@ -18,7 +18,6 @@ type BlacklistCache interface {
 	IsBlacklisted(userId domain.UserId) bool
 }
 
-// Key to store the user claims in the request context
 type key int
 
 const UserClaimsKey key = 0
@@ -30,7 +29,6 @@ type Auth struct {
 	secureCookies  bool
 }
 
-// NewAuth creates a new Auth middleware instance
 func NewAuth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, secureCookies bool) *Auth {
 	return &Auth{
 		jwtService:     jwtService,
@@ -39,12 +37,10 @@ func NewAuth(jwtService jwt_internal.JwtService, blacklistCache BlacklistCache, 
 	}
 }
 
-// NeedAuth returns middleware that requires authentication
 func (a *Auth) NeedAuth() func(http.Handler) http.Handler {
 	return a.auth(false)
 }
 
-// AdminOnly returns middleware that requires admin authentication
 func (a *Auth) AdminOnly() func(http.Handler) http.Handler {
 	return a.auth(true)
 }
@@ -64,8 +60,6 @@ func (a *Auth) OptionalAuth() func(http.Handler) http.Handler {
 	}
 }
 
-// extractUser extracts and validates user from JWT token in request
-// Returns (user, nil) on success, (nil, error) on failure
 func (a *Auth) extractUser(r *http.Request) (*domain.User, error) {
 	// Try to get token from cookie first (for browser clients)
 	var tokenString string
@@ -179,7 +173,6 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 	}
 }
 
-// GetUserFromContext retrieves the user from the context
 func GetUserFromContext(r *http.Request) *domain.User {
 	user, ok := r.Context().Value(UserClaimsKey).(*domain.User)
 	if !ok {

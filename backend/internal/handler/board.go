@@ -76,7 +76,6 @@ func (h *Handler) GetBoards(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to response DTOs (metadata only for list view)
 	boardMetadata := make([]api.BoardMetadataResponse, len(boards))
 	for i, board := range boards {
 		boardMetadata[i] = api.BoardMetadataResponse{BoardMetadata: board.BoardMetadata}

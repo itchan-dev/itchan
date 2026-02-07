@@ -75,17 +75,13 @@ func (b *Board) Delete(shortName domain.BoardShortName) error {
 		return err
 	}
 
-	// Delete the board from storage (DB will cascade delete all threads, messages, and attachments)
 	err := b.storage.DeleteBoard(shortName)
 	if err != nil {
 		return err
 	}
 
-	// Delete all files for this board from filesystem
 	// Best effort: log errors but don't fail the operation
 	if err := b.mediaStorage.DeleteBoard(string(shortName)); err != nil {
-		// In production, you might want to log this error
-		// For now, we continue as the DB records are already deleted
 	}
 
 	return nil

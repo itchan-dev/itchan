@@ -17,13 +17,10 @@ import (
 func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	r := chi.NewRouter()
 
-	// Strip trailing slashes (replaces mux.StrictSlash)
 	r.Use(middleware.StripSlashes)
 
-	// Enable gzip compression for all responses (HTML, CSS, JS)
 	r.Use(middleware.Compress(5))
 
-	// Add security headers
 	frontendCSP := "default-src 'self'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"img-src 'self' data: blob:; " +
@@ -32,7 +29,6 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		"form-action 'self'"
 	r.Use(mw.SecurityHeadersWithCSP(deps.Public.SecureCookies, frontendCSP))
 
-	// CSRF token generation for all routes (if enabled)
 	if deps.Public.CSRFEnabled {
 		r.Use(frontend_mw.GenerateCSRFToken(frontend_mw.CSRFConfig{
 			SecureCookies: deps.Public.SecureCookies,
@@ -88,7 +84,6 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		})
 	})
 
-	// Static file server with caching
 	fileServer := http.FileServer(http.Dir("static"))
 	r.Handle("/static/*", http.StripPrefix("/static/", cacheStaticFiles(fileServer, deps.Public.StaticCacheMaxAge)))
 
@@ -96,7 +91,6 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	r.Group(func(adminRouter chi.Router) {
 		adminRouter.Use(authMw.AdminOnly())
 
-		// Add CSRF validation for admin operations
 		if deps.Public.CSRFEnabled {
 			adminRouter.Use(frontend_mw.ValidateCSRFToken())
 		}
@@ -114,12 +108,10 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		authRouter.Use(mw.RestrictBoardAccess(deps.AccessData))            // Enforce board access restrictions
 		authRouter.Use(mw.RateLimit(rl.Rps100(), mw.GetUserIDFromContext)) // 100 RPS per user
 
-		// Add CSRF validation for authenticated state-changing operations
 		if deps.Public.CSRFEnabled {
 			authRouter.Use(frontend_mw.ValidateCSRFToken())
 		}
 
-		// Media file server - serve files from shared media directory
 		mediaPath := deps.Handler.MediaPath
 		authRouter.Handle("/media/{board}/*", http.StripPrefix("/media/", http.FileServer(http.Dir(mediaPath))))
 
@@ -159,7 +151,6 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 // cacheStaticFiles wraps an http.Handler to add Cache-Control headers for static files
 func cacheStaticFiles(h http.Handler, maxAge time.Duration) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Set Cache-Control header for browser caching (max-age expects seconds)
 		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(maxAge.Seconds())))
 		h.ServeHTTP(w, r)
 	})

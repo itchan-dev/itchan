@@ -40,11 +40,9 @@ func (h *Handler) MessagePreviewHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	defer resp.Body.Close()
 
-	// Forward headers from the backend response to the client.
 	w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
 	w.WriteHeader(resp.StatusCode)
 
-	// Copy the response body directly to the client.
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		logger.Log.Error("copying response body for message preview", "error", err)
 	}
@@ -67,7 +65,6 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 	// Convert to frontend domain types (page already calculated by backend)
 	renderedMessage := RenderMessage(*messageData)
 
-	// Add message-preview class
 	renderedMessage.Context.ExtraClasses += " message-preview"
 
 	// Create view data dict - consistent with template pattern

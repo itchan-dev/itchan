@@ -21,8 +21,6 @@ func escapeQuotes(s string) string {
 	return quoteEscaper.Replace(s)
 }
 
-// === Thread & Message Methods ===
-
 func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page int) (domain.Thread, error) {
 	var thread domain.Thread
 	path := fmt.Sprintf("/v1/%s/%s", shortName, threadID)
@@ -117,7 +115,6 @@ func (c *APIClient) postMultipartRequest(path string, data any, multipartForm *m
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	// Add cookies
 	for _, cookie := range cookies {
 		req.AddCookie(cookie)
 	}

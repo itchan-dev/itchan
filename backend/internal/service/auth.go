@@ -93,8 +93,6 @@ func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blac
 	}
 }
 
-// Generate and send confirmation code to destinated email
-// Save email, passHash, confirmation code to database
 func (a *Auth) Register(creds domain.Credentials) error {
 	email := strings.ToLower(creds.Email)
 
@@ -136,15 +134,14 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		}
 	}
 
-	// Hash email for storage lookups
 	emailHash := a.emailCrypto.Hash(email)
 
 	cData, err := a.storage.ConfirmationData(emailHash)
-	if err != nil && !errors.IsNotFound(err) { // if there is error, and error is not "not found"
+	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
-	if err == nil { // data presented, check expiration
-		if cData.Expires.Before(time.Now()) { // if data expired - delete
+	if err == nil {
+		if cData.Expires.Before(time.Now()) {
 			if err := a.storage.DeleteConfirmationData(emailHash); err != nil {
 				return err
 			}
@@ -182,7 +179,6 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		return err
 	}
 
-	// Save confirmation data only after email is sent successfully
 	err = a.storage.SaveConfirmationData(domain.ConfirmationData{
 		EmailHash:            emailHash,
 		PasswordHash:         domain.Password(passHash),
@@ -197,7 +193,6 @@ func (a *Auth) Register(creds domain.Credentials) error {
 	return nil
 }
 
-// Confirm code sended via Register func and update user password
 func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string) error {
 	email = strings.ToLower(email)
 
@@ -205,7 +200,6 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		return err
 	}
 
-	// Hash email for all storage operations
 	emailHash := a.emailCrypto.Hash(email)
 
 	data, err := a.storage.ConfirmationData(emailHash)
@@ -219,12 +213,10 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		logger.Log.Warn("failed confirmation code attempt", "email_hash_prefix", fmt.Sprintf("%x", emailHash[:8]), "error", err)
 		return &errors.ErrorWithStatusCode{Message: "Wrong confirmation code", StatusCode: http.StatusBadRequest}
 	}
-	// if not exists - create
 	_, err = a.storage.User(emailHash)
 	if err != nil {
 		e, ok := err.(*errors.ErrorWithStatusCode)
 		if ok && e.StatusCode == http.StatusNotFound {
-			// Encrypt email data
 			emailEncrypted, err := a.emailCrypto.Encrypt(email)
 			if err != nil {
 				return fmt.Errorf("failed to encrypt email: %w", err)
@@ -254,15 +246,12 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 		}
 		logger.Log.Info("password updated", "email_hash_prefix", fmt.Sprintf("%x", emailHash[:8]))
 	}
-	if err := a.storage.DeleteConfirmationData(emailHash); err != nil { // cleanup
+	if err := a.storage.DeleteConfirmationData(emailHash); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Login checks if user with given credentials exists in the system and returns access token.
-// If user exists, but password is incorrect, returns error.
-// If user doesn't exist, returns error.
 func (a *Auth) Login(creds domain.Credentials) (string, error) {
 	email := strings.ToLower(creds.Email)
 	password := creds.Password
@@ -272,12 +261,10 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 		return "", err
 	}
 
-	// Hash email for storage lookup
 	emailHash := a.emailCrypto.Hash(email)
 
 	user, err := a.storage.User(emailHash)
 	if err != nil {
-		// to not leak existing users
 		e, ok := err.(*errors.ErrorWithStatusCode)
 		if ok && e.StatusCode == http.StatusNotFound {
 			return "", &errors.ErrorWithStatusCode{
@@ -294,7 +281,6 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 		return "", &errors.ErrorWithStatusCode{Message: "Invalid credentials", StatusCode: http.StatusUnauthorized}
 	}
 
-	// Check if user is blacklisted (direct DB check for accuracy)
 	isBlacklisted, err := a.storage.IsUserBlacklisted(user.Id)
 	if err != nil {
 		logger.Log.Error("failed to check blacklist status", "user_id", user.Id, "error", err)
@@ -318,9 +304,7 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 	return token, nil
 }
 
-// BlacklistUser adds a user to the blacklist
 func (a *Auth) BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error {
-	// Blacklist the user in database
 	if err := a.storage.BlacklistUser(userId, reason, blacklistedBy); err != nil {
 		return err
 	}
@@ -332,25 +316,20 @@ func (a *Auth) BlacklistUser(userId domain.UserId, reason string, blacklistedBy 
 			"error", err)
 	}
 
-	// Trigger immediate cache update for instant effect
 	if err := a.blacklistCache.Update(); err != nil {
 		logger.Log.Warn("user blacklisted but cache update failed",
 			"user_id", userId,
 			"error", err)
-		// Don't fail the request - cache will update on next background tick
 	}
 
 	return nil
 }
 
-// UnblacklistUser removes a user from the blacklist.
 func (a *Auth) UnblacklistUser(userId domain.UserId) error {
-	// Unblacklist the user in database
 	if err := a.storage.UnblacklistUser(userId); err != nil {
 		return err
 	}
 
-	// Trigger immediate cache update for instant effect
 	if err := a.blacklistCache.Update(); err != nil {
 		logger.Log.Warn("user unblacklisted but cache update failed",
 			"user_id", userId,
@@ -361,12 +340,10 @@ func (a *Auth) UnblacklistUser(userId domain.UserId) error {
 	return nil
 }
 
-// GetBlacklistedUsersWithDetails returns all blacklisted users with their details.
 func (a *Auth) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
 	return a.storage.GetBlacklistedUsersWithDetails()
 }
 
-// RefreshBlacklistCache manually refreshes the blacklist cache.
 func (a *Auth) RefreshBlacklistCache() error {
 	return a.blacklistCache.Update()
 }

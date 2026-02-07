@@ -47,7 +47,6 @@ func (h *Handler) getFlash(w http.ResponseWriter, r *http.Request, flashType str
 		return ""
 	}
 
-	// Delete the cookie immediately
 	deleteCookie := &http.Cookie{
 		Name:     flashType,
 		Value:    "",

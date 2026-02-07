@@ -52,23 +52,18 @@ func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId
 		return -1, err
 	}
 
-	// Step 1: Create the thread record (just metadata)
 	threadID, createdAt, err := b.storage.CreateThread(creationData)
 	if err != nil {
 		return -1, err
 	}
 
-	// Step 2: Prepare OP message creation data
 	opMessageData := creationData.OpMessage
 	opMessageData.Board = creationData.Board
 	opMessageData.ThreadId = threadID
-	opMessageData.CreatedAt = &createdAt // Same timestamp as thread
+	opMessageData.CreatedAt = &createdAt
 
-	// Step 3: Create OP message using Message service (handles files automatically)
-	// OP message always gets Id=1 (first message in thread)
 	_, err = b.messageService.Create(opMessageData)
 	if err != nil {
-		// Cleanup: delete the thread since OP message creation failed
 		b.storage.DeleteThread(creationData.Board, threadID)
 		return -1, fmt.Errorf("failed to create OP message: %w", err)
 	}
@@ -86,17 +81,13 @@ func (b *Thread) Get(board domain.BoardShortName, id domain.ThreadId, page int) 
 }
 
 func (b *Thread) Delete(board domain.BoardShortName, id domain.ThreadId) error {
-	// Delete the thread from storage (DB will cascade delete all messages and attachments)
 	err := b.storage.DeleteThread(board, id)
 	if err != nil {
 		return err
 	}
 
-	// Delete all files for this thread from filesystem
 	// Best effort: log errors but don't fail the operation
 	if err := b.mediaStorage.DeleteThread(string(board), fmt.Sprintf("%d", id)); err != nil {
-		// In production, you might want to log this error
-		// For now, we continue as the DB records are already deleted
 	}
 
 	return nil

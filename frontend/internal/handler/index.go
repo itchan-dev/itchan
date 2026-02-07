@@ -18,7 +18,6 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	boards, err := h.APIClient.GetBoards(r)
 	if err != nil {
-		// Display the API error on the page
 		templateData.Error = template.HTML(template.HTMLEscapeString(err.Error()))
 	}
 	templateData.Boards = boards
@@ -27,7 +26,7 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {
-	targetURL := "/" // Redirect back to the index page on success or error
+	targetURL := "/"
 
 	if err := r.ParseForm(); err != nil {
 		h.redirectWithFlash(w, r, targetURL, flashCookieError, "Invalid form data.")
@@ -57,6 +56,5 @@ func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success: Redirect back to the index page (the GET handler will fetch the new list)
 	http.Redirect(w, r, targetURL, http.StatusSeeOther)
 }

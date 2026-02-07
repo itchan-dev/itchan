@@ -89,7 +89,6 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success, redirect to the page where the new message is
 	targetURL := fmt.Sprintf("/%s/%s?page=%d#bottom", shortName, threadIdStr, page)
 	http.Redirect(w, r, targetURL, http.StatusSeeOther)
 }
@@ -113,7 +112,6 @@ func (h *Handler) ThreadTogglePinnedHandler(w http.ResponseWriter, r *http.Reque
 	boardShortName := chi.URLParam(r, "board")
 	threadId := chi.URLParam(r, "thread")
 
-	// Determine redirect target (referer or thread page)
 	referer := r.Header.Get("Referer")
 	if referer == "" {
 		referer = fmt.Sprintf("/%s/%s", boardShortName, threadId)

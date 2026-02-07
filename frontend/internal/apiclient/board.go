@@ -13,8 +13,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
-// === Board Methods ===
-
 func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
 	var response api.BoardListResponse
 	resp, err := c.do("GET", "/v1/boards", nil, r.Cookies()...)

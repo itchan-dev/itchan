@@ -268,7 +268,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
                    text, created_at
             FROM %s
             WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
-            ORDER BY thread_order, msg_id -- order by thread then by message id (which is ordinal)
+            ORDER BY thread_order, msg_id
 			`,
 			ViewTableName(shortName),
 		),
@@ -280,7 +280,6 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	}
 	defer rows.Close()
 
-	// Temporary structure to hold flat row data from the view
 	type rowData struct {
 		ThreadTitle       domain.ThreadTitle
 		NMessages         int
