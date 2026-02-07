@@ -29,6 +29,7 @@ if [ ! -f ".env" ]; then
     sed -i "s|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(generate_password)|" .env
     sed -i "s|JWT_KEY=.*|JWT_KEY=$(generate_secret)|" .env
     sed -i "s|ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$(generate_secret)|" .env
+    sed -i "s|GRAFANA_PASSWORD=.*|GRAFANA_PASSWORD=$(generate_password)|" .env
     echo "✓ .env created"
     echo ""
     echo "⚠ Configure email settings in .env before deploying!"
