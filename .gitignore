@@ -13,6 +13,3 @@ fmtcoverage.html
 !.gitignore
 !.editorconfig
 !.env.example
-
-CLAUDE.md
-todo.md
