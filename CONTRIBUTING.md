@@ -2,6 +2,8 @@
 
 Thanks for your interest in contributing! This guide will help you get started.
 
+**Project Repository**: [github.com/itchan-dev/itchan](https://github.com/itchan-dev/itchan)
+
 ## Getting Started
 
 1. Fork the repository
@@ -125,7 +127,7 @@ v<MAJOR>.<MINOR>.<PATCH>
 
 ## Reporting Issues
 
-- Use GitHub Issues for bug reports and feature requests
+- Use [GitHub Issues](https://github.com/itchan-dev/itchan/issues) for bug reports and feature requests
 - For security vulnerabilities, see [SECURITY.md](SECURITY.md)
 - Include reproduction steps for bugs
 
