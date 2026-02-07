@@ -135,11 +135,11 @@ func (url *UserRateLimiter) Stop() {
 	}
 }
 
-func OnceInMinute() *UserRateLimiter {
+func OncePerMinute() *UserRateLimiter {
 	return New(1.0/60.0, 1, 1*time.Hour)
 }
 
-func OnceInSecond() *UserRateLimiter {
+func OncePerSecond() *UserRateLimiter {
 	return New(1, 1, 1*time.Hour)
 }
 

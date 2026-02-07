@@ -84,31 +84,31 @@ func New(deps *setup.Dependencies) *chi.Mux {
 		v1.Route("/auth", func(auth chi.Router) {
 			// Rate-limited email sending endpoints
 			auth.Group(func(authSendingEmail chi.Router) {
-				authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10, 1, 1*time.Hour), mw.GetEmailFromBody)) // 10 per sec by email
-				authSendingEmail.Use(mw.RateLimit(rl.New(1.0/10.0, 1, 1*time.Hour), mw.GetIP))          // 10 per sec by IP
-				authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))                                   // 100 global RPS
+				authSendingEmail.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetEmailFromBody))
+				authSendingEmail.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
+				authSendingEmail.Use(mw.GlobalRateLimit(rl.Rps100()))
 				authSendingEmail.Post("/register", h.Register)
 			})
 
 			// Confirmation code verification (stricter limits to prevent brute force)
 			auth.Group(func(authConfirmation chi.Router) {
 				authConfirmation.Use(mw.RateLimit(rl.New(5.0/600.0, 5, 1*time.Hour), mw.GetEmailFromBody)) // 5 attempts per 10 minutes by email
-				authConfirmation.Use(mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetIP))                    // 1 per second by IP (backup)
-				authConfirmation.Use(mw.GlobalRateLimit(rl.Rps100()))                                      // 100 global RPS
+				authConfirmation.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
+				authConfirmation.Use(mw.GlobalRateLimit(rl.Rps100()))
 				authConfirmation.Post("/check_confirmation_code", h.CheckConfirmationCode)
 			})
 
 			// Login endpoint (separate rate limiting)
 			auth.Group(func(authLogin chi.Router) {
-				authLogin.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetIP)) // 1 per second by IP
-				authLogin.Use(mw.GlobalRateLimit(rl.Rps1000()))          // 1000 global RPS
+				authLogin.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
+				authLogin.Use(mw.GlobalRateLimit(rl.Rps1000()))
 				authLogin.Post("/login", h.Login)
 			})
 
 			// Invite-based registration (public, rate limited)
 			auth.Group(func(authRegisterInvite chi.Router) {
-				authRegisterInvite.Use(mw.RateLimit(rl.OnceInSecond(), mw.GetIP)) // 1 per second by IP
-				authRegisterInvite.Use(mw.GlobalRateLimit(rl.Rps100()))           // 100 global RPS
+				authRegisterInvite.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
+				authRegisterInvite.Use(mw.GlobalRateLimit(rl.Rps100()))
 				authRegisterInvite.Post("/register_with_invite", h.RegisterWithInvite)
 			})
 
@@ -118,8 +118,8 @@ func New(deps *setup.Dependencies) *chi.Mux {
 
 		// Logged-in user routes
 		v1.Group(func(loggedIn chi.Router) {
-			loggedIn.Use(authMw.NeedAuth())                                  // Enforce JWT authentication with blacklist check
-			loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetUserIDFromContext)) // 100 RPS per user
+			loggedIn.Use(authMw.NeedAuth()) // Enforce JWT authentication with blacklist check
+			loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetUserIDFromContext))
 
 			// User activity endpoint
 			loggedIn.Get("/users/me/activity", h.GetUserActivity)
@@ -128,7 +128,7 @@ func New(deps *setup.Dependencies) *chi.Mux {
 			loggedIn.Route("/invites", func(invites chi.Router) {
 				invites.Get("/", h.GetMyInvites)
 				// Generate invite: 1 per minute per user to prevent spam
-				invites.With(mw.RateLimit(rl.OnceInMinute(), mw.GetUserIDFromContext)).Post("/", h.GenerateInvite)
+				invites.With(mw.RateLimit(rl.OncePerMinute(), mw.GetUserIDFromContext)).Post("/", h.GenerateInvite)
 				invites.Delete("/{codeHash}", h.RevokeInvite)
 			})
 
@@ -139,11 +139,10 @@ func New(deps *setup.Dependencies) *chi.Mux {
 				// GetBoard: 10 RPS per user
 				boards.With(mw.RateLimit(rl.Rps10(), mw.GetUserIDFromContext)).Get("/{board}", h.GetBoard)
 				// CreateThread: 1 per minute per user
-				boards.With(mw.RateLimit(rl.OnceInMinute(), mw.GetUserIDFromContext)).Post("/{board}", h.CreateThread)
+				boards.With(mw.RateLimit(rl.OncePerMinute(), mw.GetUserIDFromContext)).Post("/{board}", h.CreateThread)
 
 				boards.Get("/{board}/{thread}", h.GetThread)
-				// CreateMessage: 1 per second per user (fixed rate limiter)
-				boards.With(mw.RateLimit(rl.New(1, 1, 1*time.Hour), mw.GetUserIDFromContext)).Post("/{board}/{thread}", h.CreateMessage)
+				boards.With(mw.RateLimit(rl.OncePerSecond(), mw.GetUserIDFromContext)).Post("/{board}/{thread}", h.CreateMessage)
 				boards.Get("/{board}/{thread}/{message}", h.GetMessage)
 			})
 		})
