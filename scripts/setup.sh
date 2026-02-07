@@ -49,9 +49,14 @@ else
 fi
 
 # 3. Set domain in nginx.conf
-sed -i "s/DOMAIN_PLACEHOLDER/${DOMAIN}/g" nginx/nginx.conf 2>/dev/null || true
-echo "$DOMAIN" > nginx/.domain
-echo "✓ nginx.conf configured for ${DOMAIN}"
+if [ ! -f "nginx/nginx.conf" ]; then
+	cp nginx/nginx.conf.example nginx/nginx.conf
+	sed -i "s/DOMAIN_PLACEHOLDER/${DOMAIN}/g" nginx/nginx.conf 2>/dev/null || true
+	echo "$DOMAIN" > nginx/.domain
+	echo "✓ nginx.conf configured for ${DOMAIN}"
+else
+    echo "• nginx/nginx.conf already exists, skipping"
+fi
 
 # 4. Obtain SSL certificate
 mkdir -p nginx/certs nginx/certbot
