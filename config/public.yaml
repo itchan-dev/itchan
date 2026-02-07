@@ -30,4 +30,30 @@ user_messages_page_limit: 50          # Number of messages/replies shown on acco
 static_cache_max_age: 720h            # 30 days
 
 # Registration restrictions
-allowed_registration_domains: []      # Empty = allow all domains. Example: ["gmail.com", "company.com"]
+allowed_registration_domains:  # Empty = allow all domains
+  - "yandex-team.ru"
+  - "yandex-team.com"
+
+  - "vk.team"
+  - "corp.mail.ru"
+
+  - "sbertech.ru"
+  - "sberbank.ru"
+
+  - "tbank.ru"
+  - "tinkoff.ru"
+
+  - "wildberries.ru"
+  - "wb.ru"
+
+  - "alfabank.ru"
+  - "ozon.ru"
+  - "avito.ru"
+  - "lamoda.ru"
+  - "mts.ru"
+  - "beeline.ru"
+  - "megafon.ru"
+  - "kaspersky.com"
+  - "ptsecurity.com"
+  - "jetbrains.com"
+  - "1c.ru"
