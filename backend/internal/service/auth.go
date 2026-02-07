@@ -166,17 +166,6 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		return err
 	}
 
-	// Save confirmation data with email hash
-	err = a.storage.SaveConfirmationData(domain.ConfirmationData{
-		EmailHash:            emailHash,
-		PasswordHash:         domain.Password(passHash),
-		ConfirmationCodeHash: string(confirmationCodeHash),
-		Expires:              time.Now().UTC().Add(a.cfg.ConfirmationCodeTTL),
-	})
-	if err != nil {
-		return err
-	}
-
 	emailBody := fmt.Sprintf(`
 		Hello,
 
@@ -192,6 +181,18 @@ func (a *Auth) Register(creds domain.Credentials) error {
 		logger.Log.Error("failed to send confirmation email", "email_hash_prefix", fmt.Sprintf("%x", emailHash[:8]), "error", err)
 		return err
 	}
+
+	// Save confirmation data only after email is sent successfully
+	err = a.storage.SaveConfirmationData(domain.ConfirmationData{
+		EmailHash:            emailHash,
+		PasswordHash:         domain.Password(passHash),
+		ConfirmationCodeHash: string(confirmationCodeHash),
+		Expires:              time.Now().UTC().Add(a.cfg.ConfirmationCodeTTL),
+	})
+	if err != nil {
+		return err
+	}
+
 	logger.Log.Info("confirmation code sent", "email_hash_prefix", fmt.Sprintf("%x", emailHash[:8]), "expires_at", time.Now().UTC().Add(a.cfg.ConfirmationCodeTTL))
 	return nil
 }

@@ -451,11 +451,15 @@ func TestRegister(t *testing.T) {
 		assert.True(t, errors.Is(err, mockError))
 	})
 
-	t.Run("email.Send error", func(t *testing.T) {
+	t.Run("email.Send error - confirmation data not saved", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("mock SendFunc error")
-		storage.ConfirmationDataFunc = nil                                                         // Ensure default "not found"
-		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error { return nil } // Assume save works
+		saveCalled := false
+		storage.ConfirmationDataFunc = nil // Ensure default "not found"
+		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
+			saveCalled = true
+			return nil
+		}
 		email.SendFunc = func(recipientEmail, subject, body string) error {
 			return mockError
 		}
@@ -471,6 +475,7 @@ func TestRegister(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, mockError))
+		assert.False(t, saveCalled, "SaveConfirmationData should NOT be called when email sending fails")
 	})
 }
 
