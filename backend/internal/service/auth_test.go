@@ -283,8 +283,8 @@ func TestRegister(t *testing.T) {
 		email.SendFunc = func(recipientEmail, subject, body string) error {
 			sendCalled = true
 			assert.Equal(t, lowerCaseEmail, recipientEmail)
-			assert.Equal(t, "Please confirm your email address", subject)
-			assert.Contains(t, body, "Your confirmation code below")
+			assert.Contains(t, subject, "Код подтверждения")
+			assert.Contains(t, body, "Ваш код подтверждения для входа в Itchan")
 			return nil
 		}
 
