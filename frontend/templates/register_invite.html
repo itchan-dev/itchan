@@ -13,21 +13,11 @@
                 <td class="form-label"><label for="password">Password:</label></td>
                 <td>
                     {{template "password-input" dict "PasswordMinLen" .Validation.PasswordMinLen}}
-                    <br><small>Requires: 8+ characters, upper & lower case, number.</small>
                 </td>
             </tr>
             <tr>
                 <td class="form-label"></td>
-                <td>
-                    <div class="agreement-notice">
-                        <p>
-                            Регистрируясь, вы соглашаетесь с
-                            <a href="/terms" target="_blank">Пользовательским соглашением</a>,
-                            <a href="/privacy" target="_blank">Политикой конфиденциальности</a>
-                            и подтверждаете, что вам исполнилось 18 лет.
-                        </p>
-                    </div>
-                </td>
+                <td>{{template "agreement-notice"}}</td>
             </tr>
             <tr>
                 <td class="form-label"></td>

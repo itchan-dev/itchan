@@ -2,6 +2,7 @@
 {{define "content"}}
 <h2>Confirm Email Address</h2>
 <p>Please enter the confirmation code sent to your email address.</p>
+<p class="warning-notice">Код отправлен на вашу почту. Обычно он приходит мгновенно, но корпоративные фильтры безопасности могут задерживать первое письмо на срок от нескольких минут до часа. Пожалуйста, подождите и проверьте папку Спам.</p>
 <form method="POST" action="/check_confirmation_code" id="confirm-form" class="auth-form">
     <table class="form-table">
         <tbody>
