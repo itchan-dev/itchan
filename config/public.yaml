@@ -1,4 +1,3 @@
-jwt_ttl: 168h
 threads_per_page: 50
 messages_per_thread_page: 1000
 n_last_msg: 3
@@ -7,6 +6,10 @@ board_preview_refresh_internval: 3
 board_activity_window: 15
 max_thread_count: 500
 blacklist_cache_interval: 300
+
+# Auth
+jwt_ttl: 168h
+confirmation_code_ttl: 1h
 
 # Logging configuration
 log_level: info    # debug, info, warn, error
