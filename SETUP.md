@@ -7,6 +7,7 @@
 | Docker 20.10+ | `docker --version` | `curl -fsSL https://get.docker.com \| sh` |
 | Docker Compose 2.0+ | `docker compose version` | Included with Docker |
 | OpenSSL | `openssl version` | `apt-get install -y openssl` |
+| gettext (envsubst) | `envsubst --version` | `apt-get install -y gettext-base` |
 | Ports 80, 443 free | `ss -tlnp \| grep -E ':80\|:443'` | Stop conflicting services |
 | Domain → server IP | `dig +short yourdomain.com` | Set A record in DNS registrar |
 
@@ -19,24 +20,22 @@ chmod +x scripts/*.sh
 ./scripts/setup.sh yourdomain.com your-email@example.com
 ```
 
-This script generates all configs, obtains SSL certificate, and sets up auto-renewal.
+This script generates `.env` with random secrets, configs from templates, obtains SSL certificate, and sets up auto-renewal.
 
 **Configure email** (required for registration):
 
 ```bash
-nano config/private.yaml
+nano .env
 ```
 
-Update the `email:` section with your SMTP credentials:
+Update the SMTP settings:
 
-```yaml
-email:
-  smtp_server: "smtp.yandex.ru"   # or smtp.gmail.com
-  smtp_port: 465                   # 465 for Yandex, 587 for Gmail
-  username: "your-email"
-  password: "your-app-password"
-  sender_name: "Itchan"
-  timeout: 10
+```env
+SMTP_SERVER=smtp.yandex.ru    # or smtp.gmail.com
+SMTP_PORT=465                  # 465 for Yandex, 587 for Gmail
+SMTP_USERNAME=your-email
+SMTP_PASSWORD=your-app-password
+SMTP_SENDER_NAME=Itchan
 ```
 
 **Deploy:**
@@ -58,7 +57,7 @@ docker compose exec postgres psql -U itchan -d itchan \
 ## Maintenance
 
 ```bash
-# Update
+# Update (configs are regenerated automatically from .env)
 git pull && make deploy
 
 # Logs
@@ -81,11 +80,11 @@ crontab -l | grep renew-ssl
 
 **SSL errors** — check certificates exist: `ls nginx/certs/live/yourdomain.com/`.
 
-**Email not sending** — check SMTP settings in `config/private.yaml`. Test: `docker compose logs api | grep -i smtp`.
+**Email not sending** — check SMTP settings in `.env`. Test: `docker compose logs api | grep -i smtp`.
 
 ## Generated Files (do not commit)
 
-- `.env` — PostgreSQL credentials
-- `config/private.yaml` — JWT keys, DB password, email settings
+- `.env` — all secrets (DB, JWT, SMTP, domain)
+- `config/private.yaml` — generated from template + `.env`
+- `nginx/nginx.conf` — generated from template + `.env`
 - `nginx/certs/` — SSL certificates
-- `nginx/.domain` — domain name for scripts

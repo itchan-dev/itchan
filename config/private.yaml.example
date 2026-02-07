@@ -1,21 +1,20 @@
-# Backend private configuration
-# Copy this file to private.yaml and set your values
-# IMPORTANT: Never commit private.yaml to version control
+# Generated from this template by scripts/gen-configs.sh
+# To change values, edit .env and run: make gen-configs
 
-jwt_key: "<generate-random-base64-string>"
-encryption_key: "<generate-random-base64-string>"
+jwt_key: "${JWT_KEY}"
+encryption_key: "${ENCRYPTION_KEY}"
 
 pg:
   host: "postgres"
   port: 5432
-  user: "itchan"
-  password: "<your-postgres-password>"
-  dbname: "itchan"
+  user: "${POSTGRES_USER}"
+  password: "${POSTGRES_PASSWORD}"
+  dbname: "${POSTGRES_DB}"
 
 email:
-  smtp_server: "smtp.gmail.com"
-  smtp_port: 587
-  username: "your-email@example.com"
-  password: "your-app-password"
-  sender_name: "Itchan"
+  smtp_server: "${SMTP_SERVER}"
+  smtp_port: ${SMTP_PORT}
+  username: "${SMTP_USERNAME}"
+  password: "${SMTP_PASSWORD}"
+  sender_name: "${SMTP_SENDER_NAME}"
   timeout: 10
