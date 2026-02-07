@@ -74,7 +74,7 @@ class MessagePreview {
             this.hoverTimeout = setTimeout(() => {
                 this.pruneAndCreatePreview(linkElement);
             }, this.navigationTimeout);
-        } 
+        }
     }
 
     // Handles hovering a PREVIEW.
@@ -103,7 +103,7 @@ class MessagePreview {
 
         // Delete whole chain at once. We dont want successors to be hidden first
         if (this.hideSuccessorsTimeout) clearTimeout(this.hideSuccessorsTimeout);
-        
+
         // Set the master timer to hide the entire chain if the user doesn't re-enter.
         this.hideAllTimeout = setTimeout(() => {
             this.hideAllPreviews();
@@ -230,10 +230,10 @@ class MessagePreview {
     positionPreviewNearSource(linkElement, preview) {
         // We are trying to position our preview towards furthest quarter of a page
         const rect = linkElement.getBoundingClientRect();
-    
+
         const previewWidth = preview.offsetWidth;
         const previewHeight = preview.offsetHeight;
-    
+
         // If we are closer to the right side of the screen - position preview towards left side
         let left = window.scrollX + rect.right + 5;
         if (rect.right > (window.innerWidth / 2)) {
@@ -252,7 +252,7 @@ class MessagePreview {
 
     async fetchMessage(key) {
         const [board, threadId, messageId] = key.split('-');
-        const response = await fetch(`/api/v1/${board}/${threadId}/${messageId}/html`, {
+        const response = await fetch(`/api-proxy/v1/${board}/${threadId}/${messageId}/html`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -286,9 +286,9 @@ class MessagePreview {
 
     hideAllSuccessors(key) {
         if (!this.previewIndexes.has(key)) return;
-        
+
         const idx = this.previewIndexes.get(key);
-        
+
         // Get all previews that came after the current one
         const successors = this.previewHistory.slice(idx + 1);
 
