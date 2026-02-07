@@ -17,6 +17,8 @@
     --link: #495057;
     --link-hover: #212529;
 
+    --subject: #5b6eb5;
+
     --green: #789922;
     --red: #c92a2a;
     --orange: #e67700;
@@ -391,7 +393,7 @@ button[type="submit"]:hover {
 }
 
 .post-subject {
-    color: #5b6eb5;
+    color: var(--subject);
     font-weight: bold;
     margin-right: 5px;
     font-size: 14px;
@@ -511,7 +513,7 @@ button[type="submit"]:hover {
 }
 
 .post.my-message {
-    border-left: 2px dotted #5b6eb5;
+    border-left: 2px dotted var(--subject);
 }
 
 /* ==========================================
