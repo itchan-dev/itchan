@@ -1,22 +1,16 @@
-.PHONY: up down dev test show-coverage deploy deploy-monitoring logs logs-frontend logs-api gen-configs
+.PHONY: down dev test show-coverage deploy deploy-monitoring logs logs-frontend logs-api gen-configs
 
 dev:
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
-build:
-	docker compose -f docker-compose.yml build
-
-build-monitoring:
-	docker compose -f docker-compose.yml  -f docker-compose.monitoring.yml build
-
 gen-configs:
 	./scripts/gen-configs.sh
 
-deploy: gen-configs build down
-	docker compose -f docker-compose.yml up -d
+deploy: gen-configs
+	docker compose -f docker-compose.yml up -d --build --remove-orphans
 
-deploy-monitoring: gen-configs build-monitoring down
-	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+deploy-monitoring: gen-configs
+	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d --build --remove-orphans
 
 down:
 	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down --remove-orphans
