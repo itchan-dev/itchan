@@ -3,6 +3,8 @@ package email
 import (
 	"crypto/tls"
 	"fmt"
+	"math/rand"
+	"mime"
 	"net"
 	"net/mail"
 	"net/smtp"
@@ -140,13 +142,30 @@ func (e *Email) sendViaClient(client *smtp.Client, recipientEmail string, msg []
 	return client.Quit()
 }
 
+// Функция для генерации Message-ID
+func generateMessageID(domain string) string {
+	t := time.Now().UnixNano()
+	pid := rand.Int63()
+	return fmt.Sprintf("<%d.%d@%s>", t, pid, domain)
+}
+
 func (e *Email) buildMessage(recipient, subject, body string) []byte {
-	return []byte(fmt.Sprintf(
-		"To: %s\r\nFrom: %s <%s>\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\n\r\n%s",
-		recipient,
-		e.config.SenderName,
-		e.config.Username,
-		subject,
-		body,
-	))
+	encodedSubject := mime.QEncoding.Encode("utf-8", subject)
+	encodedSenderName := mime.QEncoding.Encode("utf-8", e.config.SenderName)
+
+	msgID := generateMessageID("itchan.ru")
+	date := time.Now().Format(time.RFC1123Z)
+
+	return fmt.Appendf(nil,
+		"Message-ID: %s\r\n"+
+			"Date: %s\r\n"+
+			"To: %s\r\n"+
+			"From: %s <%s>\r\n"+
+			"Subject: %s\r\n"+
+			"MIME-Version: 1.0\r\n"+
+			"Content-Type: text/plain; charset=\"utf-8\"\r\n"+
+			"\r\n"+
+			"%s",
+		msgID, date, recipient, encodedSenderName, e.config.Username, encodedSubject, body,
+	)
 }
