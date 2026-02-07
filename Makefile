@@ -1,7 +1,7 @@
 .PHONY: up down dev test show-coverage deploy deploy-monitoring logs logs-frontend logs-api
 
 dev:
-	docker compose up --build
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 build:
 	docker compose -f docker-compose.yml build
