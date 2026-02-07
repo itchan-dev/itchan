@@ -16,7 +16,7 @@ deploy-monitoring: build-monitoring down
 	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 
 down:
-	docker compose down
+	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down --remove-orphans
 
 # View logs
 logs:
