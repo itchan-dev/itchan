@@ -91,9 +91,11 @@
     <section class="legal-section">
         <h2>Технологии</h2>
         <ul>
-            <li><strong>Backend:</strong> Go 1.24+, Chi Router, JWT-аутентификация</li>
-            <li><strong>Database:</strong> PostgreSQL 17.6 с table partitioning</li>
-            <li><strong>Security:</strong> AES-256-GCM шифрование, bcrypt hashing, EXIF/metadata removal (ffmpeg)</li>
+            <li><strong>Reverse Proxy:</strong> Nginx 1.27 (TLS termination, HTTP/2, rate limiting, DDoS protection)</li>
+            <li><strong>Backend API:</strong> Go 1.24+, Chi Router, JWT-аутентификация</li>
+            <li><strong>Frontend:</strong> Go 1.24+, HTML templates</li>
+            <li><strong>Database:</strong> PostgreSQL 17.6 с table partitioning по бордам</li>
+            <li><strong>Security:</strong> AES-256-GCM шифрование email, bcrypt password hashing, EXIF/metadata removal (ffmpeg), Let's Encrypt SSL</li>
             <li><strong>Infrastructure:</strong> Docker, Docker Compose</li>
             <li><strong>Hosting:</strong> Серверы в РФ (соответствие 242-ФЗ)</li>
             <li><strong>Исходный код:</strong> <a href="https://github.com/itchan-dev/itchan" target="_blank" rel="noopener noreferrer">github.com/itchan-dev/itchan</a></li>
@@ -143,6 +145,6 @@
         </ul>
     </section>
 
-    <p class="legal-footer"><strong>Дата последнего обновления:</strong> 06.02.2026</p>
+    <p class="legal-footer"><strong>Дата последнего обновления:</strong> 07.02.2026</p>
 </div>
 {{end}}
