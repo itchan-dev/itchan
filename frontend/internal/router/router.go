@@ -138,9 +138,9 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		authRouter.With(mw.RateLimit(rl.OncePerSecond(), mw.GetUserIDFromContext)).Post("/{board}/{thread}", deps.Handler.ThreadPostHandler)
 
 		// API proxy for message preview (JSON)
-		authRouter.Get("/api/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler)
+		authRouter.Get("/api-proxy/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler)
 		// API endpoint for message preview (HTML)
-		authRouter.Get("/api/v1/{board}/{thread}/{message}/html", deps.Handler.MessagePreviewHTMLHandler)
+		authRouter.Get("/api-proxy/v1/{board}/{thread}/{message}/html", deps.Handler.MessagePreviewHTMLHandler)
 	})
 
 	return r
