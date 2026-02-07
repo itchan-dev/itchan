@@ -45,6 +45,7 @@ allowed_registration_domains:  # Empty = allow all domains
 
   - "wildberries.ru"
   - "wb.ru"
+  - "rwb.ru"
 
   - "alfabank.ru"
   - "ozon.ru"
