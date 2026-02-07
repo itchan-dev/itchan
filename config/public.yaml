@@ -13,7 +13,7 @@ log_level: info    # debug, info, warn, error
 log_format: text   # text or json
 
 # Security settings
-secure_cookies: false    # Set to true for HTTPS in production
+secure_cookies: true     # Enabled for HTTPS with nginx
 csrf_enabled: true       # Enable CSRF protection (default: true)
 
 # Invite system
