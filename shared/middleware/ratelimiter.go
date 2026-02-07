@@ -51,14 +51,23 @@ func GetUserIDFromContext(r *http.Request) (string, error) {
 	return fmt.Sprintf("user_%d", user.Id), nil
 }
 
-// GetIP extracts the real client IP from RemoteAddr
-// Does NOT trust X-Real-IP or X-Forwarded-For headers (no reverse proxy)
+// GetIP extracts the real client IP from X-Real-IP header (set by nginx) or RemoteAddr
+// When behind nginx reverse proxy, trusts X-Real-IP header
+// Falls back to RemoteAddr for direct connections (development, testing)
 func GetIP(r *http.Request) (string, error) {
-	// Only trust RemoteAddr - can't be spoofed (comes from TCP connection)
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		// Fallback: if RemoteAddr doesn't have port, use it directly
-		ip = r.RemoteAddr
+	var ip string
+
+	// Try X-Real-IP header first (set by nginx reverse proxy)
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		ip = realIP
+	} else {
+		// Fallback to RemoteAddr (for local dev without nginx)
+		var err error
+		ip, _, err = net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			// If RemoteAddr doesn't have port, use it directly
+			ip = r.RemoteAddr
+		}
 	}
 
 	// Validate it's a real IP
