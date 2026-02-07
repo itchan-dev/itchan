@@ -51,11 +51,12 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 - **Board Permissions**: Domain-based access control (restrict boards to specific email domains)
 
 ### Performance & Security
+- **Nginx Reverse Proxy**: TLS termination, HTTP/2, connection limits, slowloris protection
+- **Two-Layer Rate Limiting**: Nginx (per-IP, connection limits) + Go (per-user, token bucket)
 - **Media Sanitization**: Automatic EXIF/metadata stripping from images and videos using ffmpeg
-- **Rate Limiting**: Multi-tier rate limiting (per-user, per-IP, global)
 - **Database Partitioning**: Automatic table partitioning by board for optimal performance
 - **Materialized Views**: Fast board previews with configurable refresh intervals
-- **Security Headers**: CSP, X-Frame-Options, and other security headers
+- **Security Headers**: HSTS, CSP, X-Frame-Options, X-Content-Type-Options
 - **Gzip Compression**: Automatic response compression
 - **CORS Support**: Configured for secure cross-origin requests
 - **Graceful Shutdown**: Proper cleanup and connection handling
@@ -70,21 +71,23 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 ## Architecture
 
 ```
+    Web Browsers   Mobile Apps    API Clients
+    (Cookies)      (Bearer)       (Bearer)
+        │              │              │
+        └──────────────┼──────────────┘
+                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Docker Compose                          │
+├──────────────────────────────────────────────────────────────┤
+│   Nginx (Reverse Proxy)                                      │
+│   TLS termination, rate limiting, HTTP/2                     │
+│   Ports 80/443                                               │
 ├──────────────┬──────────────────────┬──────────────────────┤
 │   Frontend   │   Backend API        │   PostgreSQL 17.6    │
 │   (Go HTML)  │   (REST Service)     │   (Partitioned DB)   │
 │   Port 8081  │   Port 8080          │      Port 5432       │
-│              │   Frontend-Agnostic  │                      │
-│              │   JSON API           │                      │
+│   (internal) │   (internal)         │      (internal)      │
 └──────────────┴──────────────────────┴──────────────────────┘
-                       ▲
-                       │
-        ┌──────────────┼──────────────┐
-        │              │              │
-    Web Browsers   Mobile Apps    API Clients
-    (Cookies)      (Bearer)       (Bearer)
 
 Backend Layers:
   Handler    ← HTTP routing, JSON I/O, validation
@@ -106,8 +109,10 @@ Shared Modules:
 - **Backend**: Go 1.24+ (frontend-agnostic JSON REST API)
 - **Frontend**: Go templates (html/template) - replaceable with any client
 - **Database**: PostgreSQL 17.6 with partitioning
+- **Reverse Proxy**: Nginx (TLS termination, rate limiting, HTTP/2)
 - **Router**: Chi (go-chi/chi)
 - **Auth**: JWT (golang-jwt/jwt) with dual-mode support (Cookie + Bearer)
+- **TLS**: Let's Encrypt (automatic renewal via certbot)
 - **Markdown**: Custom parser
 - **Media Processing**: ffmpeg (for metadata sanitization)
 - **Monitoring**: Prometheus + Grafana (optional)
@@ -124,22 +129,30 @@ Shared Modules:
 - **PostgreSQL** 17.6+ (if running without Docker)
 - **ffmpeg** (for media sanitization - automatically included in Docker image)
 
-### Quick Start with Docker
+### Production Deployment
 
-The easiest way to run Itchan is with Docker Compose:
+See **[SETUP.md](SETUP.md)** for full production setup guide with HTTPS and nginx.
 
 ```bash
-# Clone the repository
 git clone https://github.com/itchan-dev/itchan.git
 cd itchan
+chmod +x scripts/*.sh
+./scripts/setup.sh yourdomain.com your-email@example.com
+# Configure email in config/private.yaml
+make deploy
+```
 
-# Start all services
+### Quick Start (Development)
+
+For local development without nginx/HTTPS:
+
+```bash
+git clone https://github.com/itchan-dev/itchan.git
+cd itchan
 docker-compose up --build
 
-# Access the application
 # Frontend UI: http://localhost:8081
 # Backend API: http://localhost:8080/v1
-# Database:    localhost:5432
 ```
 
 The database will be automatically initialized with the schema from `backend/internal/storage/pg/migrations/init.sql`.
@@ -281,12 +294,23 @@ itchan/
 │       ├── crypto.go          # Hashing utilities
 │       └── web.go             # HTTP helpers
 │
+├── nginx/                      # Reverse proxy
+│   ├── nginx.conf             # Nginx configuration
+│   ├── nginx.conf.explained   # Line-by-line explanation
+│   ├── certs/                 # SSL certificates (generated)
+│   └── certbot/               # ACME challenge files
+│
+├── scripts/                    # Setup and maintenance
+│   ├── setup.sh               # Full initial setup (configs + SSL + cron)
+│   └── renew-ssl.sh           # SSL certificate renewal (called by cron)
+│
 ├── config/                     # Configuration files
 │   ├── public.yaml            # Public configuration (shared with frontend)
-│   └── private.yaml           # Private configuration (backend only)
+│   └── private.yaml           # Private configuration (backend only, generated)
 │
 ├── docker-compose.yml         # Docker orchestration
 ├── Makefile                   # Build and deployment commands
+├── SETUP.md                   # Production setup guide
 ├── go.mod                     # Go module definition
 ├── go.sum                     # Go module checksums
 └── README.md
@@ -666,41 +690,32 @@ Integration tests use a separate test database and clean up after execution.
 - **XSS prevention**: Template auto-escaping, markdown sanitization
 
 ### Infrastructure
-- **Security headers**: Content Security Policy (CSP), X-Frame-Options, X-Content-Type-Options
+- **Nginx reverse proxy**: TLS termination, multi-tier rate limiting, connection limits, slowloris protection
+- **Let's Encrypt**: Automatic SSL certificate provisioning and renewal
+- **Security headers**: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 - **CORS configuration**: Controlled cross-origin access
-- **Gzip compression**: Automatic response compression
+- **Gzip compression**: Automatic response compression (nginx)
 - **Graceful shutdown**: Proper connection cleanup
 - **Database partitioning**: Isolation between boards
 
 ## Deployment
 
-### Development Mode
-
-For local development with hot-reload:
+### Development
 
 ```bash
 make dev  # or: docker compose up --build
 ```
 
-### Production Deployment
+### Production
 
-Simple deployment with Docker Compose:
+Full setup guide: **[SETUP.md](SETUP.md)**
 
-**Deploy/Update:**
 ```bash
-make deploy
+make deploy          # Build and start all services (nginx, frontend, api, postgres)
 ```
 
-This performs:
-1. Builds new images
-2. Stops all containers
-3. Starts updated containers
-
-**Note:** There will be brief downtime (a few seconds) during deployment while containers restart.
-
-**View Status:**
 ```bash
-docker compose ps     # View running services
+docker compose ps    # View running services
 make logs            # View all logs
 make logs-api        # View API logs
 make logs-frontend   # View frontend logs
