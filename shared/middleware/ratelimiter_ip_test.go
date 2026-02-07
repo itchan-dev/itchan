@@ -19,26 +19,36 @@ func TestGetIP_RemoteAddrOnly(t *testing.T) {
 	}
 }
 
-func TestGetIP_IgnoresSpoofedHeaders(t *testing.T) {
-	// Test that spoofed headers are IGNORED
+func TestGetIP_TrustsXRealIP(t *testing.T) {
+	// X-Real-IP is set by nginx reverse proxy and should be trusted
 	req := httptest.NewRequest("POST", "/test", nil)
-	req.RemoteAddr = "203.0.113.50:12345" // Real client IP
+	req.RemoteAddr = "127.0.0.1:12345" // Nginx local connection
 
-	// Attacker tries to spoof IP via headers
-	req.Header.Set("X-Real-IP", "10.0.0.1")
-	req.Header.Set("X-Forwarded-For", "10.0.0.2, 10.0.0.3")
+	req.Header.Set("X-Real-IP", "203.0.113.50") // Real client IP set by nginx
 
 	ip, err := GetIP(req)
 	if err != nil {
 		t.Fatalf("GetIP failed: %v", err)
 	}
 
-	// Should return RemoteAddr, NOT spoofed headers
 	if ip != "203.0.113.50" {
-		t.Errorf("GetIP returned spoofed IP '%s', should be '203.0.113.50'", ip)
+		t.Errorf("Expected X-Real-IP '203.0.113.50', got '%s'", ip)
+	}
+}
+
+func TestGetIP_FallsBackToRemoteAddr(t *testing.T) {
+	// Without X-Real-IP (e.g. local dev without nginx), use RemoteAddr
+	req := httptest.NewRequest("POST", "/test", nil)
+	req.RemoteAddr = "192.168.1.50:12345"
+
+	ip, err := GetIP(req)
+	if err != nil {
+		t.Fatalf("GetIP failed: %v", err)
 	}
 
-	t.Log("✅ Spoofed headers correctly ignored")
+	if ip != "192.168.1.50" {
+		t.Errorf("Expected RemoteAddr '192.168.1.50', got '%s'", ip)
+	}
 }
 
 func TestGetIP_IPv6(t *testing.T) {
