@@ -1,6 +1,7 @@
 package router
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
@@ -65,14 +66,17 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		optionalAuthRouter.Get("/contacts", deps.Handler.ContactsGetHandler)
 	})
 
+	// Flash redirect handler for rate-limited POST routes
+	onRateLimitExceeded := rateLimitExceededRedirect(deps.Public.SecureCookies)
+
 	// Public POST routes (rate limited to prevent abuse)
 	r.Group(func(publicPosts chi.Router) {
 		publicPosts.Use(mw.GlobalRateLimit(rl.Rps100()))
-		publicPosts.Use(mw.RateLimit(rl.New(10.0/60.0, 10, 1*time.Hour), mw.GetIP)) // 10 per minute by IP (backup)
+		publicPosts.Use(mw.RateLimitWithHandler(rl.New(10.0/60.0, 10, 1*time.Hour), mw.GetIP, onRateLimitExceeded)) // 10 per minute by IP (backup)
 
 		// Using email field
 		publicPosts.Group(func(publicPostsEmail chi.Router) {
-			publicPostsEmail.Use(mw.RateLimit(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetEmailFromForm)) // 5 attempts per minute by email
+			publicPostsEmail.Use(mw.RateLimitWithHandler(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetEmailFromForm, onRateLimitExceeded)) // 5 attempts per minute by email
 			publicPostsEmail.Post("/login", deps.Handler.LoginPostHandler)
 			publicPostsEmail.Post("/register", deps.Handler.RegisterPostHandler)
 			publicPostsEmail.Post("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler)
@@ -80,7 +84,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 
 		// Using invite_code field
 		publicPosts.Group(func(publicPostsInvite chi.Router) {
-			publicPostsInvite.Use(mw.RateLimit(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetFieldFromForm("invite_code"))) // 5 attempts per minute by each invite code
+			publicPostsInvite.Use(mw.RateLimitWithHandler(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetFieldFromForm("invite_code"), onRateLimitExceeded)) // 5 attempts per minute by each invite code
 			publicPostsInvite.Post("/register_invite", deps.Handler.RegisterInvitePostHandler)
 		})
 	})
@@ -125,7 +129,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		// Invite routes (must be registered before /{board} to avoid route conflicts)
 		authRouter.Get("/invites", deps.Handler.InvitesGetHandler)
 		// GenerateInvite: 1 per minute per user (same as CreateThread)
-		authRouter.With(mw.RateLimit(rl.OncePerMinute(), mw.GetUserIDFromContext)).Post("/invites/generate", deps.Handler.GenerateInvitePostHandler)
+		authRouter.With(mw.RateLimitWithHandler(rl.OncePerMinute(), mw.GetUserIDFromContext, onRateLimitExceeded)).Post("/invites/generate", deps.Handler.GenerateInvitePostHandler)
 		authRouter.Post("/invites/revoke", deps.Handler.RevokeInvitePostHandler)
 
 		// Account page
@@ -134,11 +138,11 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		// Board routes with specific rate limits
 		// GetBoard: 10 RPS per user
 		authRouter.With(mw.RateLimit(rl.Rps10(), mw.GetUserIDFromContext)).Get("/{board}", deps.Handler.BoardGetHandler)
-		authRouter.With(mw.RateLimit(rl.OncePerMinute(), mw.GetUserIDFromContext)).Post("/{board}", deps.Handler.BoardPostHandler)
+		authRouter.With(mw.RateLimitWithHandler(rl.OncePerMinute(), mw.GetUserIDFromContext, onRateLimitExceeded)).Post("/{board}", deps.Handler.BoardPostHandler)
 
 		// Thread routes
 		authRouter.Get("/{board}/{thread}", deps.Handler.ThreadGetHandler)
-		authRouter.With(mw.RateLimit(rl.OncePerSecond(), mw.GetUserIDFromContext)).Post("/{board}/{thread}", deps.Handler.ThreadPostHandler)
+		authRouter.With(mw.RateLimitWithHandler(rl.OncePerSecond(), mw.GetUserIDFromContext, onRateLimitExceeded)).Post("/{board}/{thread}", deps.Handler.ThreadPostHandler)
 
 		// API proxy for message preview (JSON)
 		authRouter.Get("/api-proxy/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler)
@@ -147,6 +151,28 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	})
 
 	return r
+}
+
+// rateLimitExceededRedirect returns a handler that sets a flash error cookie and redirects back.
+// Used for POST rate limits so users see a friendly error instead of a plain text 429 page.
+func rateLimitExceededRedirect(secureCookies bool) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		message := base64.StdEncoding.EncodeToString([]byte("Слишком много запросов. Подождите немного."))
+		http.SetCookie(w, &http.Cookie{
+			Name:     "flash_error",
+			Value:    message,
+			Path:     "/",
+			MaxAge:   300,
+			HttpOnly: true,
+			Secure:   secureCookies,
+			SameSite: http.SameSiteLaxMode,
+		})
+		target := r.Referer()
+		if target == "" {
+			target = "/"
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
+	}
 }
 
 // noDirectoryListing wraps a file server to return 404 for directory requests
