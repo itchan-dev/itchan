@@ -191,7 +191,7 @@ func (b *Message) processAndSaveFiles(
 			sanitizedMetadata.SizeBytes = imageSize
 
 			// Generate thumbnail from the SAME decoded image (no re-decode!)
-			thumbnail := utils.GenerateThumbnail(sanitizedImage.Image.(image.Image), 125)
+			thumbnail := utils.GenerateThumbnail(sanitizedImage.Image.(image.Image), 150)
 			thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
 			if err == nil {
 				// Track thumbnail file
