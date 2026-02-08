@@ -7,9 +7,10 @@ import (
 // Request DTOs
 
 type CreateMessageRequest struct {
-	Text        string              `json:"text,omitempty"`
-	Attachments *domain.Attachments `json:"attachments,omitempty"`
-	ReplyTo     *domain.Replies     `json:"reply_to,omitempty"`
+	Text            string              `json:"text,omitempty"`
+	ShowEmailDomain bool                `json:"show_email_domain,omitempty"`
+	Attachments     *domain.Attachments `json:"attachments,omitempty"`
+	ReplyTo         *domain.Replies     `json:"reply_to,omitempty"`
 }
 
 // Response DTOs

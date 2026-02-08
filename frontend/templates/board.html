@@ -27,6 +27,10 @@
                          <td class="form-label"><label for="attachments">File:</label></td>
                          <td>{{template "file-input" dict "InputID" "attachments" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
                      </tr>
+                     <tr>
+                         <td class="form-label"></td>
+                         <td><label><input type="checkbox" name="show_company"> Show my company</label></td>
+                     </tr>
                  </tbody>
              </table>
         </form>

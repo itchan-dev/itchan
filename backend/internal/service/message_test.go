@@ -169,6 +169,41 @@ func TestMessageCreate(t *testing.T) {
 		storage.mu.Unlock()
 	})
 
+	t.Run("Successful creation with ShowEmailDomain", func(t *testing.T) {
+		// Arrange
+		storage := &MockMessageStorage{}
+		storage.ResetCallTracking()
+		validator := &MockMessageValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		service := NewMessage(storage, validator, mediaStorage, createDefaultTestConfig())
+
+		creationDataWithDomain := domain.MessageCreationData{
+			Board:           "tst",
+			Author:          testAuthor,
+			Text:            "Company post",
+			ShowEmailDomain: true,
+			ThreadId:        1,
+		}
+
+		storage.createMessageFunc = func(creationData domain.MessageCreationData, attachments domain.Attachments) (domain.MsgId, error) {
+			assert.True(t, creationData.ShowEmailDomain, "ShowEmailDomain should be passed to storage")
+			assert.Equal(t, creationDataWithDomain, creationData)
+			return expectedCreatedId, nil
+		}
+
+		// Act
+		createdId, err := service.Create(creationDataWithDomain)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, expectedCreatedId, createdId)
+
+		storage.mu.Lock()
+		assert.True(t, storage.createMessageCalled)
+		assert.True(t, storage.createMessageArg.ShowEmailDomain, "Stored ShowEmailDomain should be true")
+		storage.mu.Unlock()
+	})
+
 	t.Run("Storage error during CreateMessage", func(t *testing.T) {
 		// Arrange
 		storage := &MockMessageStorage{}

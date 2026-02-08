@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS messages (
     thread_id   bigint NOT NULL,
     author_id   int NOT NULL REFERENCES users(id),
     text        text NOT NULL,
+    show_email_domain boolean NOT NULL DEFAULT false,
     created_at  timestamp NOT NULL default (now() at time zone 'utc'),
     updated_at  timestamp NOT NULL default (now() at time zone 'utc'),
 

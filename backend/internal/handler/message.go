@@ -43,12 +43,13 @@ func (h *Handler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	defer cleanup()
 
 	creation := domain.MessageCreationData{
-		Board:        domain.BoardShortName(board),
-		ThreadId:     domain.ThreadId(threadId),
-		Author:       *user,
-		Text:         domain.MsgText(body.Text),
-		PendingFiles: pendingFiles,
-		ReplyTo:      body.ReplyTo,
+		Board:           domain.BoardShortName(board),
+		ThreadId:        domain.ThreadId(threadId),
+		Author:          *user,
+		Text:            domain.MsgText(body.Text),
+		ShowEmailDomain: body.ShowEmailDomain,
+		PendingFiles:    pendingFiles,
+		ReplyTo:         body.ReplyTo,
 	}
 
 	msgId, err := h.message.Create(creation)

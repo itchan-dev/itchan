@@ -70,6 +70,9 @@
                     <td>{{template "file-input" dict "InputClass" "popup-attachments" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
                 </tr>
                 <tr>
+                    <td><label><input type="checkbox" name="show_company"> Show my company</label></td>
+                </tr>
+                <tr>
                     <td><button type="submit">Post</button></td>
                 </tr>
             </tbody>
@@ -86,7 +89,7 @@
     {{/* Show pinned indicator for OP messages (id=1) */}}
     {{if and .Message.IsOp .Message.Context.IsPinned}}<span class="pinned-indicator" title="Pinned thread">[Pinned]</span>{{end}}
     {{if .Message.Context.Subject}}<span class="post-subject">{{.Message.Context.Subject}}</span>{{end}}
-    <span class="post-author">{{if and .User .User.Admin}}ID:{{.Message.Author.Id}} @{{.Message.Author.EmailDomain}}{{if .Message.Author.Admin}} <span class="admin-badge">[admin]</span>{{end}}{{else}}Anonymous{{end}}</span>
+    <span class="post-author">{{if and .User .User.Admin}}ID:{{.Message.Author.Id}} @{{.Message.Author.EmailDomain}}{{if .Message.Author.Admin}} <span class="admin-badge">[admin]</span>{{end}}{{else}}{{if .Message.ShowEmailDomain}}@{{.Message.Author.EmailDomain}}{{else}}Anonymous{{end}}{{end}}</span>
     <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
     <span class="post-id"><a href="/{{.Message.Board}}/{{.Message.ThreadId}}" class="thread-link">No.</a>{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-link" "Text" .Message.Id)}}</span>
     <span class="post-reply">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Anchor" "reply-" "Class" "post-reply-link" "Text" "[reply]")}}</span>

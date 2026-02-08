@@ -37,10 +37,11 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 		Board:    board,
 		IsPinned: body.IsPinned,
 		OpMessage: domain.MessageCreationData{
-			Author:       *user,
-			Text:         domain.MsgText(body.OpMessage.Text),
-			PendingFiles: pendingFiles,
-			ReplyTo:      body.OpMessage.ReplyTo,
+			Author:          *user,
+			Text:            domain.MsgText(body.OpMessage.Text),
+			ShowEmailDomain: body.OpMessage.ShowEmailDomain,
+			PendingFiles:    pendingFiles,
+			ReplyTo:         body.OpMessage.ReplyTo,
 		},
 	}
 

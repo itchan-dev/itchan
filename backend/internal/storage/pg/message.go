@@ -128,9 +128,9 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 	// The message ID is per-thread sequential (1, 2, 3...) - id=1 is always OP.
 	partitionName := PartitionName(creationData.Board, "messages")
 	_, err = q.Exec(fmt.Sprintf(`
-	       INSERT INTO %s (id, author_id, text, created_at, thread_id, updated_at, board)
-	       VALUES ($1, $2, $3, $4, $5, $4, $6)`, partitionName),
-		msgId, creationData.Author.Id, creationData.Text, createdAt, creationData.ThreadId, creationData.Board,
+	       INSERT INTO %s (id, author_id, text, created_at, thread_id, updated_at, board, show_email_domain)
+	       VALUES ($1, $2, $3, $4, $5, $4, $6, $7)`, partitionName),
+		msgId, creationData.Author.Id, creationData.Text, createdAt, creationData.ThreadId, creationData.Board, creationData.ShowEmailDomain,
 	)
 	if err != nil {
 		return -1, fmt.Errorf("failed to insert message: %w", err)
@@ -237,13 +237,13 @@ func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, threadId
 func (s *Storage) getMessage(q Querier, board domain.BoardShortName, threadId domain.ThreadId, id domain.MsgId) (domain.Message, error) {
 	var msg domain.Message
 	err := q.QueryRow(`
-	   SELECT m.id, m.author_id, u.email_domain, u.is_admin, m.text, m.created_at, m.thread_id, m.updated_at, m.board
+	   SELECT m.id, m.author_id, u.email_domain, u.is_admin, m.text, m.show_email_domain, m.created_at, m.thread_id, m.updated_at, m.board
 	   FROM messages m
 	   JOIN users u ON m.author_id = u.id
 	   WHERE m.board = $1 AND m.thread_id = $2 AND m.id = $3`,
 		board, threadId, id,
 	).Scan(
-		&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Author.Admin, &msg.Text, &msg.CreatedAt, &msg.ThreadId,
+		&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Author.Admin, &msg.Text, &msg.ShowEmailDomain, &msg.CreatedAt, &msg.ThreadId,
 		&msg.ModifiedAt, &msg.Board,
 	)
 	if err != nil {
