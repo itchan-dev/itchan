@@ -161,7 +161,7 @@ func (b *Message) processAndSaveFiles(
 			}
 
 		} else if pendingFile.IsImage() {
-			sanitizedImage, err := svcutils.SanitizeImage(pendingFile)
+			sanitizedImage, err := svcutils.SanitizeImage(pendingFile, b.cfg.MaxDecodedImageSize)
 			if err != nil {
 				// Cleanup saved files
 				for _, p := range savedFiles {

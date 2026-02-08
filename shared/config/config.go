@@ -47,6 +47,7 @@ type Public struct {
 	MaxAttachmentsPerMessage int      `yaml:"max_attachments_per_message"`
 	MaxAttachmentSizeBytes   int64    `yaml:"max_attachment_size_bytes"`
 	MaxTotalAttachmentSize   int64    `yaml:"max_total_attachment_size"`
+	MaxDecodedImageSize      int64    `yaml:"max_decoded_image_size"` // Max decoded pixel buffer size in bytes (prevents image bomb OOM)
 	AllowedImageMimeTypes    []string `yaml:"allowed_image_mime_types"`
 	AllowedVideoMimeTypes    []string `yaml:"allowed_video_mime_types"`
 
@@ -186,6 +187,9 @@ func applyValidationDefaults(public *Public) {
 	}
 	if public.MaxTotalAttachmentSize == 0 {
 		public.MaxTotalAttachmentSize = 20 * 1024 * 1024 // 20MB total
+	}
+	if public.MaxDecodedImageSize == 0 {
+		public.MaxDecodedImageSize = 20 * 1024 * 1024 // 20MB decoded pixel buffer (prevents image bomb OOM)
 	}
 	if len(public.AllowedImageMimeTypes) == 0 {
 		public.AllowedImageMimeTypes = []string{

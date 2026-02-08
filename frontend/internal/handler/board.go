@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"html/template"
 	"net/http"
 	"strconv"
 
@@ -54,7 +53,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	processedText, domainReplies, hasPayload, err := h.processMessageText(text, domain.MessageMetadata{Board: shortName})
 	if err != nil {
 		logger.Log.Error("processing message text", "error", err)
-		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, err.Error())
 		return
 	}
 
@@ -76,7 +75,7 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	newThreadID, err := h.APIClient.CreateThread(r, shortName, backendData, r.MultipartForm)
 	if err != nil {
 		logger.Log.Error("creating thread via API", "error", err)
-		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, err.Error())
 		return
 	}
 
@@ -91,7 +90,7 @@ func (h *Handler) BoardDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteBoard(r, shortName)
 	if err != nil {
 		logger.Log.Error("deleting board via API", "error", err)
-		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, err.Error())
 		return
 	}
 

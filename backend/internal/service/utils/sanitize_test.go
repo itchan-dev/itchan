@@ -37,7 +37,7 @@ func TestSanitizeImage_PNG(t *testing.T) {
 	}
 
 	// Sanitize
-	result, err := SanitizeImage(pendingFile)
+	result, err := SanitizeImage(pendingFile, 20*1024*1024)
 	require.NoError(t, err)
 
 	assert.Equal(t, "image/png", result.MimeType)
@@ -78,7 +78,7 @@ func TestSanitizeImage_JPEG(t *testing.T) {
 	}
 
 	// Sanitize
-	result, err := SanitizeImage(pendingFile)
+	result, err := SanitizeImage(pendingFile, 20*1024*1024)
 	require.NoError(t, err)
 
 	assert.Equal(t, "image/jpeg", result.MimeType)
@@ -119,7 +119,7 @@ func TestSanitizeImage_GIF_ConvertedToJPEG(t *testing.T) {
 	}
 
 	// Sanitize
-	result, err := SanitizeImage(pendingFile)
+	result, err := SanitizeImage(pendingFile, 20*1024*1024)
 	require.NoError(t, err)
 
 	// GIF should be converted to JPEG
@@ -152,7 +152,7 @@ func TestSanitizeImage_InvalidData(t *testing.T) {
 		Data: bytes.NewReader(invalidData),
 	}
 
-	_, err := SanitizeImage(pendingFile)
+	_, err := SanitizeImage(pendingFile, 20*1024*1024)
 	assert.Error(t, err, "expected error for invalid image data")
 }
 
@@ -169,8 +169,53 @@ func TestSanitizeImage_EmptyData(t *testing.T) {
 		Data: bytes.NewReader(emptyData),
 	}
 
-	_, err := SanitizeImage(pendingFile)
+	_, err := SanitizeImage(pendingFile, 20*1024*1024)
 	assert.Error(t, err, "expected error for empty data")
+}
+
+func TestSanitizeImage_RejectsOversizedDimensions(t *testing.T) {
+	// Simulate a crafted image with forged 65535x65535 header dimensions.
+	// With dimensions pre-extracted by validation layer, SanitizeImage should
+	// reject before calling image.Decode (which would allocate ~16GB).
+	w, h := 65535, 65535
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:    "bomb.jpg",
+			MimeType:    "image/jpeg",
+			SizeBytes:   1024,
+			ImageWidth:  &w,
+			ImageHeight: &h,
+		},
+		Data: bytes.NewReader([]byte("fake")),
+	}
+
+	_, err := SanitizeImage(pendingFile, 20*1024*1024)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "image too large")
+}
+
+func TestSanitizeImage_RejectsOversizedDimensions_Fallback(t *testing.T) {
+	// Test the fallback path: dimensions nil, DecodeConfig used.
+	// Create a real 1x1 JPEG but with a tiny limit to trigger rejection.
+	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	var buf bytes.Buffer
+	require.NoError(t, jpeg.Encode(&buf, img, nil))
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "small.jpg",
+			MimeType:  "image/jpeg",
+			SizeBytes: int64(buf.Len()),
+			// ImageWidth/ImageHeight intentionally nil
+		},
+		Data: bytes.NewReader(buf.Bytes()),
+	}
+
+	// 10x10x4 = 400 bytes decoded. Set limit to 100 to trigger rejection.
+	_, err := SanitizeImage(pendingFile, 100)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "image too large")
 }
 
 func TestCheckFFmpegAvailable(t *testing.T) {
@@ -206,7 +251,7 @@ func TestSanitizeImage_PreservesQuality(t *testing.T) {
 	}
 
 	// Sanitize
-	result, err := SanitizeImage(pendingFile)
+	result, err := SanitizeImage(pendingFile, 20*1024*1024)
 	require.NoError(t, err)
 
 	t.Logf("Original size: %d bytes (note: sanitized will be encoded with quality 85)", originalSize)
@@ -244,7 +289,7 @@ func TestSanitizeImage_PNGTransparency(t *testing.T) {
 	}
 
 	// Sanitize
-	result, err := SanitizeImage(pendingFile)
+	result, err := SanitizeImage(pendingFile, 20*1024*1024)
 	require.NoError(t, err)
 
 	// Should remain PNG (not converted to JPEG)
@@ -275,7 +320,7 @@ func BenchmarkSanitizeImage_PNG(b *testing.B) {
 			},
 			Data: bytes.NewReader(data),
 		}
-		SanitizeImage(pendingFile)
+		SanitizeImage(pendingFile, 20*1024*1024)
 	}
 }
 
@@ -294,7 +339,7 @@ func BenchmarkSanitizeImage_JPEG(b *testing.B) {
 			},
 			Data: bytes.NewReader(data),
 		}
-		SanitizeImage(pendingFile)
+		SanitizeImage(pendingFile, 20*1024*1024)
 	}
 }
 
@@ -320,7 +365,7 @@ func TestSanitizeImage_ReturnsImageAndFormat(t *testing.T) {
 		Data: bytes.NewReader(buf.Bytes()),
 	}
 
-	result, err := SanitizeImage(pendingFile)
+	result, err := SanitizeImage(pendingFile, 20*1024*1024)
 	require.NoError(t, err)
 
 	// Image should have decoded Image and Format set

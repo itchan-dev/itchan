@@ -13,13 +13,13 @@ import (
 // When MaxBytesReader's limit is exceeded, the server stops reading and closes the connection,
 // which triggers ERR_CONNECTION_RESET in browsers. This is EXPECTED and ACCEPTABLE because:
 //
-//   1. MaxBytesReader only reads UP TO the limit (e.g., 21MB), then stops - preventing resource
-//      exhaustion even if a user tries to upload 200TB.
-//   2. Client-side JavaScript validation catches 99.9% of legitimate users before upload starts.
-//   3. Connection reset only affects:
-//      - Malicious users trying to bypass client-side checks (acceptable)
-//      - Users with JavaScript disabled (rare, acceptable trade-off)
-//      - API clients that don't check Content-Length (they handle resets gracefully)
+//  1. MaxBytesReader only reads UP TO the limit (e.g., 21MB), then stops - preventing resource
+//     exhaustion even if a user tries to upload 200TB.
+//  2. Client-side JavaScript validation catches 99.9% of legitimate users before upload starts.
+//  3. Connection reset only affects:
+//     - Malicious users trying to bypass client-side checks (acceptable)
+//     - Users with JavaScript disabled (rare, acceptable trade-off)
+//     - API clients that don't check Content-Length (they handle resets gracefully)
 //
 // This multi-layer defense (JS validation → MaxBytesReader) is the industry standard approach.
 // For browser form submissions, we cannot reject early by checking Content-Length because

@@ -86,23 +86,24 @@ func (s *Storage) refreshMaterializedViewConcurrent(board domain.BoardShortName,
 // important implications for both production and testing scenarios:
 //
 // 1. Transaction Visibility:
-//    - Non-concurrent refresh CAN see uncommitted data within the same transaction
-//    - Concurrent refresh (CONCURRENTLY) only sees committed data
-//    This makes non-concurrent refresh suitable for transactional tests where data hasn't
-//    been committed yet.
+//   - Non-concurrent refresh CAN see uncommitted data within the same transaction
+//   - Concurrent refresh (CONCURRENTLY) only sees committed data
+//     This makes non-concurrent refresh suitable for transactional tests where data hasn't
+//     been committed yet.
 //
 // 2. Locking Behavior:
-//    - Non-concurrent refresh takes an AccessExclusiveLock, preventing reads during refresh
-//    - Concurrent refresh allows reads to continue during the refresh operation
-//    This makes concurrent refresh preferable for production use.
+//   - Non-concurrent refresh takes an AccessExclusiveLock, preventing reads during refresh
+//   - Concurrent refresh allows reads to continue during the refresh operation
+//     This makes concurrent refresh preferable for production use.
 //
 // Usage:
-//    - Production: Use refreshMaterializedViewConcurrent() to avoid blocking readers
-//    - Tests: Use this method within transactions to test with uncommitted data
+//   - Production: Use refreshMaterializedViewConcurrent() to avoid blocking readers
+//   - Tests: Use this method within transactions to test with uncommitted data
 //
 // Implementation:
-//    This method accepts a Querier interface, allowing it to operate within a transaction
-//    context when needed (for tests) or directly against the database (if needed elsewhere).
+//
+//	This method accepts a Querier interface, allowing it to operate within a transaction
+//	context when needed (for tests) or directly against the database (if needed elsewhere).
 func (s *Storage) refreshMaterializedView(q Querier, board domain.BoardShortName) error {
 	viewName := ViewTableName(board)
 	_, err := q.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", viewName))

@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/base64"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strings"
 
@@ -41,7 +40,7 @@ func (h *Handler) setFlash(w http.ResponseWriter, flashType, message string) {
 
 // getFlash reads a flash message cookie and immediately deletes it.
 // Returns empty string if no flash cookie exists.
-func (h *Handler) getFlash(w http.ResponseWriter, r *http.Request, flashType string) template.HTML {
+func (h *Handler) getFlash(w http.ResponseWriter, r *http.Request, flashType string) string {
 	cookie, err := r.Cookie(flashType)
 	if err != nil {
 		return ""
@@ -64,12 +63,12 @@ func (h *Handler) getFlash(w http.ResponseWriter, r *http.Request, flashType str
 		return ""
 	}
 
-	return template.HTML(decodedBytes)
+	return string(decodedBytes)
 }
 
 // getFlashes reads both error and success flash messages and deletes them.
 // This is a convenience function for handlers that need both types.
-func (h *Handler) getFlashes(w http.ResponseWriter, r *http.Request) (errMsg template.HTML, successMsg template.HTML) {
+func (h *Handler) getFlashes(w http.ResponseWriter, r *http.Request) (errMsg string, successMsg string) {
 	errMsg = h.getFlash(w, r, flashCookieError)
 	successMsg = h.getFlash(w, r, flashCookieSuccess)
 	return
@@ -124,8 +123,8 @@ func (h *Handler) parseAndValidateMultipartForm(w http.ResponseWriter, r *http.R
 // CommonTemplateData holds fields that are common to all page templates.
 // Embed this struct in page-specific template data to ensure consistency.
 type CommonTemplateData struct {
-	Error            template.HTML
-	Success          template.HTML
+	Error            string
+	Success          string
 	User             *domain.User
 	Validation       ValidationData
 	CSRFToken        string // CSRF token for form submissions
@@ -195,6 +194,6 @@ func (h *Handler) InitCommonTemplateData(w http.ResponseWriter, r *http.Request)
 	// Automatically populate flash messages (and delete them)
 	common.Error, common.Success = h.getFlashes(w, r)
 	// Read email prefill cookie (reuses flash pattern)
-	common.EmailPlaceholder = string(h.getFlash(w, r, emailPrefillCookie))
+	common.EmailPlaceholder = h.getFlash(w, r, emailPrefillCookie)
 	return common
 }

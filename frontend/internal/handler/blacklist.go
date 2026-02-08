@@ -1,10 +1,9 @@
 package handler
 
 import (
-	"github.com/itchan-dev/itchan/shared/logger"
-	"html/template"
-
 	"net/http"
+
+	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 // BlacklistUserHandler handles blacklist requests from the UI
@@ -34,7 +33,7 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.BlacklistUser(r, userID, reason)
 	if err != nil {
 		logger.Log.Error("blacklisting user via API", "error", err)
-		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, err.Error())
 		return
 	}
 
