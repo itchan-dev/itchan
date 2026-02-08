@@ -190,6 +190,7 @@ func createTestConfig() *config.Public {
 		MaxAttachmentsPerMessage: 4,
 		MaxAttachmentSizeBytes:   10 * 1024 * 1024, // 10MB
 		MaxTotalAttachmentSize:   20 * 1024 * 1024, // 20MB
+		MaxDecodedImageSize:      20 * 1024 * 1024, // 20MB decoded pixel buffer
 		AllowedImageMimeTypes:    []string{"image/jpeg", "image/png", "image/gif"},
 		AllowedVideoMimeTypes:    []string{"video/mp4", "video/webm"},
 	}

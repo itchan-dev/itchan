@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"html/template"
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/api"
@@ -18,7 +17,7 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	boards, err := h.APIClient.GetBoards(r)
 	if err != nil {
-		templateData.Error = template.HTML(template.HTMLEscapeString(err.Error()))
+		templateData.Error = err.Error()
 	}
 	templateData.Boards = boards
 
@@ -52,7 +51,7 @@ func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.CreateBoard(r, backendData)
 	if err != nil {
 		logger.Log.Error("creating board via API", "error", err)
-		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, err.Error())
 		return
 	}
 

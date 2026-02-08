@@ -2,7 +2,6 @@ package handler
 
 import (
 	"fmt"
-	"html/template"
 	"net/http"
 	"strconv"
 
@@ -66,7 +65,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.Log.Error("processing message text", "error", err)
-		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, err.Error())
 		return
 	}
 
@@ -85,7 +84,7 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	page, err := h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)
 	if err != nil {
 		logger.Log.Error("posting reply via API", "error", err)
-		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, errorTargetURL, flashCookieError, err.Error())
 		return
 	}
 
@@ -101,7 +100,7 @@ func (h *Handler) ThreadDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	err := h.APIClient.DeleteThread(r, boardShortName, threadId)
 	if err != nil {
 		logger.Log.Error("deleting thread via API", "error", err)
-		h.redirectWithFlash(w, r, targetURL, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, targetURL, flashCookieError, err.Error())
 		return
 	}
 
@@ -120,7 +119,7 @@ func (h *Handler) ThreadTogglePinnedHandler(w http.ResponseWriter, r *http.Reque
 	_, err := h.APIClient.TogglePinnedThread(r, boardShortName, threadId)
 	if err != nil {
 		logger.Log.Error("toggling pin via API", "error", err)
-		h.redirectWithFlash(w, r, referer, flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, referer, flashCookieError, err.Error())
 		return
 	}
 

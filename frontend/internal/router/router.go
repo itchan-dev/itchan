@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -113,7 +114,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		}
 
 		mediaPath := deps.Handler.MediaPath
-		authRouter.Handle("/media/{board}/*", http.StripPrefix("/media/", http.FileServer(http.Dir(mediaPath))))
+		authRouter.Handle("/media/{board}/*", http.StripPrefix("/media/", noDirectoryListing(http.FileServer(http.Dir(mediaPath)))))
 
 		authRouter.Get("/", deps.Handler.IndexGetHandler)
 		authRouter.Post("/", deps.Handler.IndexPostHandler)
@@ -144,6 +145,17 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	})
 
 	return r
+}
+
+// noDirectoryListing wraps a file server to return 404 for directory requests
+func noDirectoryListing(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/") || r.URL.Path == "" {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 // cacheStaticFiles wraps an http.Handler to add Cache-Control headers for static files

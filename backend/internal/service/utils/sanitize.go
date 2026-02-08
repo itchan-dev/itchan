@@ -28,6 +28,7 @@ func sanitizeVideo(inputPath string) (string, error) {
 
 	// Build ffmpeg command to strip all metadata while preserving quality
 	cmd := exec.Command("ffmpeg",
+		"-protocol_whitelist", "file,pipe", // Prevent SSRF: only allow local file access
 		"-i", inputPath,
 		"-map_metadata", "-1", // Remove all global metadata (title, artist, etc.)
 		"-map_metadata:s:v", "-1", // Remove video stream metadata (encoder, creation time, etc.)
@@ -54,9 +55,35 @@ func CheckFFmpegAvailable() error {
 	return cmd.Run()
 }
 
-func SanitizeImage(pendingFile *domain.PendingFile) (*domain.SanitizedImage, error) {
-	// Decode image once - this strips EXIF metadata automatically
-	img, format, err := image.Decode(pendingFile.Data)
+func SanitizeImage(pendingFile *domain.PendingFile, maxDecodedSize int64) (*domain.SanitizedImage, error) {
+	// Check decoded image size before decoding to prevent OOM from crafted image headers.
+	// A malicious file can claim 65535x65535 in its header, causing image.Decode to allocate ~16GB.
+	var reader io.Reader = pendingFile.Data
+
+	if pendingFile.ImageWidth != nil && pendingFile.ImageHeight != nil {
+		// Dimensions already extracted by validation layer (DecodeConfig)
+		w, h := int64(*pendingFile.ImageWidth), int64(*pendingFile.ImageHeight)
+		if w*h*4 > maxDecodedSize {
+			return nil, fmt.Errorf("image too large: %dx%d pixels, decoded size would exceed %d bytes limit", w, h, maxDecodedSize)
+		}
+	} else {
+		// Dimensions not available — buffer data and check via DecodeConfig
+		data, err := io.ReadAll(pendingFile.Data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read image data: %w", err)
+		}
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read image dimensions: %w", err)
+		}
+		if int64(cfg.Width)*int64(cfg.Height)*4 > maxDecodedSize {
+			return nil, fmt.Errorf("image too large: %dx%d pixels, decoded size would exceed %d bytes limit", cfg.Width, cfg.Height, maxDecodedSize)
+		}
+		reader = bytes.NewReader(data)
+	}
+
+	// Decode image — this strips EXIF metadata automatically
+	img, format, err := image.Decode(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}
@@ -108,6 +135,7 @@ func ExtractVideoThumbnail(videoPath string) (image.Image, error) {
 
 	// Extract first frame using ffmpeg
 	cmd := exec.Command("ffmpeg",
+		"-protocol_whitelist", "file,pipe", // Prevent SSRF: only allow local file access
 		"-i", videoPath,
 		"-ss", "00:00:00", // Seek to start
 		"-vframes", "1", // Extract 1 frame

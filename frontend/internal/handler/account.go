@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"html/template"
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/api"
@@ -30,7 +29,7 @@ func (h *Handler) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 	activity, err := h.APIClient.GetUserActivity(r)
 	if err != nil {
 		logger.Log.Error("failed to get user activity from API", "error", err)
-		templateData.Error = template.HTML(template.HTMLEscapeString("Failed to load activity"))
+		templateData.Error = "Failed to load activity"
 		// Use empty activity on error
 		activity = &api.UserActivityResponse{
 			Messages: []domain.Message{},

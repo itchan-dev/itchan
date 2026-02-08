@@ -2,7 +2,6 @@ package handler
 
 import (
 	"fmt"
-	"html/template"
 	"net/http"
 	"time"
 
@@ -26,7 +25,7 @@ func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 	invites, err := h.APIClient.GetMyInvites(r)
 	if err != nil {
 		logger.Log.Error("failed to get invites from API", "error", err)
-		templateData.Error = template.HTML(template.HTMLEscapeString(fmt.Sprintf("Failed to load invites: %v", err)))
+		templateData.Error = fmt.Sprintf("Failed to load invites: %v", err)
 		invites = []domain.InviteCode{} // Use empty array on error
 	}
 	templateData.Invites = invites
@@ -75,11 +74,11 @@ func (h *Handler) GenerateInvitePostHandler(w http.ResponseWriter, r *http.Reque
 	invite, err := h.APIClient.GenerateInvite(r)
 	if err != nil {
 		logger.Log.Error("generating invite via API", "error", err)
-		h.redirectWithFlash(w, r, "/invites", flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, "/invites", flashCookieError, err.Error())
 		return
 	}
 
-	successMsg := fmt.Sprintf("Invite code generated: %s (save this now, it won't be shown again)", template.HTMLEscapeString(invite.PlainCode))
+	successMsg := fmt.Sprintf("Invite code generated: %s (save this now, it won't be shown again)", invite.PlainCode)
 	h.redirectWithFlash(w, r, "/invites", flashCookieSuccess, successMsg)
 }
 
@@ -102,7 +101,7 @@ func (h *Handler) RevokeInvitePostHandler(w http.ResponseWriter, r *http.Request
 	err := h.APIClient.RevokeInvite(r, codeHash)
 	if err != nil {
 		logger.Log.Error("revoking invite via API", "error", err)
-		h.redirectWithFlash(w, r, "/invites", flashCookieError, template.HTMLEscapeString(err.Error()))
+		h.redirectWithFlash(w, r, "/invites", flashCookieError, err.Error())
 		return
 	}
 
