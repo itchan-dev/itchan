@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
 )
 
@@ -38,4 +40,47 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.redirectWithFlash(w, r, targetURL, flashCookieSuccess, "User blacklisted successfully")
+}
+
+// AdminGetHandler displays the admin panel with blacklisted users
+func (h *Handler) AdminGetHandler(w http.ResponseWriter, r *http.Request) {
+	var templateData struct {
+		CommonTemplateData
+		BlacklistedUsers []domain.BlacklistEntry
+	}
+	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
+
+	users, err := h.APIClient.GetBlacklistedUsers(r)
+	if err != nil {
+		logger.Log.Error("failed to get blacklisted users from API", "error", err)
+		templateData.Error = fmt.Sprintf("Failed to load blacklisted users: %v", err)
+		users = []domain.BlacklistEntry{}
+	}
+	templateData.BlacklistedUsers = users
+
+	h.renderTemplate(w, "admin.html", templateData)
+}
+
+// UnblacklistUserHandler removes a user from the blacklist
+func (h *Handler) UnblacklistUserHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		logger.Log.Error("parsing form", "error", err)
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	userID := r.FormValue("userId")
+	if userID == "" {
+		http.Error(w, "Missing userId", http.StatusBadRequest)
+		return
+	}
+
+	err := h.APIClient.UnblacklistUser(r, userID)
+	if err != nil {
+		logger.Log.Error("unblacklisting user via API", "error", err)
+		h.redirectWithFlash(w, r, "/admin", flashCookieError, err.Error())
+		return
+	}
+
+	h.redirectWithFlash(w, r, "/admin", flashCookieSuccess, "User removed from blacklist")
 }

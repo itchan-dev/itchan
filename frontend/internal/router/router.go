@@ -96,6 +96,8 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 			adminRouter.Use(frontend_mw.ValidateCSRFToken())
 		}
 
+		adminRouter.Get("/admin", deps.Handler.AdminGetHandler)
+		adminRouter.Post("/admin/unblacklist", deps.Handler.UnblacklistUserHandler)
 		adminRouter.Post("/blacklist/user", deps.Handler.BlacklistUserHandler)
 		adminRouter.Post("/{board}/delete", deps.Handler.BoardDeleteHandler)
 		adminRouter.Post("/{board}/{thread}/delete", deps.Handler.ThreadDeleteHandler)
