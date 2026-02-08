@@ -67,8 +67,9 @@ func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {
 	backendData := api.CreateThreadRequest{
 		Title: r.FormValue("title"),
 		OpMessage: api.CreateMessageRequest{
-			Text:    processedText,
-			ReplyTo: domainReplies,
+			Text:            processedText,
+			ShowEmailDomain: r.FormValue("show_company") == "on",
+			ReplyTo:         domainReplies,
 		},
 	}
 

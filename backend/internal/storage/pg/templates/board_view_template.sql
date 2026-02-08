@@ -13,6 +13,7 @@ CREATE MATERIALIZED VIEW %[1]s AS
 			m.author_id as author_id,
 			u.email_domain as email_domain,
 			u.is_admin as author_is_admin,
+			m.show_email_domain as show_email_domain,
 			m.text as text,
 			m.created_at as created_at
 		FROM threads as t

@@ -77,8 +77,9 @@ func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	backendData := api.CreateMessageRequest{
-		Text:    processedText,
-		ReplyTo: domainReplies,
+		Text:            processedText,
+		ShowEmailDomain: r.FormValue("show_company") == "on",
+		ReplyTo:         domainReplies,
 	}
 
 	page, err := h.APIClient.CreateReply(r, shortName, threadIdStr, backendData, r.MultipartForm)

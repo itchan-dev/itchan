@@ -175,7 +175,7 @@ func (s *Storage) getThreadSinglePage(q Querier, metadata domain.ThreadMetadata,
 	// Fetch all messages for the thread
 	msgRows, err := q.Query(`
 		SELECT
-			m.id, m.author_id, u.email_domain, m.text, m.created_at, m.thread_id,
+			m.id, m.author_id, u.email_domain, m.text, m.show_email_domain, m.created_at, m.thread_id,
 			m.updated_at, m.board, u.is_admin
 		FROM messages m
 		JOIN users u ON m.author_id = u.id
@@ -191,7 +191,7 @@ func (s *Storage) getThreadSinglePage(q Querier, metadata domain.ThreadMetadata,
 	for msgRows.Next() {
 		var msg domain.Message
 		if err := msgRows.Scan(
-			&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Text, &msg.CreatedAt,
+			&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Text, &msg.ShowEmailDomain, &msg.CreatedAt,
 			&msg.ThreadId, &msg.ModifiedAt, &msg.Board, &msg.Author.Admin,
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)
@@ -284,7 +284,7 @@ func (s *Storage) getThreadPaginated(q Querier, metadata domain.ThreadMetadata, 
 	if page > 1 {
 		opRow := q.QueryRow(`
 			SELECT
-				m.id, m.author_id, u.email_domain, m.text, m.created_at, m.thread_id,
+				m.id, m.author_id, u.email_domain, m.text, m.show_email_domain, m.created_at, m.thread_id,
 				m.updated_at, m.board, u.is_admin
 			FROM messages m
 			JOIN users u ON m.author_id = u.id
@@ -293,7 +293,7 @@ func (s *Storage) getThreadPaginated(q Querier, metadata domain.ThreadMetadata, 
 		)
 		var opMsg domain.Message
 		if err := opRow.Scan(
-			&opMsg.Id, &opMsg.Author.Id, &opMsg.Author.EmailDomain, &opMsg.Text, &opMsg.CreatedAt,
+			&opMsg.Id, &opMsg.Author.Id, &opMsg.Author.EmailDomain, &opMsg.Text, &opMsg.ShowEmailDomain, &opMsg.CreatedAt,
 			&opMsg.ThreadId, &opMsg.ModifiedAt, &opMsg.Board, &opMsg.Author.Admin,
 		); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return domain.Thread{}, fmt.Errorf("failed to fetch OP message: %w", err)
@@ -311,7 +311,7 @@ func (s *Storage) getThreadPaginated(q Querier, metadata domain.ThreadMetadata, 
 	// Fetch paginated messages for the thread
 	msgRows, err := q.Query(`
 		SELECT
-			m.id, m.author_id, u.email_domain, m.text, m.created_at, m.thread_id,
+			m.id, m.author_id, u.email_domain, m.text, m.show_email_domain, m.created_at, m.thread_id,
 			m.updated_at, m.board, u.is_admin
 		FROM messages m
 		JOIN users u ON m.author_id = u.id
@@ -328,7 +328,7 @@ func (s *Storage) getThreadPaginated(q Querier, metadata domain.ThreadMetadata, 
 	for msgRows.Next() {
 		var msg domain.Message
 		if err := msgRows.Scan(
-			&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Text, &msg.CreatedAt,
+			&msg.Id, &msg.Author.Id, &msg.Author.EmailDomain, &msg.Text, &msg.ShowEmailDomain, &msg.CreatedAt,
 			&msg.ThreadId, &msg.ModifiedAt, &msg.Board, &msg.Author.Admin,
 		); err != nil {
 			return domain.Thread{}, fmt.Errorf("failed to scan message row: %w", err)

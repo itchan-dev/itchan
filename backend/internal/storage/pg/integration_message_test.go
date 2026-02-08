@@ -99,6 +99,34 @@ func TestMessageOperations(t *testing.T) {
 			})
 			requireNotFoundError(t, err)
 		})
+
+		t.Run("stores and retrieves show_email_domain", func(t *testing.T) {
+			// Create message with ShowEmailDomain = true
+			msgWithDomain := createTestMessage(t, tx, domain.MessageCreationData{
+				Board:           boardShortName,
+				Author:          domain.User{Id: userID},
+				Text:            "Company post",
+				ShowEmailDomain: true,
+				ThreadId:        threadID,
+			})
+
+			retrieved, err := storage.getMessage(tx, boardShortName, threadID, msgWithDomain)
+			require.NoError(t, err)
+			assert.True(t, retrieved.ShowEmailDomain, "ShowEmailDomain should be true")
+			assert.Equal(t, "example.com", retrieved.Author.EmailDomain)
+
+			// Create message with ShowEmailDomain = false (default)
+			msgWithoutDomain := createTestMessage(t, tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     "Anonymous post",
+				ThreadId: threadID,
+			})
+
+			retrieved2, err := storage.getMessage(tx, boardShortName, threadID, msgWithoutDomain)
+			require.NoError(t, err)
+			assert.False(t, retrieved2.ShowEmailDomain, "ShowEmailDomain should default to false")
+		})
 	})
 
 	t.Run("GetMessage", func(t *testing.T) {

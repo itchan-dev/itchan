@@ -137,6 +137,57 @@ func TestCreateMessageHandler(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
+	t.Run("successful request with show_email_domain", func(t *testing.T) {
+		expectedMsgId := domain.MsgId(123)
+		mockService := &MockMessageService{
+			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, error) {
+				assert.Equal(t, domain.BoardShortName(board), data.Board)
+				assert.Equal(t, domain.MsgText("company post"), data.Text)
+				assert.True(t, data.ShowEmailDomain, "ShowEmailDomain should be true")
+				return expectedMsgId, nil
+			},
+		}
+		_, router := setupMessageTestHandler(mockService)
+
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		writer.WriteField("json", `{"text": "company post", "show_email_domain": true}`)
+		writer.Close()
+
+		req := httptest.NewRequest(http.MethodPost, route, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req = addUserToContext(req, &user)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
+	})
+
+	t.Run("show_email_domain defaults to false", func(t *testing.T) {
+		mockService := &MockMessageService{
+			MockCreate: func(data domain.MessageCreationData) (domain.MsgId, error) {
+				assert.False(t, data.ShowEmailDomain, "ShowEmailDomain should default to false")
+				return 1, nil
+			},
+		}
+		_, router := setupMessageTestHandler(mockService)
+
+		body := bytes.NewBuffer(nil)
+		writer := multipart.NewWriter(body)
+		writer.WriteField("json", `{"text": "anonymous post"}`)
+		writer.Close()
+
+		req := httptest.NewRequest(http.MethodPost, route, body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req = addUserToContext(req, &user)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
+	})
+
 	t.Run("validation error", func(t *testing.T) {
 		_, router := setupMessageTestHandler(&MockMessageService{})
 
@@ -284,6 +335,39 @@ func TestGetMessageHandler(t *testing.T) {
 		err := json.Unmarshal(rr.Body.Bytes(), &actualMsg)
 		require.NoError(t, err)
 		assert.Equal(t, expectedMessageWithReplies, actualMsg)
+	})
+
+	t.Run("successful get with show_email_domain", func(t *testing.T) {
+		msgWithDomain := domain.Message{
+			MessageMetadata: domain.MessageMetadata{
+				Id:              msgId,
+				ThreadId:        threadId,
+				ShowEmailDomain: true,
+				Author:          domain.User{Id: 1, EmailDomain: "company.com"},
+				Replies:         domain.Replies{},
+			},
+			Text:        "Company message",
+			Attachments: nil,
+		}
+		mockService := &MockMessageService{
+			MockGet: func(board domain.BoardShortName, tid domain.ThreadId, id domain.MsgId) (domain.Message, error) {
+				return msgWithDomain, nil
+			},
+		}
+		_, router := setupMessageTestHandler(mockService)
+
+		req := httptest.NewRequest(http.MethodGet, route, nil)
+		rr := httptest.NewRecorder()
+
+		router.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var actualMsg domain.Message
+		err := json.Unmarshal(rr.Body.Bytes(), &actualMsg)
+		require.NoError(t, err)
+		assert.True(t, actualMsg.ShowEmailDomain)
+		assert.Equal(t, "company.com", actualMsg.Author.EmailDomain)
 	})
 
 	t.Run("invalid message id", func(t *testing.T) {

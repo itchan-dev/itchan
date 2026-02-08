@@ -264,7 +264,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 	rows, err := q.Query(
 		fmt.Sprintf(`
             SELECT thread_title, message_count, last_bumped_at, thread_id, is_pinned,
-                   msg_id, author_id, email_domain, author_is_admin,
+                   msg_id, author_id, email_domain, author_is_admin, show_email_domain,
                    text, created_at
             FROM %s
             WHERE thread_order BETWEEN $1 * ($2 - 1) + 1 AND $1 * $2
@@ -290,6 +290,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		AuthorID          domain.UserId
 		AuthorEmailDomain string
 		AuthorIsAdmin     bool
+		ShowEmailDomain   bool
 		Text              domain.MsgText
 		CreatedAt         time.Time
 	}
@@ -306,7 +307,7 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 		var row rowData
 		if err := rows.Scan(
 			&row.ThreadTitle, &row.NMessages, &row.LastBumpTs, &row.ThreadID, &row.IsPinned, &row.MsgID,
-			&row.AuthorID, &row.AuthorEmailDomain, &row.AuthorIsAdmin,
+			&row.AuthorID, &row.AuthorEmailDomain, &row.AuthorIsAdmin, &row.ShowEmailDomain,
 			&row.Text, &row.CreatedAt,
 		); err != nil {
 			return domain.Board{}, fmt.Errorf("failed to scan thread/message row: %w", err)
@@ -344,10 +345,11 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 					EmailDomain: row.AuthorEmailDomain,
 					Admin:       row.AuthorIsAdmin,
 				},
-				CreatedAt: row.CreatedAt,
-				ThreadId:  row.ThreadID,
-				Board:     shortName,
-				Replies:   domain.Replies{}, // Initialize empty replies slice
+				ShowEmailDomain: row.ShowEmailDomain,
+				CreatedAt:       row.CreatedAt,
+				ThreadId:        row.ThreadID,
+				Board:           shortName,
+				Replies:         domain.Replies{}, // Initialize empty replies slice
 			},
 			Text: row.Text,
 		}
