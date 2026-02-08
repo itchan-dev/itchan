@@ -148,6 +148,40 @@ func TestRateLimit(t *testing.T) {
 	})
 }
 
+func TestRateLimitWithHandler(t *testing.T) {
+	t.Run("calls custom handler on rate limit exceeded", func(t *testing.T) {
+		rl := ratelimiter.New(1, 1, time.Minute)
+		defer rl.Stop()
+
+		customHandlerCalled := false
+		middleware := RateLimitWithHandler(rl,
+			func(r *http.Request) (string, error) { return "user1", nil },
+			func(w http.ResponseWriter, r *http.Request) {
+				customHandlerCalled = true
+				w.WriteHeader(http.StatusSeeOther)
+				w.Header().Set("Location", "/")
+			},
+		)
+		handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		// First request: allowed
+		req1 := httptest.NewRequest("POST", "/board", nil)
+		w1 := httptest.NewRecorder()
+		handler.ServeHTTP(w1, req1)
+		assert.Equal(t, http.StatusOK, w1.Code)
+		assert.False(t, customHandlerCalled)
+
+		// Second request: rate limited, custom handler called
+		req2 := httptest.NewRequest("POST", "/board", nil)
+		w2 := httptest.NewRecorder()
+		handler.ServeHTTP(w2, req2)
+		assert.True(t, customHandlerCalled)
+		assert.Equal(t, http.StatusSeeOther, w2.Code)
+	})
+}
+
 func TestGetUserIDFromContext(t *testing.T) {
 	t.Run("returns user id when user exists in context", func(t *testing.T) {
 		user := &domain.User{Id: 123, EmailDomain: "example.com"}

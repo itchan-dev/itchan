@@ -14,7 +14,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
-func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request) (string, error)) func(http.Handler) http.Handler {
+func RateLimitWithHandler(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request) (string, error), onExceeded func(w http.ResponseWriter, r *http.Request)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if user := GetUserFromContext(r); user != nil && user.Admin { // disable for admin
@@ -28,13 +28,19 @@ func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request
 				return
 			}
 			if !rl.Allow(identity) {
-				http.Error(w, "Rate limit exceeded, try again later", http.StatusTooManyRequests)
+				onExceeded(w, r)
 				return
 			}
 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func RateLimit(rl *ratelimiter.UserRateLimiter, getIdentity func(r *http.Request) (string, error)) func(http.Handler) http.Handler {
+	return RateLimitWithHandler(rl, getIdentity, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Rate limit exceeded, try again later", http.StatusTooManyRequests)
+	})
 }
 
 func GlobalRateLimit(rl *ratelimiter.UserRateLimiter) func(http.Handler) http.Handler {
