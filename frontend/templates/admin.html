@@ -1,0 +1,38 @@
+{{define "title"}}Admin Panel{{end}}
+{{define "content"}}
+<h1>Admin Panel</h1>
+
+<h2>Blacklisted Users</h2>
+{{if .BlacklistedUsers}}
+<table class="blacklist-table">
+    <thead>
+        <tr>
+            <th>User ID</th>
+            <th>Blacklisted At</th>
+            <th>Reason</th>
+            <th>Blacklisted By</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .BlacklistedUsers}}
+        <tr>
+            <td>{{.UserId}}</td>
+            <td>{{.BlacklistedAt.UTC.Format "2006-01-02 15:04:05"}} GMT</td>
+            <td>{{if .Reason}}{{.Reason}}{{else}}-{{end}}</td>
+            <td>{{.BlacklistedBy}}</td>
+            <td>
+                <form method="POST" action="/admin/unblacklist" class="js-confirm-form" data-confirm-message="Remove user {{.UserId}} from blacklist?" style="display:inline;">
+                    {{template "csrf-field" $}}
+                    <input type="hidden" name="userId" value="{{.UserId}}">
+                    <button type="submit" class="delete-button">unblacklist</button>
+                </form>
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<p>No blacklisted users.</p>
+{{end}}
+{{end}}
