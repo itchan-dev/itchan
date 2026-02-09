@@ -40,6 +40,27 @@ services:
       restart_policy:
         condition: on-failure
 
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    container_name: node-exporter
+    restart: unless-stopped
+    ports:
+      - target: 9100
+        published: 9100
+        mode: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
 volumes:
   prometheus_data:
   grafana_data:
