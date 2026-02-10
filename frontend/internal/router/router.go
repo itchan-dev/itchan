@@ -54,7 +54,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	r.Get("/check_confirmation_code", deps.Handler.ConfirmEmailGetHandler)
 
 	// Create frontend auth middleware wrapper (needed for optional auth routes below)
-	authMw := frontend_mw.NewAuth(deps.AuthMiddleware)
+	authMw := frontend_mw.NewAuth(deps.AuthMiddleware, deps.Public.SecureCookies)
 
 	// Public routes with optional auth (shows user info if logged in)
 	r.Group(func(optionalAuthRouter chi.Router) {
