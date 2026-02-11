@@ -10,8 +10,10 @@ services:
       - ./nginx/certs:/etc/letsencrypt:ro
       - ./nginx/certbot:/var/www/certbot:ro
     depends_on:
-      - api
-      - frontend
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
@@ -56,7 +58,8 @@ services:
       - ./frontend/static:/app/static
       - media_data:/app/media
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
       interval: 10s
