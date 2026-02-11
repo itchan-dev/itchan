@@ -8,9 +8,11 @@ gen-configs:
 
 deploy: gen-configs
 	docker compose -f docker-compose.yml up -d --build --remove-orphans
+	docker compose exec nginx nginx -s reload # in case ips in docker network changed
 
 deploy-monitoring: gen-configs
 	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d --build --remove-orphans
+	docker compose exec nginx nginx -s reload # in case ips in docker network changed
 
 down:
 	docker compose -f docker-compose.yml -f docker-compose.monitoring.yml down --remove-orphans
