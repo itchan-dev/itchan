@@ -490,6 +490,7 @@ button[type="submit"]:hover {
 .attachment-thumbnail {
     display: block;
     margin-bottom: 2px;
+    height: auto;
 }
 
 .op-post .attachment-thumbnail {
