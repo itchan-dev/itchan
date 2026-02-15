@@ -9,7 +9,7 @@ blacklist_cache_interval: 300
 
 # Auth
 jwt_ttl: 168h
-confirmation_code_ttl: 1h
+confirmation_code_ttl: 700h
 
 # Logging configuration
 log_level: info    # debug, info, warn, error
