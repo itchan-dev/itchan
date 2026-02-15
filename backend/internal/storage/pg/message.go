@@ -111,7 +111,8 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 	err = q.QueryRow(`
 	       UPDATE threads SET
 	           message_count = message_count + 1,
-	           last_bumped_at = CASE WHEN message_count > $1 THEN last_bumped_at ELSE $2 END
+	           last_bumped_at = CASE WHEN message_count > $1 THEN last_bumped_at ELSE $2 END,
+	           last_modified_at = $2
 	       WHERE board = $3 AND id = $4
 		   RETURNING message_count
 		   `,
@@ -203,11 +204,11 @@ func (s *Storage) deleteMessage(q Querier, board domain.BoardShortName, threadId
 		return &internal_errors.ErrorWithStatusCode{Message: "Message not found", StatusCode: http.StatusNotFound}
 	}
 
-	// Decrement the thread's message count to maintain consistency
+	// Decrement the thread's message count and update last_modified_at to reflect the deletion
 	_, err = q.Exec(`
-		UPDATE threads SET message_count = message_count - 1
+		UPDATE threads SET message_count = message_count - 1, last_modified_at = $3
 		WHERE board = $1 AND id = $2`,
-		board, threadId,
+		board, threadId, deletedTs,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update thread message count: %w", err)

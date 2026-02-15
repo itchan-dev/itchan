@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS threads (
     board            varchar(10) NOT NULL REFERENCES boards(short_name) ON DELETE CASCADE,
 	message_count    int NOT NULL default 0,
 	last_bumped_at   timestamp NOT NULL default (now() at time zone 'utc'),
+	last_modified_at timestamp NOT NULL default (now() at time zone 'utc'),
     created_at       timestamp NOT NULL default (now() at time zone 'utc'),
     is_pinned        boolean NOT NULL default false,
     PRIMARY KEY (board, id)

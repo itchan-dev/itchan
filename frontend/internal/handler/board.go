@@ -35,6 +35,10 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if checkNotModified(w, r, board.LastActivityAt) {
+		return
+	}
+
 	templateData.Board = RenderBoard(board)
 
 	h.renderTemplate(w, "board.html", templateData)

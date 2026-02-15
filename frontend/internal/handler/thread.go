@@ -36,6 +36,10 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if checkNotModified(w, r, thread.LastModifiedAt) {
+		return
+	}
+
 	templateData.Thread = RenderThread(thread)
 
 	h.renderTemplate(w, "thread.html", templateData)

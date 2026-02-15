@@ -410,6 +410,91 @@ func TestThreadOperations(t *testing.T) {
 		})
 	})
 
+	t.Run("LastModifiedAt", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		boardShortName := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		opMsg := domain.MessageCreationData{
+			Board:  boardShortName,
+			Author: domain.User{Id: userID},
+			Text:   "OP for last_modified test",
+		}
+
+		threadID, createdAt, err := storage.createThread(tx, domain.ThreadCreationData{
+			Title:     "LastModifiedAt Test",
+			Board:     boardShortName,
+			OpMessage: opMsg,
+		})
+		require.NoError(t, err)
+
+		opMsg.ThreadId = threadID
+		opMsg.CreatedAt = &createdAt
+		opMsg.Board = boardShortName
+		_, err = storage.createMessage(tx, opMsg)
+		require.NoError(t, err)
+
+		threadAfterCreate, err := storage.getThread(tx, boardShortName, threadID, 1)
+		require.NoError(t, err)
+		assert.False(t, threadAfterCreate.LastModifiedAt.IsZero(), "LastModifiedAt should be set after creation")
+		assert.Equal(t, threadAfterCreate.LastBumped, threadAfterCreate.LastModifiedAt,
+			"LastModifiedAt should equal LastBumped after initial creation")
+
+		// Fill up to bump limit so LastBumped stops updating
+		bumpLimit := storage.cfg.Public.BumpLimit
+		for i := 0; i < bumpLimit; i++ {
+			time.Sleep(10 * time.Millisecond)
+			_, err := storage.createMessage(tx, domain.MessageCreationData{
+				Board:    boardShortName,
+				Author:   domain.User{Id: userID},
+				Text:     fmt.Sprintf("Reply %d", i+1),
+				ThreadId: threadID,
+			})
+			require.NoError(t, err)
+		}
+
+		threadAtLimit, err := storage.getThread(tx, boardShortName, threadID, 1)
+		require.NoError(t, err)
+		lastBumpAtLimit := threadAtLimit.LastBumped
+		lastModifiedAtLimit := threadAtLimit.LastModifiedAt
+
+		// Post another message past the bump limit
+		time.Sleep(10 * time.Millisecond)
+		msgOverLimit := createTestMessage(t, tx, domain.MessageCreationData{
+			Board:    boardShortName,
+			Author:   domain.User{Id: userID},
+			Text:     "Reply over limit",
+			ThreadId: threadID,
+		})
+
+		threadOverLimit, err := storage.getThread(tx, boardShortName, threadID, 1)
+		require.NoError(t, err)
+
+		// LastBumped should NOT have changed (bump limit reached)
+		assert.Equal(t, lastBumpAtLimit.UTC(), threadOverLimit.LastBumped.UTC(),
+			"LastBumped should freeze after bump limit")
+
+		// LastModifiedAt SHOULD have changed (always updates)
+		assert.True(t, threadOverLimit.LastModifiedAt.After(lastModifiedAtLimit),
+			"LastModifiedAt should still update past bump limit")
+
+		// Delete a message and verify LastModifiedAt updates
+		time.Sleep(10 * time.Millisecond)
+		lastModifiedBeforeDelete := threadOverLimit.LastModifiedAt
+
+		err = storage.deleteMessage(tx, boardShortName, threadID, msgOverLimit)
+		require.NoError(t, err)
+
+		threadAfterDelete, err := storage.getThread(tx, boardShortName, threadID, 1)
+		require.NoError(t, err)
+
+		assert.True(t, threadAfterDelete.LastModifiedAt.After(lastModifiedBeforeDelete),
+			"LastModifiedAt should update after message deletion")
+	})
+
 	t.Run("BumpLimit", func(t *testing.T) {
 		tx, cleanup := beginTx(t)
 		defer cleanup()
