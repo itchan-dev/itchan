@@ -479,6 +479,7 @@ button[type="submit"]:hover {
 .attachment-item {
     display: flex;
     flex-direction: column;
+    width: min-content;
 }
 
 .attachment-link {
@@ -506,11 +507,6 @@ button[type="submit"]:hover {
 .attachment-info {
     font-size: 11px;
     word-break: break-word;
-    max-width: 225px;
-}
-
-.reply-post .attachment-info {
-    max-width: 150px;
 }
 
 .post-body {
@@ -1134,10 +1130,6 @@ button[type="submit"]:hover {
         max-width: 130px;
         max-height: 130px;
     }
-    .attachment-info,
-    .reply-post .attachment-info {
-        max-width: 200px;
-    }
 
     /* Pagination */
     .pagination {
@@ -1218,10 +1210,6 @@ button[type="submit"]:hover {
     .reply-post .attachment-thumbnail {
         max-width: 100px;
         max-height: 100px;
-    }
-    .attachment-info,
-    .reply-post .attachment-info {
-        max-width: 100px;
     }
 
     .post-body {
