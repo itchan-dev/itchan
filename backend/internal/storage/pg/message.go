@@ -106,15 +106,19 @@ func (s *Storage) createMessage(q Querier, creationData domain.MessageCreationDa
 	}
 
 	// Update the parent thread's metadata (reply count and bump timestamp) and get the
-	// new message's ID (which equals message_count after increment).
+	// new message's ID (which equals next_message_id before increment).
+	// We use next_message_id instead of message_count to avoid PK violations when
+	// messages are deleted in the middle of a thread (creating gaps).
+	// We return (next_message_id - 1) to get the pre-increment value which is the actual message ID.
 	var msgId int64
 	err = q.QueryRow(`
 	       UPDATE threads SET
 	           message_count = message_count + 1,
+	           next_message_id = next_message_id + 1,
 	           last_bumped_at = CASE WHEN message_count > $1 THEN last_bumped_at ELSE $2 END,
 	           last_modified_at = $2
 	       WHERE board = $3 AND id = $4
-		   RETURNING message_count
+		   RETURNING next_message_id - 1
 		   `,
 		s.cfg.Public.BumpLimit, createdAt, creationData.Board, creationData.ThreadId,
 	).Scan(&msgId)

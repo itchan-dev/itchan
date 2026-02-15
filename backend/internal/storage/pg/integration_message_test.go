@@ -437,6 +437,122 @@ func TestMessageOperations(t *testing.T) {
 			require.Error(t, err)
 		})
 	})
+
+	// Test for the bug where deleting a message in the middle of a thread
+	// causes a primary key violation when creating a new message
+	t.Run("DeleteMessageInMiddle_ThenCreateNewMessage", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		boardShortName := domain.BoardShortName("bgap")
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, "gaptest@example.com")
+		threadID, _ := createTestThread(t, tx, domain.ThreadCreationData{
+			Title: "Gap Delete Test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Author: domain.User{Id: userID},
+				Text:   "OP",
+			},
+		})
+
+		// Create messages with IDs 2, 3, 4, 5
+		msg2 := createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 2", ThreadId: threadID,
+		})
+		msg3 := createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 3", ThreadId: threadID,
+		})
+		msg4 := createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 4", ThreadId: threadID,
+		})
+		msg5 := createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 5", ThreadId: threadID,
+		})
+
+		// Verify IDs are sequential
+		assert.Equal(t, int64(2), msg2)
+		assert.Equal(t, int64(3), msg3)
+		assert.Equal(t, int64(4), msg4)
+		assert.Equal(t, int64(5), msg5)
+
+		// Delete message 3 (creates a gap: 1, 2, 4, 5)
+		err := storage.deleteMessage(tx, boardShortName, threadID, msg3)
+		require.NoError(t, err)
+
+		// Verify message 3 is deleted
+		_, err = storage.getMessage(tx, boardShortName, threadID, msg3)
+		requireNotFoundError(t, err)
+
+		// Create a new message - this should get ID 6 (not 5, which would conflict)
+		msg6 := createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 6 after gap", ThreadId: threadID,
+		})
+
+		// The bug would cause msg6 to be 5 (PK violation)
+		// With the fix, it should be 6
+		assert.Equal(t, int64(6), msg6, "New message should get ID 6, not reuse deleted ID 5")
+
+		// Verify we can retrieve the new message
+		retrieved, err := storage.getMessage(tx, boardShortName, threadID, msg6)
+		require.NoError(t, err)
+		assert.Equal(t, "Message 6 after gap", retrieved.Text)
+
+		// Verify message count is correct (6 total created - 1 deleted = 5)
+		thread, err := storage.getThread(tx, boardShortName, threadID, 1)
+		require.NoError(t, err)
+		assert.Equal(t, 5, thread.MessageCount, "Thread should have 5 messages")
+	})
+
+	// Test deleting the last message (should work fine)
+	t.Run("DeleteLastMessage_ThenCreateNewMessage", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		boardShortName := domain.BoardShortName("blast")
+		createTestBoard(t, tx, boardShortName)
+		userID := createTestUser(t, tx, "lasttest@example.com")
+		threadID, _ := createTestThread(t, tx, domain.ThreadCreationData{
+			Title: "Last Delete Test",
+			Board: boardShortName,
+			OpMessage: domain.MessageCreationData{
+				Author: domain.User{Id: userID},
+				Text:   "OP",
+			},
+		})
+
+		// Create messages 2, 3
+		createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 2", ThreadId: threadID,
+		})
+		msg3 := createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 3", ThreadId: threadID,
+		})
+
+		// Delete last message (3)
+		err := storage.deleteMessage(tx, boardShortName, threadID, msg3)
+		require.NoError(t, err)
+
+		// Create new message - should get ID 4
+		msg4 := createTestMessage(t, tx, domain.MessageCreationData{
+			Board: boardShortName, Author: domain.User{Id: userID},
+			Text: "Message 4", ThreadId: threadID,
+		})
+
+		assert.Equal(t, int64(4), msg4, "New message should get ID 4")
+
+		// Verify thread has 3 messages (1 OP + 1 msg2 + 1 msg4)
+		thread, err := storage.getThread(tx, boardShortName, threadID, 1)
+		require.NoError(t, err)
+		assert.Equal(t, 3, thread.MessageCount)
+	})
 }
 
 func intPtr(i int) *int {

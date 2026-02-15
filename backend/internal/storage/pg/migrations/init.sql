@@ -58,12 +58,14 @@ CREATE TABLE IF NOT EXISTS threads (
     title            text NOT NULL,
     board            varchar(10) NOT NULL REFERENCES boards(short_name) ON DELETE CASCADE,
 	message_count    int NOT NULL default 0,
+	next_message_id  int NOT NULL default 1,
 	last_bumped_at   timestamp NOT NULL default (now() at time zone 'utc'),
 	last_modified_at timestamp NOT NULL default (now() at time zone 'utc'),
     created_at       timestamp NOT NULL default (now() at time zone 'utc'),
     is_pinned        boolean NOT NULL default false,
     PRIMARY KEY (board, id)
 ) PARTITION BY LIST (board);
+COMMENT ON COLUMN threads.next_message_id IS 'Next available message ID (sequential, never decrements). Used for message ID assignment to prevent gaps from causing PK violations.';
 CREATE INDEX IF NOT EXISTS threads_last_bumped_at_index ON threads (board, last_bumped_at DESC);
 
 -- Represents a single message within a thread
