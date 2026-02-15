@@ -116,6 +116,8 @@
 {{/* Post attachments section */}}
 {{define "post-attachments"}}
 {{if .Message.Attachments}}
+{{$maxThumb := 150}}
+{{if .Message.IsOp}}{{$maxThumb = 225}}{{end}}
 <div class="post-attachments">
     {{range .Message.Attachments}}
         {{if .File}}
@@ -127,10 +129,11 @@
                     {{$thumb := derefStr .File.ThumbnailPath}}
                     {{$thumbnailUrl = printf "/media/%s" $thumb}}
                 {{end}}
+                {{$dims := thumbDims .File.ImageWidth .File.ImageHeight $maxThumb}}
 
                 <div class="attachment-item">
                     <a href="{{$mediaUrl}}" target="_blank" class="attachment-link">
-                        <img src="{{$thumbnailUrl}}" alt="{{.File.OriginalFilename}}" loading="lazy" class="attachment-thumbnail">
+                        <img src="{{$thumbnailUrl}}" alt="{{.File.OriginalFilename}}" loading="lazy" class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
                     </a>
                     <div class="attachment-info">
                         <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
@@ -143,8 +146,9 @@
                     {{$thumb := derefStr .File.ThumbnailPath}}
                     {{$thumbnailUrl = printf "/media/%s" $thumb}}
                 {{end}}
+                {{$dims := thumbDims .File.ImageWidth .File.ImageHeight $maxThumb}}
                 <div class="attachment-item">
-                    <video controls preload="none" {{if $thumbnailUrl}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail">
+                    <video controls preload="none" {{if $thumbnailUrl}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
                         <source src="{{$mediaUrl}}" type="{{.File.MimeType}}">
                         Your browser does not support the video tag.
                     </video>
