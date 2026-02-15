@@ -149,15 +149,16 @@ func TestGetRecentlyBlacklistedUsers(t *testing.T) {
 
 	// Set different blacklist times by directly updating the table
 	// (simulating users blacklisted at different times)
+	now := time.Now().UTC()
 	_, err = tx.Exec(`UPDATE user_blacklist SET blacklisted_at = $1 WHERE user_id = $2`,
-		time.Now().Add(-10*time.Hour), user1Id)
+		now.Add(-10*time.Hour), user1Id)
 	require.NoError(t, err)
 	_, err = tx.Exec(`UPDATE user_blacklist SET blacklisted_at = $1 WHERE user_id = $2`,
-		time.Now().Add(-5*time.Hour), user2Id)
+		now.Add(-5*time.Hour), user2Id)
 	require.NoError(t, err)
 
 	t.Run("get users blacklisted within time window", func(t *testing.T) {
-		since := time.Now().Add(-6 * time.Hour)
+		since := time.Now().UTC().Add(-6 * time.Hour)
 		users, err := storage.getRecentlyBlacklistedUsers(tx, since)
 		require.NoError(t, err)
 
@@ -170,7 +171,7 @@ func TestGetRecentlyBlacklistedUsers(t *testing.T) {
 	})
 
 	t.Run("get all blacklisted users with far past time", func(t *testing.T) {
-		since := time.Now().Add(-24 * time.Hour)
+		since := time.Now().UTC().Add(-24 * time.Hour)
 		users, err := storage.getRecentlyBlacklistedUsers(tx, since)
 		require.NoError(t, err)
 
@@ -182,7 +183,7 @@ func TestGetRecentlyBlacklistedUsers(t *testing.T) {
 	})
 
 	t.Run("get no users with recent time", func(t *testing.T) {
-		since := time.Now().Add(1 * time.Hour) // Future time
+		since := time.Now().UTC().Add(1 * time.Hour) // Future time
 		users, err := storage.getRecentlyBlacklistedUsers(tx, since)
 		require.NoError(t, err)
 
