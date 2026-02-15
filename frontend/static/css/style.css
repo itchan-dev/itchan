@@ -495,13 +495,11 @@ button[type="submit"]:hover {
 
 .op-post .attachment-thumbnail {
     max-width: 225px;
-    max-height: 225px;
 }
 
 .reply-post .attachment-thumbnail,
 .message-preview .attachment-thumbnail {
     max-width: 150px;
-    max-height: 150px;
 }
 
 .attachment-info {
@@ -1124,11 +1122,9 @@ button[type="submit"]:hover {
     /* Attachment thumbnails */
     .op-post .attachment-thumbnail {
         max-width: 200px;
-        max-height: 200px;
     }
     .reply-post .attachment-thumbnail {
         max-width: 130px;
-        max-height: 130px;
     }
 
     /* Pagination */
@@ -1209,7 +1205,6 @@ button[type="submit"]:hover {
     .op-post .attachment-thumbnail,
     .reply-post .attachment-thumbnail {
         max-width: 100px;
-        max-height: 100px;
     }
 
     .post-body {
