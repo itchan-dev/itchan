@@ -89,13 +89,13 @@ func (s *Storage) getThread(q Querier, board domain.BoardShortName, id domain.Th
 	var metadata domain.ThreadMetadata
 	err := q.QueryRow(`
 		SELECT
-			id, title, board, message_count, last_bumped_at, is_pinned
+			id, title, board, message_count, last_bumped_at, last_modified_at, is_pinned
 		FROM threads
 		WHERE board = $1 AND id = $2`,
 		board, id,
 	).Scan(
 		&metadata.Id, &metadata.Title, &metadata.Board,
-		&metadata.MessageCount, &metadata.LastBumped, &metadata.IsPinned,
+		&metadata.MessageCount, &metadata.LastBumped, &metadata.LastModifiedAt, &metadata.IsPinned,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

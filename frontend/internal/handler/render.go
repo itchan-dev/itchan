@@ -4,14 +4,33 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"net/http"
+	"time"
 
 	"github.com/itchan-dev/itchan/shared/logger"
-
-	"net/http"
 
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
+
+// checkNotModified handles HTTP conditional GET requests using Last-Modified/If-Modified-Since.
+// Returns true if a 304 Not Modified response was sent (caller should return early).
+func checkNotModified(w http.ResponseWriter, r *http.Request, lastModified time.Time) bool {
+	lastModified = lastModified.UTC().Truncate(time.Second)
+
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Last-Modified", lastModified.Format(http.TimeFormat))
+
+	if ifModifiedSince := r.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
+		if t, err := http.ParseTime(ifModifiedSince); err == nil {
+			if !lastModified.After(t.UTC().Truncate(time.Second)) {
+				w.WriteHeader(http.StatusNotModified)
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func (h *Handler) renderTemplate(w http.ResponseWriter, name string, data interface{}) {
 	tmpl, ok := h.Templates[name]

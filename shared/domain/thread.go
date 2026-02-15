@@ -13,12 +13,13 @@ type ThreadCreationData struct {
 }
 
 type ThreadMetadata struct {
-	Id           ThreadId
-	Title        ThreadTitle
-	Board        BoardShortName
-	MessageCount int
-	LastBumped   time.Time
-	IsPinned     bool
+	Id             ThreadId
+	Title          ThreadTitle
+	Board          BoardShortName
+	MessageCount   int
+	LastBumped     time.Time
+	LastModifiedAt time.Time
+	IsPinned       bool
 }
 
 type ThreadPagination struct {
