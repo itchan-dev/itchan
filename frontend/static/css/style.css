@@ -487,8 +487,9 @@ button[type="submit"]:hover {
 }
 
 .attachment-thumbnail {
-    max-width: 300px;
-    max-height: 300px;
+    width: 300px;
+    height: 300px;
+    object-fit: contain;
     display: block;
     margin-bottom: 2px;
     border: 1px solid var(--border);
@@ -1113,8 +1114,9 @@ button[type="submit"]:hover {
 
     /* Attachment thumbnails */
     .attachment-thumbnail {
-        max-width: 250px;
-        max-height: 250px;
+        width: 250px;
+        height: 250px;
+        object-fit: contain;
     }
 
     /* Pagination */
@@ -1193,8 +1195,9 @@ button[type="submit"]:hover {
     }
 
     .attachment-thumbnail {
-        max-width: 120px;
-        max-height: 120px;
+        width: 120px;
+        height: 120px;
+        object-fit: contain;
     }
 
     .post-body {
