@@ -479,6 +479,7 @@ button[type="submit"]:hover {
 .attachment-item {
     display: flex;
     flex-direction: column;
+    width: min-content;
 }
 
 .attachment-link {
@@ -489,7 +490,6 @@ button[type="submit"]:hover {
 .attachment-thumbnail {
     display: block;
     margin-bottom: 2px;
-    border: 1px solid var(--border);
 }
 
 .op-post .attachment-thumbnail {
