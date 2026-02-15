@@ -487,17 +487,30 @@ button[type="submit"]:hover {
 }
 
 .attachment-thumbnail {
-    width: 300px;
-    height: 300px;
-    object-fit: contain;
     display: block;
     margin-bottom: 2px;
     border: 1px solid var(--border);
 }
 
+.op-post .attachment-thumbnail {
+    max-width: 225px;
+    max-height: 225px;
+}
+
+.reply-post .attachment-thumbnail,
+.message-preview .attachment-thumbnail {
+    max-width: 150px;
+    max-height: 150px;
+}
+
 .attachment-info {
     font-size: 11px;
     word-break: break-word;
+    max-width: 225px;
+}
+
+.reply-post .attachment-info {
+    max-width: 150px;
 }
 
 .post-body {
@@ -1113,10 +1126,17 @@ button[type="submit"]:hover {
     }
 
     /* Attachment thumbnails */
-    .attachment-thumbnail {
-        width: 250px;
-        height: 250px;
-        object-fit: contain;
+    .op-post .attachment-thumbnail {
+        max-width: 200px;
+        max-height: 200px;
+    }
+    .reply-post .attachment-thumbnail {
+        max-width: 130px;
+        max-height: 130px;
+    }
+    .attachment-info,
+    .reply-post .attachment-info {
+        max-width: 200px;
     }
 
     /* Pagination */
@@ -1194,10 +1214,14 @@ button[type="submit"]:hover {
         padding-left: 4px;
     }
 
-    .attachment-thumbnail {
-        width: 120px;
-        height: 120px;
-        object-fit: contain;
+    .op-post .attachment-thumbnail,
+    .reply-post .attachment-thumbnail {
+        max-width: 100px;
+        max-height: 100px;
+    }
+    .attachment-info,
+    .reply-post .attachment-info {
+        max-width: 100px;
     }
 
     .post-body {
