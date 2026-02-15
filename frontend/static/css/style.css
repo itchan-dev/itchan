@@ -1204,7 +1204,7 @@ button[type="submit"]:hover {
 
     .op-post .attachment-thumbnail,
     .reply-post .attachment-thumbnail {
-        max-width: 100px;
+        max-width: 125px;
     }
 
     .post-body {
