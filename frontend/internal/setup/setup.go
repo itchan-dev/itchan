@@ -174,6 +174,22 @@ func derefStr(value *string) string {
 	return *value
 }
 
+// thumbDims computes display dimensions for a thumbnail, preserving aspect ratio.
+// Returns {"W": width, "H": height} scaled to fit within maxSize.
+func thumbDims(imgWidth, imgHeight *int, maxSize int) map[string]int {
+	if imgWidth == nil || imgHeight == nil || *imgWidth == 0 || *imgHeight == 0 {
+		return map[string]int{"W": 0, "H": 0}
+	}
+	w, h := *imgWidth, *imgHeight
+	if w <= maxSize && h <= maxSize {
+		return map[string]int{"W": w, "H": h}
+	}
+	if w > h {
+		return map[string]int{"W": maxSize, "H": h * maxSize / w}
+	}
+	return map[string]int{"W": w * maxSize / h, "H": maxSize}
+}
+
 func formatAcceptMimeTypes(images, videos []string) string {
 	var result []string
 	result = append(result, images...)
@@ -190,6 +206,7 @@ var functionMap template.FuncMap = template.FuncMap{
 	"mimeTypeExtensions":    mimeTypeExtensions,
 	"formatAcceptMimeTypes": formatAcceptMimeTypes,
 	"derefStr":              derefStr,
+	"thumbDims":             thumbDims,
 	"join":                  joinStrings,
 	"list": func() []any {
 		return []any{}

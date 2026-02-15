@@ -479,7 +479,6 @@ button[type="submit"]:hover {
 .attachment-item {
     display: flex;
     flex-direction: column;
-    width: min-content;
 }
 
 .attachment-link {
