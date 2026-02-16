@@ -23,6 +23,13 @@
     --red: #c92a2a;
     --orange: #e67700;
 
+    --success-bg: #d4edda;
+    --success-text: #155724;
+    --success-border: #28a745;
+    --error-bg: #f8d7da;
+    --error-text: #721c24;
+    --error-border: #dc3545;
+
     --font: Verdana, Geneva, sans-serif;
     --font-mono: Consolas, 'Courier New', monospace;
 }
@@ -74,15 +81,6 @@ blockquote {
 
 .greentext {
     color: var(--green);
-}
-
-/* Inline formatting */
-strong {
-    font-weight: bold;
-}
-
-em {
-    font-style: italic;
 }
 
 del {
@@ -510,7 +508,7 @@ button[type="submit"]:hover {
 .post-body {
     color: var(--text);
     line-height: 1.4;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
     overflow-x: hidden;
     overflow-y: auto;
     max-height: 600px;
@@ -579,15 +577,15 @@ button[type="submit"]:hover {
 }
 
 .success-message {
-    background: #d4edda;
-    color: #155724;
-    border-color: #28a745;
+    background: var(--success-bg);
+    color: var(--success-text);
+    border-color: var(--success-border);
 }
 
 .error-message {
-    background: #f8d7da;
-    color: #721c24;
-    border-color: #dc3545;
+    background: var(--error-bg);
+    color: var(--error-text);
+    border-color: var(--error-border);
 }
 
 /* ==========================================
@@ -653,12 +651,6 @@ button[type="submit"]:hover {
     z-index: 1000;
 }
 
-.message-preview .post-header {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-    align-items: center;
-}
 
 .message-preview .post-body {
     max-height: 250px;
@@ -666,7 +658,7 @@ button[type="submit"]:hover {
 }
 
 .message-preview.error-preview {
-    background: #f8d7da;
+    background: var(--error-bg);
     border-color: var(--red);
 }
 .message-preview.error-preview .post-header {
@@ -879,11 +871,11 @@ button[type="submit"]:hover {
 }
 
 .faq-examples-table td:first-child {
-    background: #d4edda;
+    background: var(--success-bg);
 }
 
 .faq-examples-table td:last-child {
-    background: #f8d7da;
+    background: var(--error-bg);
 }
 
 /* ==========================================
@@ -899,7 +891,6 @@ button[type="submit"]:hover {
 .legal-container h1 {
     font-size: 2em;
     margin-bottom: 20px;
-    color: var(--text);
 }
 
 .legal-container h2 {
@@ -908,14 +899,12 @@ button[type="submit"]:hover {
     margin-bottom: 15px;
     border-bottom: 1px solid var(--border);
     padding-bottom: 5px;
-    color: var(--text);
 }
 
 .legal-container h3 {
     font-size: 1.2em;
     margin-top: 20px;
     margin-bottom: 10px;
-    color: var(--text);
 }
 
 .legal-container p {
@@ -1158,7 +1147,6 @@ button[type="submit"]:hover {
     .admin-panel,
     .auth-form {
         width: 100%;
-        box-sizing: border-box;
     }
 
     /* Index container */
