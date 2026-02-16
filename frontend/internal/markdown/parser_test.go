@@ -46,6 +46,12 @@ func TestRender(t *testing.T) {
 			hasPayload: true,
 		},
 		{
+			name:       "spoiler text",
+			input:      "||spoiler||",
+			expected:   `<span class="spoiler">spoiler</span>`,
+			hasPayload: true,
+		},
+		{
 			name:       "inline code",
 			input:      "`code`",
 			expected:   "<code>code</code>",
@@ -162,6 +168,12 @@ func TestRender(t *testing.T) {
 			hasPayload: true,
 		},
 		{
+			name:       "unclosed spoiler",
+			input:      "||abc",
+			expected:   "||abc",
+			hasPayload: true,
+		},
+		{
 			name:       "unclosed double bold",
 			input:      "**abc",
 			expected:   "**abc",
@@ -265,6 +277,18 @@ func TestRender(t *testing.T) {
 			expected:   "****",
 			hasPayload: true,
 		},
+		{
+			name:       "completely empty spoiler",
+			input:      "||||",
+			expected:   "||||",
+			hasPayload: true,
+		},
+		{
+			name:       "whitespace-only spoiler",
+			input:      "||  ||",
+			expected:   "||  ||",
+			hasPayload: true,
+		},
 
 		// Multiple blocks
 		{
@@ -303,6 +327,18 @@ func TestRender(t *testing.T) {
 			name:       "code inside bold",
 			input:      "**bold `code` bold**",
 			expected:   "<strong>bold <code>code</code> bold</strong>",
+			hasPayload: true,
+		},
+		{
+			name:       "spoiler inside bold",
+			input:      "**bold ||secret|| bold**",
+			expected:   `<strong>bold <span class="spoiler">secret</span> bold</strong>`,
+			hasPayload: true,
+		},
+		{
+			name:       "bold inside spoiler",
+			input:      "||**bold secret**||",
+			expected:   `<span class="spoiler"><strong>bold secret</strong></span>`,
 			hasPayload: true,
 		},
 
