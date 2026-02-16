@@ -93,6 +93,7 @@ del {
     color: transparent;
 }
 .spoiler:hover {
+    background: none;
     color: var(--text);
 }
 
