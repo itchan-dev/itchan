@@ -88,6 +88,14 @@ del {
     color: var(--text-dark);
 }
 
+.spoiler {
+    background: var(--text);
+    color: transparent;
+}
+.spoiler:hover {
+    color: var(--text);
+}
+
 /* Code */
 pre {
     background: var(--bg-input);
