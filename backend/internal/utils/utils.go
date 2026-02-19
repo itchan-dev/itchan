@@ -164,8 +164,8 @@ func GenerateThumbnail(src image.Image, maxSize int) image.Image {
 	// Create destination image
 	dst := image.NewRGBA(image.Rect(0, 0, dstWidth, dstHeight))
 
-	// Use BiLinear interpolation for good quality and performance balance
-	draw.BiLinear.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
+	// Use CatmullRom (bicubic) interpolation for sharp downscaling
+	draw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
 
 	return dst
 }
