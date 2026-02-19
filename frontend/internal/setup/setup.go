@@ -52,7 +52,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 
 	// Initialize board access data with background updates
 	accessData := board_access.New()
-	accessData.StartBackgroundUpdate(1*time.Minute, store)
+	accessData.StartBackgroundUpdate(ctx, 1*time.Minute, store)
 
 	// Load templates and other dependencies
 	templates := mustLoadTemplates(tmplPath)
