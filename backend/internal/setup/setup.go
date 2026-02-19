@@ -49,7 +49,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	}
 
 	accessData := board_access.New()
-	accessData.StartBackgroundUpdate(1*time.Minute, storage)
+	accessData.StartBackgroundUpdate(ctx, 1*time.Minute, storage)
 
 	// Initialize garbage collector for orphaned media files
 	// Safety threshold: 24 hours - files must be at least 24h old before deletion

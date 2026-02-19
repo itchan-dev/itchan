@@ -1,6 +1,7 @@
 package board_access
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -142,7 +143,9 @@ func TestBackgroundUpdates(t *testing.T) {
 		"test": {"initial.com"},
 	})
 
-	ba.StartBackgroundUpdate(interval, ms)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ba.StartBackgroundUpdate(ctx, interval, ms)
 
 	// Not equal before update
 	assert.NotEqual(t, []string{"initial.com"}, ba.AllowedDomains("test"))
@@ -163,4 +166,33 @@ func TestBackgroundUpdates(t *testing.T) {
 
 	// Verify updated data
 	assert.Equal(t, []string{"updated.com"}, ba.AllowedDomains("test"))
+}
+
+func TestBackgroundUpdateCancellation(t *testing.T) {
+	ms := &mockStorage{}
+	ba := New()
+	interval := 10 * time.Millisecond
+
+	ms.setPermissions(map[string][]string{
+		"test": {"initial.com"},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ba.StartBackgroundUpdate(ctx, interval, ms)
+
+	// Wait for at least one update
+	time.Sleep(interval * 2)
+	assert.Equal(t, []string{"initial.com"}, ba.AllowedDomains("test"))
+
+	// Cancel and wait for goroutine to exit
+	cancel()
+	time.Sleep(interval * 2)
+
+	// Change mock data — should NOT be picked up since background update stopped
+	ms.setPermissions(map[string][]string{
+		"test": {"after_cancel.com"},
+	})
+
+	time.Sleep(interval * 3)
+	assert.Equal(t, []string{"initial.com"}, ba.AllowedDomains("test"))
 }

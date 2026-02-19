@@ -1,6 +1,7 @@
 package board_access
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -44,17 +45,25 @@ func (b *BoardAccess) AllowedDomains(board string) []string {
 	return b.data[board]
 }
 
-func (b *BoardAccess) StartBackgroundUpdate(interval time.Duration, s Storage) {
+func (b *BoardAccess) StartBackgroundUpdate(ctx context.Context, interval time.Duration, s Storage) {
 	ticker := time.NewTicker(interval)
 	logger.Log.Info("started board access background update",
 		"component", "board_access",
 		"interval", interval)
 	go func() {
-		for range ticker.C {
-			if err := b.Update(s); err != nil {
-				logger.Log.Error("failed to update board access rules",
-					"component", "board_access",
-					"error", err)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Log.Info("stopped board access background update",
+					"component", "board_access")
+				return
+			case <-ticker.C:
+				if err := b.Update(s); err != nil {
+					logger.Log.Error("failed to update board access rules",
+						"component", "board_access",
+						"error", err)
+				}
 			}
 		}
 	}()
