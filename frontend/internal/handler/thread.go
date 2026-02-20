@@ -40,7 +40,7 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templateData.Thread = RenderThread(thread)
+	templateData.Thread = renderThread(thread)
 
 	h.renderTemplate(w, "thread.html", templateData)
 }

@@ -39,7 +39,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templateData.Board = RenderBoard(board)
+	templateData.Board = renderBoard(board)
 
 	h.renderTemplate(w, "board.html", templateData)
 }
