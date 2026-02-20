@@ -50,8 +50,8 @@ func (h *Handler) renderTemplate(w http.ResponseWriter, name string, data interf
 	_, _ = buf.WriteTo(w)
 }
 
-// RenderMessage transforms a domain.Message into a frontend-specific view model.
-func RenderMessage(message domain.Message) *frontend_domain.Message {
+// renderMessage transforms a domain.Message into a frontend-specific view model.
+func renderMessage(message domain.Message) *frontend_domain.Message {
 	renderedMessage := frontend_domain.Message{Message: message}
 	renderedMessage.Text = template.HTML(message.Text)
 
@@ -64,10 +64,10 @@ func RenderMessage(message domain.Message) *frontend_domain.Message {
 	return &renderedMessage
 }
 
-func RenderThread(thread domain.Thread) *frontend_domain.Thread {
+func renderThread(thread domain.Thread) *frontend_domain.Thread {
 	renderedThread := frontend_domain.Thread{Thread: thread, Messages: make([]*frontend_domain.Message, len(thread.Messages))}
 	for i, msg := range thread.Messages {
-		renderedThread.Messages[i] = RenderMessage(*msg)
+		renderedThread.Messages[i] = renderMessage(*msg)
 
 		// Enrich OP messages (id=1) with thread-specific context
 		if msg.IsOp() {
@@ -78,10 +78,10 @@ func RenderThread(thread domain.Thread) *frontend_domain.Thread {
 	return &renderedThread
 }
 
-func RenderBoard(board domain.Board) *frontend_domain.Board {
+func renderBoard(board domain.Board) *frontend_domain.Board {
 	renderedBoard := frontend_domain.Board{Board: board, Threads: make([]*frontend_domain.Thread, len(board.Threads))}
 	for i, thread := range board.Threads {
-		renderedBoard.Threads[i] = RenderThread(*thread)
+		renderedBoard.Threads[i] = renderThread(*thread)
 	}
 	return &renderedBoard
 }

@@ -37,10 +37,10 @@ func (h *Handler) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	templateData.Activity = activity
 
-	// Convert messages to frontend MessageView using existing RenderMessage
+	// Convert messages to frontend MessageView using existing renderMessage
 	templateData.ActivityMessages = make([]*frontend_domain.Message, len(activity.Messages))
 	for i, msg := range activity.Messages {
-		templateData.ActivityMessages[i] = RenderMessage(msg)
+		templateData.ActivityMessages[i] = renderMessage(msg)
 	}
 
 	h.renderTemplate(w, "account.html", templateData)

@@ -47,7 +47,6 @@
             <div class="thread-preview">
                 {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
                     {{ $opMessage := index $thread.Messages 0 }}
-                    {{/* Context already populated by RenderBoard -> RenderThread */}}
                     {{template "post" (dict
                         "Message" $opMessage
                         "User" $.User
