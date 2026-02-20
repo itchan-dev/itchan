@@ -44,19 +44,15 @@ func (m *MockMessageService) Delete(board domain.BoardShortName, threadId domain
 
 // MockThreadStorage mocks the ThreadStorage interface.
 type MockThreadStorage struct {
-	createThreadFunc       func(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error)
-	getThreadFunc          func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
-	deleteThreadFunc       func(board domain.BoardShortName, id domain.ThreadId) error
-	threadCountFunc        func(board domain.BoardShortName) (int, error)
-	lastThreadIdFunc       func(board domain.BoardShortName) (domain.ThreadId, error)
-	togglePinnedStatusFunc func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
+	createThreadFunc func(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error)
+	getThreadFunc               func(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
+	deleteThreadFunc            func(board domain.BoardShortName, id domain.ThreadId) error
+	togglePinnedStatusFunc      func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
 
 	mu                 sync.Mutex
 	deleteThreadCalled bool
 	deleteBoardArg     domain.BoardShortName
 	deleteIdArg        domain.ThreadId
-	threadCountCalled  bool
-	getLastIdCalled    bool
 }
 
 func (m *MockThreadStorage) ResetCallTracking() {
@@ -65,15 +61,12 @@ func (m *MockThreadStorage) ResetCallTracking() {
 	m.deleteThreadCalled = false
 	m.deleteBoardArg = ""
 	m.deleteIdArg = 0
-	m.threadCountCalled = false
-	m.getLastIdCalled = false
 }
 
-func (m *MockThreadStorage) CreateThread(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error) {
+func (m *MockThreadStorage) CreateThread(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error) {
 	if m.createThreadFunc != nil {
-		return m.createThreadFunc(creationData)
+		return m.createThreadFunc(creationData, maxThreadCount)
 	}
-	// Default success returns arbitrary ID and current time
 	return 1, time.Now().UTC(), nil
 }
 
@@ -81,7 +74,6 @@ func (m *MockThreadStorage) GetThread(board domain.BoardShortName, id domain.Thr
 	if m.getThreadFunc != nil {
 		return m.getThreadFunc(board, id, page)
 	}
-	// Default success returns a basic thread matching the ID in the first message
 	return domain.Thread{Messages: []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: domain.MsgId(id)}}}}, nil
 }
 
@@ -95,38 +87,14 @@ func (m *MockThreadStorage) DeleteThread(board domain.BoardShortName, id domain.
 	if m.deleteThreadFunc != nil {
 		return m.deleteThreadFunc(board, id)
 	}
-	return nil // Default success
-}
-
-func (m *MockThreadStorage) ThreadCount(board domain.BoardShortName) (int, error) {
-	m.mu.Lock()
-	m.threadCountCalled = true
-	m.mu.Unlock()
-
-	if m.threadCountFunc != nil {
-		return m.threadCountFunc(board)
-	}
-	// Default success returns a plausible count
-	return 1, nil
-}
-
-func (m *MockThreadStorage) LastThreadId(board domain.BoardShortName) (domain.ThreadId, error) {
-	m.mu.Lock()
-	m.getLastIdCalled = true
-	m.mu.Unlock()
-
-	if m.lastThreadIdFunc != nil {
-		return m.lastThreadIdFunc(board)
-	}
-	// Default success returns an arbitrary old ID (e.g., 0)
-	return 0, nil
+	return nil
 }
 
 func (m *MockThreadStorage) TogglePinnedStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
 	if m.togglePinnedStatusFunc != nil {
 		return m.togglePinnedStatusFunc(board, threadId)
 	}
-	return true, nil // Default success, returns new pinned status
+	return true, nil
 }
 
 // MockThreadValidator mocks the ThreadValidator interface.
@@ -155,23 +123,24 @@ func TestThreadCreate(t *testing.T) {
 	}
 	newThreadId := domain.ThreadId(10)
 
-	t.Run("Successful creation", func(t *testing.T) {
+	t.Run("Successful creation without max thread count", func(t *testing.T) {
 		// Arrange
 		storage := &MockThreadStorage{}
 		storage.ResetCallTracking()
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 		createCalled := false
 
 		validator.titleFunc = func(title domain.ThreadTitle) error {
 			assert.Equal(t, validTitle, title)
 			return nil
 		}
-		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error) {
 			createCalled = true
 			assert.Equal(t, validCreationData, creationData)
+			assert.Nil(t, maxThreadCount, "maxThreadCount should be nil when not configured")
 			return newThreadId, time.Now().UTC(), nil
 		}
 		messageService.createFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
@@ -184,13 +153,38 @@ func TestThreadCreate(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, newThreadId, threadId)
-		assert.True(t, createCalled, "Storage CreateThread should be called")
-		// Cleanup is now handled by background ThreadGarbageCollector
-		storage.mu.Lock()
-		assert.False(t, storage.threadCountCalled, "ThreadCount should not be called during creation")
-		assert.False(t, storage.getLastIdCalled, "GetLastThreadId should not be called during creation")
-		assert.False(t, storage.deleteThreadCalled, "DeleteThread should not be called during creation")
-		storage.mu.Unlock()
+		assert.True(t, createCalled, "Storage CreateThreadWithCleanup should be called")
+	})
+
+	t.Run("Successful creation with max thread count", func(t *testing.T) {
+		// Arrange
+		storage := &MockThreadStorage{}
+		storage.ResetCallTracking()
+		validator := &MockThreadValidator{}
+		mediaStorage := &SharedMockMediaStorage{}
+		messageService := &MockMessageService{}
+		maxCount := 100
+		service := NewThread(storage, validator, messageService, mediaStorage, &maxCount)
+		createCalled := false
+
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error) {
+			createCalled = true
+			assert.Equal(t, validCreationData, creationData)
+			require.NotNil(t, maxThreadCount, "maxThreadCount should be passed through")
+			assert.Equal(t, 100, *maxThreadCount)
+			return newThreadId, time.Now().UTC(), nil
+		}
+		messageService.createFunc = func(creationData domain.MessageCreationData) (domain.MsgId, error) {
+			return 1, nil
+		}
+
+		// Act
+		threadId, err := service.Create(validCreationData)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, newThreadId, threadId)
+		assert.True(t, createCalled, "Storage CreateThreadWithCleanup should be called")
 	})
 
 	t.Run("Validation error", func(t *testing.T) {
@@ -200,7 +194,7 @@ func TestThreadCreate(t *testing.T) {
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 		validationError := &internal_errors.ErrorWithStatusCode{Message: "Invalid title", StatusCode: 400}
 		createCalled := false
 
@@ -208,7 +202,7 @@ func TestThreadCreate(t *testing.T) {
 			assert.Equal(t, validTitle, title)
 			return validationError
 		}
-		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error) {
 			createCalled = true
 			return -1, time.Time{}, errors.New("should not be called")
 		}
@@ -229,11 +223,11 @@ func TestThreadCreate(t *testing.T) {
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 		storageError := errors.New("db connection lost")
 		createCalled := false
 
-		storage.createThreadFunc = func(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error) {
+		storage.createThreadFunc = func(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error) {
 			createCalled = true
 			return -1, time.Time{}, storageError
 		}
@@ -258,7 +252,7 @@ func TestThreadGet(t *testing.T) {
 		validator := &MockThreadValidator{} // Not used in Get
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 		expectedThread := domain.Thread{
 			ThreadMetadata: domain.ThreadMetadata{Title: "test title"},
 			Messages:       []*domain.Message{{MessageMetadata: domain.MessageMetadata{Id: domain.MsgId(testId)}}},
@@ -287,7 +281,7 @@ func TestThreadGet(t *testing.T) {
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 		storageError := errors.New("mock GetThread error")
 		getCalled := false
 
@@ -319,7 +313,7 @@ func TestThreadDelete(t *testing.T) {
 		validator := &MockThreadValidator{} // Not used in Delete
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 
 		storage.deleteThreadFunc = func(board domain.BoardShortName, id domain.ThreadId) error {
 			assert.Equal(t, testBoard, board)
@@ -346,7 +340,7 @@ func TestThreadDelete(t *testing.T) {
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 		storageError := errors.New("mock DeleteThread error")
 
 		storage.deleteThreadFunc = func(board domain.BoardShortName, id domain.ThreadId) error {
@@ -380,7 +374,7 @@ func TestThreadTogglePinned(t *testing.T) {
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 
 		toggleCalled := false
 		storage.togglePinnedStatusFunc = func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
@@ -405,7 +399,7 @@ func TestThreadTogglePinned(t *testing.T) {
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 
 		toggleCalled := false
 		storage.togglePinnedStatusFunc = func(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
@@ -430,7 +424,7 @@ func TestThreadTogglePinned(t *testing.T) {
 		validator := &MockThreadValidator{}
 		mediaStorage := &SharedMockMediaStorage{}
 		messageService := &MockMessageService{}
-		service := NewThread(storage, validator, messageService, mediaStorage)
+		service := NewThread(storage, validator, messageService, mediaStorage, nil)
 
 		storageError := errors.New("database connection error")
 		toggleCalled := false

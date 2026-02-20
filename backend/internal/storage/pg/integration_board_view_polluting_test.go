@@ -37,7 +37,7 @@ func TestBoardViewConcurrentRefresh(t *testing.T) {
 			userID, err := storage.SaveUser(generateString(t)+"@example.com", "test", false)
 			require.NoError(t, err)
 
-			_, err = storage.CreateThread(domain.ThreadCreationData{
+			_, _, err = storage.CreateThread(domain.ThreadCreationData{
 				Title: "Test Thread",
 				Board: boardShortName,
 				OpMessage: domain.MessageCreationData{
@@ -45,7 +45,7 @@ func TestBoardViewConcurrentRefresh(t *testing.T) {
 					Author: domain.User{Id: userID},
 					Text:   "Test OP",
 				},
-			})
+			}, nil)
 			require.NoError(t, err)
 
 			err = storage.refreshMaterializedViewConcurrent(boardShortName, 2*time.Second)
@@ -78,7 +78,7 @@ func TestBoardViewConcurrentRefresh(t *testing.T) {
 			userID, err := storage.SaveUser(generateString(t)+"@example.com", "test", false)
 			require.NoError(t, err)
 
-			threadID, err := storage.CreateThread(domain.ThreadCreationData{
+			threadID, _, err := storage.CreateThread(domain.ThreadCreationData{
 				Title: "Test Thread",
 				Board: boardShortName,
 				OpMessage: domain.MessageCreationData{
@@ -86,7 +86,7 @@ func TestBoardViewConcurrentRefresh(t *testing.T) {
 					Author: domain.User{Id: userID},
 					Text:   "Test OP",
 				},
-			})
+			}, nil)
 			require.NoError(t, err)
 
 			_, err = storage.CreateMessage(domain.MessageCreationData{

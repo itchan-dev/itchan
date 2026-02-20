@@ -202,8 +202,7 @@ itchan/
 │   │   │   ├── thread.go      # Thread management
 │   │   │   ├── message.go     # Message processing
 │   │   │   ├── fs.go          # File storage service
-│   │   │   ├── gc.go          # Board garbage collection
-│   │   │   ├── thread_gc.go   # Thread cleanup
+│   │   │   ├── gc.go          # Orphaned media cleanup
 │   │   │   └── utils/         # Service utilities
 │   │   │       └── sanitize.go # Media sanitization (EXIF/metadata stripping)
 │   │   ├── storage/           # Data access layer

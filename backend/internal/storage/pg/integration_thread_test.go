@@ -3,6 +3,7 @@
 package pg
 
 import (
+	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -569,5 +570,173 @@ func TestThreadOperations(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, bumpLimit+2, threadOverLimit.MessageCount)
 		assert.Equal(t, lastBumpAtLimit.UTC(), threadOverLimit.LastBumped.UTC())
+	})
+}
+
+// TestCreateThreadWithCleanup verifies that createThreadWithCleanup enforces
+// the max thread count by deleting the oldest non-pinned threads.
+func TestCreateThreadWithCleanup(t *testing.T) {
+	// helper to create a thread with OP message via createThreadWithCleanup
+	createFullThread := func(t *testing.T, tx *sql.Tx, board domain.BoardShortName, userID domain.UserId, title string, maxCount *int, isPinned bool, createdAt *time.Time) domain.ThreadId {
+		t.Helper()
+		opMsg := domain.MessageCreationData{
+			Board:  board,
+			Author: domain.User{Id: userID},
+			Text:   "OP for " + title,
+		}
+		if createdAt != nil {
+			opMsg.CreatedAt = createdAt
+		}
+		threadID, ts, err := storage.createThreadWithCleanup(tx, domain.ThreadCreationData{
+			Title:     domain.ThreadTitle(title),
+			Board:     board,
+			IsPinned:  isPinned,
+			OpMessage: opMsg,
+		}, maxCount)
+		require.NoError(t, err)
+		opMsg.ThreadId = threadID
+		opMsg.CreatedAt = &ts
+		opMsg.Board = board
+		_, err = storage.createMessage(tx, opMsg)
+		require.NoError(t, err)
+		return threadID
+	}
+
+	t.Run("DeletesOldestWhenOverLimit", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		board := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, board)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		maxCount := 3
+
+		// Create 3 threads (at limit)
+		t1 := time.Now().UTC().Add(-3 * time.Second).Round(time.Microsecond)
+		t2 := time.Now().UTC().Add(-2 * time.Second).Round(time.Microsecond)
+		t3 := time.Now().UTC().Add(-1 * time.Second).Round(time.Microsecond)
+
+		thread1 := createFullThread(t, tx, board, userID, "Thread 1", &maxCount, false, &t1)
+		thread2 := createFullThread(t, tx, board, userID, "Thread 2", &maxCount, false, &t2)
+		_ = createFullThread(t, tx, board, userID, "Thread 3", &maxCount, false, &t3)
+
+		count, err := storage.threadCount(tx, board)
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+
+		// Create a 4th thread — should delete thread1 (oldest bumped)
+		_ = createFullThread(t, tx, board, userID, "Thread 4", &maxCount, false, nil)
+
+		count, err = storage.threadCount(tx, board)
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+
+		_, err = storage.getThread(tx, board, thread1, 1)
+		requireNotFoundError(t, err)
+
+		// thread2 should still exist
+		_, err = storage.getThread(tx, board, thread2, 1)
+		require.NoError(t, err)
+	})
+
+	t.Run("PinnedThreadsNotDeleted", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		board := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, board)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		maxCount := 2
+
+		// Create a pinned thread (oldest) and a regular thread
+		t1 := time.Now().UTC().Add(-2 * time.Second).Round(time.Microsecond)
+		t2 := time.Now().UTC().Add(-1 * time.Second).Round(time.Microsecond)
+
+		pinnedThread := createFullThread(t, tx, board, userID, "Pinned", &maxCount, true, &t1)
+		regularThread := createFullThread(t, tx, board, userID, "Regular", &maxCount, false, &t2)
+
+		// Create a 3rd thread — should delete regularThread, not the pinned one
+		_ = createFullThread(t, tx, board, userID, "New Thread", &maxCount, false, nil)
+
+		// Pinned thread must survive
+		_, err := storage.getThread(tx, board, pinnedThread, 1)
+		require.NoError(t, err)
+
+		// Regular thread was oldest non-pinned, should be gone
+		_, err = storage.getThread(tx, board, regularThread, 1)
+		requireNotFoundError(t, err)
+	})
+
+	t.Run("NilMaxCountSkipsCleanup", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		board := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, board)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		// Create several threads with no limit
+		for i := 0; i < 5; i++ {
+			createFullThread(t, tx, board, userID, fmt.Sprintf("Unlimited %d", i), nil, false, nil)
+		}
+
+		count, err := storage.threadCount(tx, board)
+		require.NoError(t, err)
+		assert.Equal(t, 5, count)
+	})
+
+	t.Run("AllPinnedOverLimitStopsGracefully", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		board := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, board)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		maxCount := 1
+
+		// Create 2 pinned threads — over limit, but nothing deletable
+		pinned1 := createFullThread(t, tx, board, userID, "Pinned 1", &maxCount, true, nil)
+		pinned2 := createFullThread(t, tx, board, userID, "Pinned 2", &maxCount, true, nil)
+
+		// Create another thread — cleanup should not fail despite being over limit
+		newThread := createFullThread(t, tx, board, userID, "New Thread", &maxCount, false, nil)
+
+		// All three threads should exist
+		_, err := storage.getThread(tx, board, pinned1, 1)
+		require.NoError(t, err)
+		_, err = storage.getThread(tx, board, pinned2, 1)
+		require.NoError(t, err)
+		_, err = storage.getThread(tx, board, newThread, 1)
+		require.NoError(t, err)
+
+		count, err := storage.threadCount(tx, board)
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+	})
+
+	t.Run("DeletesMultipleWhenFarOverLimit", func(t *testing.T) {
+		tx, cleanup := beginTx(t)
+		defer cleanup()
+
+		board := domain.BoardShortName(generateString(t))
+		createTestBoard(t, tx, board)
+		userID := createTestUser(t, tx, generateString(t)+"@example.com")
+
+		// Create 5 threads with no limit
+		for i := 0; i < 5; i++ {
+			ts := time.Now().UTC().Add(time.Duration(-5+i) * time.Second).Round(time.Microsecond)
+			createFullThread(t, tx, board, userID, fmt.Sprintf("Thread %d", i), nil, false, &ts)
+		}
+
+		// Now create one more with limit=2 — should delete 4 oldest, keeping 2 total
+		maxCount := 2
+		createFullThread(t, tx, board, userID, "Final Thread", &maxCount, false, nil)
+
+		count, err := storage.threadCount(tx, board)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
 	})
 }

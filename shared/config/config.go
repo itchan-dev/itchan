@@ -65,7 +65,8 @@ type Public struct {
 	MaxRepliesPerMessage int `yaml:"max_replies_per_message"` // Maximum number of >>thread#msg reply links per message
 
 	// Static file caching
-	StaticCacheMaxAge time.Duration `yaml:"static_cache_max_age"` // Cache duration in seconds for static files (CSS, JS, images)
+	StaticCacheMaxAge time.Duration `yaml:"static_cache_max_age"` // Cache duration for static files (CSS, JS, images)
+	MediaCacheMaxAge  time.Duration `yaml:"media_cache_max_age"`  // Cache duration for user-uploaded media files
 
 	// Registration restrictions
 	AllowedRegistrationDomains []string `yaml:"allowed_registration_domains"` // Empty = allow all domains. Example: ["gmail.com", "company.com"]
@@ -250,6 +251,11 @@ func applyValidationDefaults(public *Public) {
 	// Static file caching default (1 day)
 	if public.StaticCacheMaxAge == 0 {
 		public.StaticCacheMaxAge = 240 * time.Hour // 10 days
+	}
+
+	// Media file caching default
+	if public.MediaCacheMaxAge == 0 {
+		public.MediaCacheMaxAge = 7 * 24 * time.Hour // 1 week
 	}
 
 	// Registration domain restrictions (empty = allow all)

@@ -81,17 +81,6 @@ func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error
 	return s.getActiveBoards(s.db, interval)
 }
 
-// ThreadCount is a public, read-only utility method to count threads on a board.
-func (s *Storage) ThreadCount(board domain.BoardShortName) (int, error) {
-	return s.threadCount(s.db, board)
-}
-
-// LastThreadId is a public, read-only utility method to find the least recently
-// bumped non-pinned thread, often used for pruning.
-func (s *Storage) LastThreadId(board domain.BoardShortName) (domain.MsgId, error) {
-	return s.lastThreadId(s.db, board)
-}
-
 // GetBoardsWithPermissions returns a map of board short names to their allowed email domains.
 // Returns nil for boards without restrictions (public boards).
 func (s *Storage) GetBoardsWithPermissions() (map[string][]string, error) {
@@ -525,22 +514,36 @@ func (s *Storage) threadCount(q Querier, board domain.BoardShortName) (int, erro
 	return count, nil
 }
 
-// lastThreadId contains the core logic for finding the least recently bumped thread.
-func (s *Storage) lastThreadId(q Querier, board domain.BoardShortName) (domain.MsgId, error) {
-	var id int64
-	err := q.QueryRow(`
-	SELECT id FROM threads
-	WHERE board = $1 AND is_pinned = FALSE
-	ORDER BY last_bumped_at ASC, id LIMIT 1`,
-		board,
-	).Scan(&id)
+// threadsToDelete returns IDs of the oldest non-pinned threads that should be removed
+// to keep the board at or below maxCount.
+func (s *Storage) threadsToDelete(q Querier, board domain.BoardShortName, maxCount int) ([]domain.ThreadId, error) {
+	count, err := s.threadCount(q, board)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return -1, &internal_errors.ErrorWithStatusCode{
-				Message: fmt.Sprintf("No non-pinned threads found on board '%s'", board), StatusCode: http.StatusNotFound,
-			}
-		}
-		return -1, fmt.Errorf("failed to get last thread ID for board '%s': %w", board, err)
+		return nil, err
 	}
-	return id, nil
+	limit := count - maxCount
+	if limit < 0 {
+		limit = 0
+	}
+	rows, err := q.Query(`
+		SELECT id FROM threads
+		WHERE board = $1 AND is_pinned = FALSE
+		ORDER BY last_bumped_at ASC, id
+		LIMIT $2`,
+		board, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find threads to delete for board '%s': %w", board, err)
+	}
+	defer rows.Close()
+
+	var ids []domain.ThreadId
+	for rows.Next() {
+		var id domain.ThreadId
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan thread ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
