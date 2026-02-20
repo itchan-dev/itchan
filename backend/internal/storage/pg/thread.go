@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"time"
 
@@ -19,11 +20,12 @@ import (
 // Public Methods (satisfy the service.ThreadStorage interface)
 // =========================================================================
 
-// CreateThread is the public entry point for creating a new thread record.
-// It ONLY creates the thread metadata - the OP message should be created
-// separately by the service layer. This maintains proper separation of concerns.
-func (s *Storage) CreateThread(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// CreateThread creates a thread and optionally enforces the max thread count per board
+// using pg_advisory_xact_lock to prevent race conditions. When maxThreadCount is non-nil,
+// it acquires a board-level advisory lock, creates the thread, and deletes the oldest
+// non-pinned threads if the board exceeds the limit.
+func (s *Storage) CreateThread(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	var threadID domain.ThreadId
@@ -31,7 +33,7 @@ func (s *Storage) CreateThread(creationData domain.ThreadCreationData) (domain.T
 
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
 		var err error
-		threadID, createdAt, err = s.createThread(tx, creationData)
+		threadID, createdAt, err = s.createThreadWithCleanup(tx, creationData, maxThreadCount)
 		return err
 	})
 	return threadID, createdAt, err
@@ -163,6 +165,41 @@ func (s *Storage) createThread(q Querier, creationData domain.ThreadCreationData
 	}
 
 	return id, createdTs, nil
+}
+
+// createThreadWithCleanup creates a thread and optionally enforces max thread count.
+// When maxThreadCount is non-nil, it acquires a board-level advisory lock and deletes
+// the oldest non-pinned threads if the board exceeds the limit.
+func (s *Storage) createThreadWithCleanup(q Querier, creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error) {
+	var toDelete []domain.ThreadId
+	if maxThreadCount != nil {
+		var err error
+		h := fnv.New32a()
+		h.Write([]byte(creationData.Board))
+		lockKey := int64(h.Sum32())
+		if _, err = q.Exec("SELECT pg_advisory_xact_lock($1)", lockKey); err != nil {
+			return -1, time.Time{}, fmt.Errorf("failed to acquire advisory lock: %w", err)
+		}
+		// Find threads to delete before creating the new one.
+		// Use maxCount-1 to account for the thread we're about to create.
+		toDelete, err = s.threadsToDelete(q, creationData.Board, *maxThreadCount-1)
+		if err != nil {
+			return -1, time.Time{}, fmt.Errorf("failed to find threads to delete: %w", err)
+		}
+	}
+
+	threadID, createdAt, err := s.createThread(q, creationData)
+	if err != nil {
+		return -1, time.Time{}, err
+	}
+
+	for _, id := range toDelete {
+		if err := s.deleteThread(q, creationData.Board, id); err != nil {
+			return -1, time.Time{}, fmt.Errorf("failed to delete old thread %d: %w", id, err)
+		}
+	}
+
+	return threadID, createdAt, nil
 }
 
 // getThreadSinglePage fetches all messages, replies, and attachments for a thread

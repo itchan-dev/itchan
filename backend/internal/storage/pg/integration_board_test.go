@@ -441,22 +441,23 @@ func TestBoardOperations(t *testing.T) {
 	})
 
 	// =========================================================================
-	// Test: LastThreadId
-	// Verifies finding the ID of the least recently bumped (oldest) non-pinned thread.
+	// Test: ThreadsToDelete
+	// Verifies finding the IDs of the oldest non-pinned threads to delete.
 	// =========================================================================
-	t.Run("LastThreadId", func(t *testing.T) {
-		t.Run("fails for empty board", func(t *testing.T) {
+	t.Run("ThreadsToDelete", func(t *testing.T) {
+		t.Run("empty board returns nothing", func(t *testing.T) {
 			tx, cleanup := beginTx(t)
 			defer cleanup()
 
 			boardA := domain.BoardShortName(generateString(t))
 			createTestBoard(t, tx, boardA)
 
-			_, err := storage.lastThreadId(tx, boardA)
-			requireNotFoundError(t, err)
+			ids, err := storage.threadsToDelete(tx, boardA, 10)
+			require.NoError(t, err)
+			assert.Empty(t, ids)
 		})
 
-		t.Run("returns only thread", func(t *testing.T) {
+		t.Run("under limit returns nothing", func(t *testing.T) {
 			tx, cleanup := beginTx(t)
 			defer cleanup()
 
@@ -464,7 +465,7 @@ func TestBoardOperations(t *testing.T) {
 			createTestBoard(t, tx, boardA)
 			userID := createTestUser(t, tx, generateString(t)+"@example.com")
 
-			tID, _ := createTestThread(t, tx, domain.ThreadCreationData{
+			createTestThread(t, tx, domain.ThreadCreationData{
 				Title: "Single Thread",
 				Board: boardA,
 				OpMessage: domain.MessageCreationData{
@@ -474,12 +475,12 @@ func TestBoardOperations(t *testing.T) {
 				},
 			})
 
-			lastID, err := storage.lastThreadId(tx, boardA)
+			ids, err := storage.threadsToDelete(tx, boardA, 3)
 			require.NoError(t, err)
-			assert.Equal(t, tID, lastID, "Should return the only thread ID")
+			assert.Empty(t, ids)
 		})
 
-		t.Run("returns oldest unbumped thread", func(t *testing.T) {
+		t.Run("returns oldest threads over limit", func(t *testing.T) {
 			tx, cleanup := beginTx(t)
 			defer cleanup()
 
@@ -502,9 +503,11 @@ func TestBoardOperations(t *testing.T) {
 				time.Sleep(20 * time.Millisecond)
 			}
 
-			lastID, err := storage.lastThreadId(tx, boardA)
+			ids, err := storage.threadsToDelete(tx, boardA, 1)
 			require.NoError(t, err)
-			assert.Equal(t, threadIDs[0], lastID, "Should return oldest thread ID")
+			require.Len(t, ids, 2)
+			assert.Equal(t, threadIDs[0], ids[0], "Oldest thread should be first")
+			assert.Equal(t, threadIDs[1], ids[1], "Second oldest should be second")
 		})
 
 		t.Run("ignores pinned threads", func(t *testing.T) {
@@ -515,7 +518,7 @@ func TestBoardOperations(t *testing.T) {
 			createTestBoard(t, tx, boardA)
 			userID := createTestUser(t, tx, generateString(t)+"@example.com")
 
-			tID1, _ := createTestThread(t, tx, domain.ThreadCreationData{
+			createTestThread(t, tx, domain.ThreadCreationData{
 				Title:    "Pinned Thread",
 				Board:    boardA,
 				IsPinned: true,
@@ -537,18 +540,19 @@ func TestBoardOperations(t *testing.T) {
 				},
 			})
 
-			lastID, err := storage.lastThreadId(tx, boardA)
+			// 2 threads total, limit 1 — only non-pinned should be returned
+			ids, err := storage.threadsToDelete(tx, boardA, 1)
 			require.NoError(t, err)
-			assert.Equal(t, tID2, lastID, "Should ignore pinned thread and return non-pinned thread")
+			require.Len(t, ids, 1)
+			assert.Equal(t, tID2, ids[0])
 
+			// Pin the normal thread too — nothing deletable
 			_, err = tx.Exec("UPDATE threads SET is_pinned = TRUE WHERE id = $1 AND board = $2", tID2, boardA)
 			require.NoError(t, err)
 
-			_, err = storage.lastThreadId(tx, boardA)
-			requireNotFoundError(t, err)
-
-			_, err = storage.getThread(tx, boardA, tID1, 1)
+			ids, err = storage.threadsToDelete(tx, boardA, 1)
 			require.NoError(t, err)
+			assert.Empty(t, ids)
 		})
 
 		t.Run("board isolation", func(t *testing.T) {
@@ -572,7 +576,7 @@ func TestBoardOperations(t *testing.T) {
 				},
 			})
 
-			tB, _ := createTestThread(t, tx, domain.ThreadCreationData{
+			createTestThread(t, tx, domain.ThreadCreationData{
 				Title: "Thread B",
 				Board: boardB,
 				OpMessage: domain.MessageCreationData{
@@ -582,13 +586,16 @@ func TestBoardOperations(t *testing.T) {
 				},
 			})
 
-			lastIDA, err := storage.lastThreadId(tx, boardA)
+			// Board A has 1 thread, limit 0 — should return only board A's thread
+			idsA, err := storage.threadsToDelete(tx, boardA, 0)
 			require.NoError(t, err)
-			assert.Equal(t, tA, lastIDA, "Board A should return its own thread")
+			require.Len(t, idsA, 1)
+			assert.Equal(t, tA, idsA[0])
 
-			lastIDB, err := storage.lastThreadId(tx, boardB)
+			// Board B should be unaffected
+			idsB, err := storage.threadsToDelete(tx, boardB, 1)
 			require.NoError(t, err)
-			assert.Equal(t, tB, lastIDB, "Board B should return its own thread")
+			assert.Empty(t, idsB)
 		})
 	})
 }

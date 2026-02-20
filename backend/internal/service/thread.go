@@ -21,14 +21,13 @@ type Thread struct {
 	validator      ThreadValidator
 	messageService MessageService
 	mediaStorage   fs.MediaStorage
+	maxThreadCount *int
 }
 
 type ThreadStorage interface {
-	CreateThread(creationData domain.ThreadCreationData) (domain.ThreadId, time.Time, error)
+	CreateThread(creationData domain.ThreadCreationData, maxThreadCount *int) (domain.ThreadId, time.Time, error)
 	GetThread(board domain.BoardShortName, id domain.ThreadId, page int) (domain.Thread, error)
 	DeleteThread(board domain.BoardShortName, id domain.ThreadId) error
-	ThreadCount(board domain.BoardShortName) (int, error)
-	LastThreadId(board domain.BoardShortName) (domain.ThreadId, error)
 	TogglePinnedStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error)
 }
 
@@ -36,12 +35,13 @@ type ThreadValidator interface {
 	Title(title domain.ThreadTitle) error
 }
 
-func NewThread(storage ThreadStorage, validator ThreadValidator, messageService MessageService, mediaStorage fs.MediaStorage) ThreadService {
+func NewThread(storage ThreadStorage, validator ThreadValidator, messageService MessageService, mediaStorage fs.MediaStorage, maxThreadCount *int) ThreadService {
 	return &Thread{
 		storage:        storage,
 		validator:      validator,
 		messageService: messageService,
 		mediaStorage:   mediaStorage,
+		maxThreadCount: maxThreadCount,
 	}
 }
 
@@ -52,7 +52,7 @@ func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId
 		return -1, err
 	}
 
-	threadID, createdAt, err := b.storage.CreateThread(creationData)
+	threadID, createdAt, err := b.storage.CreateThread(creationData, b.maxThreadCount)
 	if err != nil {
 		return -1, err
 	}
@@ -68,7 +68,6 @@ func (b *Thread) Create(creationData domain.ThreadCreationData) (domain.ThreadId
 		return -1, fmt.Errorf("failed to create OP message: %w", err)
 	}
 
-	// Thread cleanup is now handled by ThreadGarbageCollector in the background
 	return threadID, nil
 }
 
