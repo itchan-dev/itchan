@@ -514,6 +514,15 @@ button[type="submit"]:hover {
     word-break: break-word;
 }
 
+body.no-media .attachment-link,
+body.no-media video.attachment-thumbnail {
+    display: none;
+}
+
+body.no-media .attachment-item {
+    width: auto;
+}
+
 .post-body {
     color: var(--text);
     line-height: 1.4;

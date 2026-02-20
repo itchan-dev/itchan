@@ -19,6 +19,7 @@ func checkNotModified(w http.ResponseWriter, r *http.Request, lastModified time.
 	lastModified = lastModified.UTC().Truncate(time.Second)
 
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Vary", "Cookie")
 	w.Header().Set("Last-Modified", lastModified.Format(http.TimeFormat))
 
 	if ifModifiedSince := r.Header.Get("If-Modified-Since"); ifModifiedSince != "" {

@@ -67,9 +67,14 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 	renderedMessage.Context.ExtraClasses += " message-preview"
 
 	// Create view data dict - consistent with template pattern
+	noMedia := false
+	if c, err := r.Cookie("no_media"); err == nil && c.Value == "1" {
+		noMedia = true
+	}
 	viewData := map[string]any{
 		"Message": renderedMessage,
 		"User":    mw.GetUserFromContext(r),
+		"NoMedia": noMedia,
 	}
 
 	// Render the post template
