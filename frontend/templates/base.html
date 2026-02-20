@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="shortcut icon" href="/favicon.ico"> <!-- Add favicon link -->
 </head>
-<body>
+<body{{if .NoMedia}} class="no-media"{{end}}>
     <header class="site-header">
         <div class="header-content">
             <div class="header-left">
@@ -20,6 +20,7 @@
                 {{if .User}}
                     <span class="user-info">[<a href="/account">@{{.User.EmailDomain}}</a>]</span>
                     [<a href="/invites">Invites</a>]
+                    [<a href="/settings/no-media">{{if .NoMedia}}Show Media{{else}}No Media{{end}}</a>]
                     {{if .User.Admin}}[<a href="/admin">Admin</a>]{{end}}
                     [<a href="/logout">Logout</a>]
                 {{else}}
