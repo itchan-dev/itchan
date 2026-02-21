@@ -4,27 +4,27 @@
 
 <!-- User info -->
 <div class="account-info">
-    <p><strong>User ID:</strong> {{.User.Id}}</p>
-    <p><strong>Domain:</strong> @{{.User.EmailDomain}}</p>
-    <p><strong>Admin:</strong> {{if .User.Admin}}Yes{{else}}No{{end}}</p>
-    <p><strong>Member since:</strong> {{.User.CreatedAt.Format "2006-01-02 15:04"}}</p>
+    <p><strong>User ID:</strong> {{.Common.User.Id}}</p>
+    <p><strong>Domain:</strong> @{{.Common.User.EmailDomain}}</p>
+    <p><strong>Admin:</strong> {{if .Common.User.Admin}}Yes{{else}}No{{end}}</p>
+    <p><strong>Member since:</strong> {{.Common.User.CreatedAt.Format "2006-01-02 15:04"}}</p>
 </div>
 
 <hr>
 
 <!-- Recent activity feed -->
-<h2>My Recent Posts (Last {{.Validation.UserMessagesPageLimit}})</h2>
-{{if .ActivityMessages}}
+<h2>My Recent Posts (Last {{.Common.Validation.UserMessagesPageLimit}})</h2>
+{{if .Data.ActivityMessages}}
 <div class="activity-feed">
-    {{range .ActivityMessages}}
+    {{range .Data.ActivityMessages}}
         {{/* Render using standard post template */}}
-        {{template "post" dict "Message" . "User" $.User "CSRFToken" $.CSRFToken "NoMedia" $.NoMedia}}
+        {{template "post" (postData . $.Common)}}
     {{end}}
 </div>
 {{else}}
 <p>No messages yet. <a href="/">Browse boards</a> to start posting!</p>
 {{end}}
 
-{{template "popup-reply-form" .}}
+{{template "popup-reply-form" .Common}}
 
 {{end}}

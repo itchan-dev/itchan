@@ -2,8 +2,8 @@
 {{define "content"}}
 <h2>Register / Reset Password</h2>
 <p>Enter your email and desired password. A confirmation code will be sent to your email.</p>
-{{if .Validation.AllowedRegistrationDomains}}
-<p><strong>Note:</strong> Registration is restricted to the following email domains: {{range $i, $d := .Validation.AllowedRegistrationDomains}}{{if $i}}, {{end}}@{{$d}}{{end}}</p>
+{{if .Common.Validation.AllowedRegistrationDomains}}
+<p><strong>Note:</strong> Registration is restricted to the following email domains: {{range $i, $d := .Common.Validation.AllowedRegistrationDomains}}{{if $i}}, {{end}}@{{$d}}{{end}}</p>
 {{end}}
 <form method="POST" action="/register" class="auth-form">
     <table class="form-table">
@@ -15,7 +15,7 @@
             <tr>
                 <td class="form-label"><label for="password">Password:</label></td>
                 <td>
-                    {{template "password-input" dict "PasswordMinLen" .Validation.PasswordMinLen}}
+                    {{template "password-input" dict "PasswordMinLen" .Common.Validation.PasswordMinLen}}
                 </td>
             </tr>
             <tr>

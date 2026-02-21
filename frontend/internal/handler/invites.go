@@ -7,59 +7,52 @@ import (
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
 
 // InvitesGetHandler displays the invites page with user's invite codes
 func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
+	user := mw.GetUserFromContext(r)
+
 	var templateData struct {
-		CommonTemplateData
 		Invites          []domain.InviteCode
 		RemainingInvites int
 		AccountAgeDays   int
 		RequiredAgeDays  int
 		IsEligibleByAge  bool
 	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 
-	// Fetch user's invites from API
 	invites, err := h.APIClient.GetMyInvites(r)
+	var errMsg string
 	if err != nil {
 		logger.Log.Error("failed to get invites from API", "error", err)
-		templateData.Error = fmt.Sprintf("Failed to load invites: %v", err)
-		invites = []domain.InviteCode{} // Use empty array on error
+		errMsg = fmt.Sprintf("Failed to load invites: %v", err)
+		invites = []domain.InviteCode{}
 	}
 	templateData.Invites = invites
 
-	// Calculate remaining invites
-	if templateData.User.Admin {
-		// Admins have unlimited invites (represented as -1)
+	if user.Admin {
 		templateData.RemainingInvites = -1
 	} else {
-		// Count unused invites (where UsedBy is nil)
 		unusedCount := 0
 		for _, invite := range invites {
 			if invite.UsedBy == nil {
 				unusedCount++
 			}
 		}
-
-		// Calculate remaining invites
 		maxInvites := h.Public.MaxInvitesPerUser
 		templateData.RemainingInvites = max(maxInvites-unusedCount, 0)
 	}
 
-	// Calculate account age
-	accountAge := time.Since(templateData.User.CreatedAt)
+	accountAge := time.Since(user.CreatedAt)
 	templateData.AccountAgeDays = int(accountAge.Hours() / 24)
 
-	// Get required age from config (in days)
 	requiredAge := h.Public.MinAccountAgeForInvites
 	templateData.RequiredAgeDays = int(requiredAge.Hours() / 24)
 
-	// Check if user is eligible by age
-	templateData.IsEligibleByAge = templateData.User.Admin || accountAge >= requiredAge
+	templateData.IsEligibleByAge = user.Admin || accountAge >= requiredAge
 
-	h.renderTemplate(w, "invites.html", templateData)
+	h.renderTemplateWithError(w, r, "invites.html", templateData, errMsg)
 }
 
 // GenerateInvitePostHandler generates a new invite code

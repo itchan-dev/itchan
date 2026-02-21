@@ -9,12 +9,7 @@ import (
 )
 
 func (h *Handler) RegisterGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-
-	h.renderTemplate(w, "register.html", templateData)
+	h.renderTemplate(w, r, "register.html", nil)
 }
 
 func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -51,12 +46,7 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ConfirmEmailGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-
-	h.renderTemplate(w, "check_confirmation_code.html", templateData)
+	h.renderTemplate(w, r, "check_confirmation_code.html", nil)
 }
 
 func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -78,12 +68,7 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) LoginGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-
-	h.renderTemplate(w, "login.html", templateData)
+	h.renderTemplate(w, r, "login.html", nil)
 }
 
 func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -131,12 +116,7 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RegisterInviteGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-
-	h.renderTemplate(w, "register_invite.html", templateData)
+	h.renderTemplate(w, r, "register_invite.html", nil)
 }
 
 func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Request) {

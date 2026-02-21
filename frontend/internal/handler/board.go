@@ -13,12 +13,6 @@ import (
 )
 
 func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-		Board       *frontend_domain.Board
-		CurrentPage int
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 	shortName := chi.URLParam(r, "board")
 
 	page := 1
@@ -27,11 +21,10 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 			page = pageInt
 		}
 	}
-	templateData.CurrentPage = page
 
 	board, err := h.APIClient.GetBoard(r, shortName, page)
 	if err != nil {
-		utils.WriteErrorAndStatusCode(w, err) // Renders a dedicated error page
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
@@ -39,9 +32,10 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templateData.Board = renderBoard(board)
-
-	h.renderTemplate(w, "board.html", templateData)
+	h.renderTemplate(w, r, "board.html", frontend_domain.BoardPageData{
+		Board:       renderBoard(board),
+		CurrentPage: page,
+	})
 }
 
 func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {

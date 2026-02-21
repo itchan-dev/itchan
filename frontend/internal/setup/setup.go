@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"html/template"
-
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/itchan-dev/itchan/frontend/internal/apiclient"
+	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/frontend/internal/handler"
 	"github.com/itchan-dev/itchan/frontend/internal/markdown"
 	"github.com/itchan-dev/itchan/shared/blacklist"
@@ -66,7 +67,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	}
 
 	h := handler.New(templates, cfg.Public, textProcessor, apiClient, mediaPath)
-	startTemplateReloader(h, tmplPath)
+	startTemplateReloader(ctx, h, tmplPath)
 
 	jwtService := jwt.New(cfg.JwtKey(), cfg.JwtTTL())
 
@@ -104,58 +105,21 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 func sub(a, b int) int { return a - b }
 func add(a, b int) int { return a + b }
 
-func hasPrefix(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
-}
-
 func bytesToMB(bytes int64) int64 {
 	return bytes / (1024 * 1024)
 }
 
 func mimeTypeExtensions(mimeTypes []string) string {
-	if len(mimeTypes) == 0 {
-		return ""
-	}
 	var exts []string
 	for _, mime := range mimeTypes {
-		// Split on "/" and take the second part (e.g., "image/jpeg" -> "jpeg")
-		parts := splitString(mime, "/")
-		if len(parts) == 2 {
+		if parts := strings.SplitN(mime, "/", 2); len(parts) == 2 {
 			exts = append(exts, parts[1])
 		}
 	}
-	return joinStrings(exts, ", ")
+	return strings.Join(exts, ", ")
 }
 
-func splitString(s, sep string) []string {
-	if s == "" {
-		return []string{}
-	}
-	var result []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if i+len(sep) <= len(s) && s[i:i+len(sep)] == sep {
-			result = append(result, s[start:i])
-			start = i + len(sep)
-			i += len(sep) - 1
-		}
-	}
-	result = append(result, s[start:])
-	return result
-}
-
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
-	}
-	return result
-}
-
-func dict(values ...any) (map[string]interface{}, error) {
+func dict(values ...any) (map[string]any, error) {
 	if len(values)%2 != 0 {
 		return nil, fmt.Errorf("invalid dict call: number of arguments must be even")
 	}
@@ -168,10 +132,6 @@ func dict(values ...any) (map[string]interface{}, error) {
 		m[key] = values[i+1]
 	}
 	return m, nil
-}
-
-func derefStr(value *string) string {
-	return *value
 }
 
 // thumbDims computes display dimensions for a thumbnail, preserving aspect ratio.
@@ -191,36 +151,28 @@ func thumbDims(imgWidth, imgHeight *int, maxSize int) map[string]int {
 }
 
 func formatAcceptMimeTypes(images, videos []string) string {
-	var result []string
-	result = append(result, images...)
-	result = append(result, videos...)
-	return joinStrings(result, ",")
+	return strings.Join(append(images, videos...), ",")
 }
 
 var functionMap template.FuncMap = template.FuncMap{
 	"sub":                   sub,
 	"add":                   add,
 	"dict":                  dict,
-	"hasPrefix":             hasPrefix,
+	"postData": func(msg *frontend_domain.Message, common frontend_domain.CommonTemplateData) *frontend_domain.PostData {
+		return &frontend_domain.PostData{Message: msg, Common: &common}
+	},
 	"bytesToMB":             bytesToMB,
 	"mimeTypeExtensions":    mimeTypeExtensions,
 	"formatAcceptMimeTypes": formatAcceptMimeTypes,
-	"derefStr":              derefStr,
 	"thumbDims":             thumbDims,
-	"join":                  joinStrings,
-	"list": func() []any {
-		return []any{}
-	},
-	"append": func(list []any, item any) []any {
-		return append(list, item)
-	},
+	"join":                  strings.Join,
 }
 
 func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	templates := make(map[string]*template.Template)
 	files, err := os.ReadDir(tmplPath)
 	if err != nil {
-		logger.Log.Error("fatal error", "error", err)
+		panic(fmt.Errorf("mustLoadTemplates: %w", err))
 	}
 
 	// Create a standalone partials template for API endpoints
@@ -249,12 +201,18 @@ func mustLoadTemplates(tmplPath string) map[string]*template.Template {
 	return templates
 }
 
-func startTemplateReloader(h *handler.Handler, tmplPath string) {
+func startTemplateReloader(ctx context.Context, h *handler.Handler, tmplPath string) {
 	if os.Getenv("ENV") == "development" {
 		ticker := time.NewTicker(templateReloadInterval)
 		go func() {
-			for range ticker.C {
-				h.Templates = mustLoadTemplates(tmplPath)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					h.UpdateTemplates(mustLoadTemplates(tmplPath))
+				case <-ctx.Done():
+					return
+				}
 			}
 		}()
 	}

@@ -3,25 +3,29 @@ package handler
 import (
 	"net/http"
 
+	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
 )
 
 func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-		Boards []domain.Board
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-
 	boards, err := h.APIClient.GetBoards(r)
+	var errMsg string
 	if err != nil {
-		templateData.Error = err.Error()
+		errMsg = err.Error()
 	}
-	templateData.Boards = boards
 
-	h.renderTemplate(w, "index.html", templateData)
+	var pageData frontend_domain.IndexPageData
+	for _, b := range boards {
+		if len(b.AllowedEmailDomains) > 0 {
+			pageData.CorporateBoards = append(pageData.CorporateBoards, b)
+		} else {
+			pageData.PublicBoards = append(pageData.PublicBoards, b)
+		}
+	}
+
+	h.renderTemplateWithError(w, r, "index.html", pageData, errMsg)
 }
 
 func (h *Handler) IndexPostHandler(w http.ResponseWriter, r *http.Request) {

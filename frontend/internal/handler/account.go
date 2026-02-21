@@ -3,45 +3,37 @@ package handler
 import (
 	"net/http"
 
+	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
-
-	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
 
 // AccountGetHandler displays the user's account page with activity
 func (h *Handler) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-		Activity         *api.UserActivityResponse
-		ActivityMessages []*frontend_domain.Message
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
-
-	// Check authentication
-	if templateData.User == nil {
+	user := mw.GetUserFromContext(r)
+	if user == nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
-	// Fetch activity from API
 	activity, err := h.APIClient.GetUserActivity(r)
+	var errMsg string
 	if err != nil {
 		logger.Log.Error("failed to get user activity from API", "error", err)
-		templateData.Error = "Failed to load activity"
-		// Use empty activity on error
+		errMsg = "Failed to load activity"
 		activity = &api.UserActivityResponse{
 			Messages: []domain.Message{},
 		}
 	}
-	templateData.Activity = activity
 
-	// Convert messages to frontend MessageView using existing renderMessage
-	templateData.ActivityMessages = make([]*frontend_domain.Message, len(activity.Messages))
+	activityMessages := make([]*frontend_domain.Message, len(activity.Messages))
 	for i, msg := range activity.Messages {
-		templateData.ActivityMessages[i] = renderMessage(msg)
+		activityMessages[i] = renderMessage(msg)
 	}
 
-	h.renderTemplate(w, "account.html", templateData)
+	h.renderTemplateWithError(w, r, "account.html", frontend_domain.AccountPageData{
+		ActivityMessages: activityMessages,
+	}, errMsg)
 }

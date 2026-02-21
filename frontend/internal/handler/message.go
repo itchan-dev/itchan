@@ -1,13 +1,14 @@
 package handler
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
 
 func (h *Handler) MessageDeleteHandler(w http.ResponseWriter, r *http.Request) {
@@ -63,32 +64,28 @@ func (h *Handler) MessagePreviewHTMLHandler(w http.ResponseWriter, r *http.Reque
 
 	// Convert to frontend domain types (page already calculated by backend)
 	renderedMessage := renderMessage(*messageData)
-
 	renderedMessage.Context.ExtraClasses += " message-preview"
 
-	// Create view data dict - consistent with template pattern
-	noMedia := false
-	if c, err := r.Cookie("no_media"); err == nil && c.Value == "1" {
-		noMedia = true
-	}
-	viewData := map[string]any{
-		"Message": renderedMessage,
-		"User":    mw.GetUserFromContext(r),
-		"NoMedia": noMedia,
+	common := h.initCommonTemplateData(w, r)
+	viewData := frontend_domain.PostData{
+		Message: renderedMessage,
+		Common:  &common,
 	}
 
-	// Render the post template
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl := h.Templates["partials"]
-	if tmpl == nil {
-		logger.Log.Error(": partials template not found in templates map")
+	tmpl, ok := h.getTemplate("partials")
+	if !ok {
+		logger.Log.Error("partials template not found in templates map")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if err := tmpl.ExecuteTemplate(w, "post", viewData); err != nil {
+	buf := new(bytes.Buffer)
+	if err := tmpl.ExecuteTemplate(buf, "post", viewData); err != nil {
 		logger.Log.Error("rendering post template", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
 }

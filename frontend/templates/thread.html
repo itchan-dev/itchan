@@ -10,51 +10,46 @@
 {{end}}
 {{end}}
 
-{{define "title"}}/{{ .Thread.Board }}/ - Thread No.{{ .Thread.Id }}{{end}}
+{{define "title"}}/{{ .Data.Thread.Board }}/ - Thread No.{{ .Data.Thread.Id }}{{end}}
 {{define "content"}}
     <div class="board-header">
-        <h1><a href="/{{ .Thread.Board }}">/{{ .Thread.Board }}/</a></h1>
+        <h1><a href="/{{ .Data.Thread.Board }}">/{{ .Data.Thread.Board }}/</a></h1>
         <hr>
     </div>
 
     <div class="thread-header">
-        <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
+        <span class="nav-links">[<a href="/{{ .Data.Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
     </div>
 
-    {{template "thread-pagination" .Thread}}
+    {{template "thread-pagination" .Data.Thread}}
 
     <div class="posts-container">
-        {{ range $index, $message := .Thread.Messages }}
-            {{template "post" (dict
-                "Message" $message
-                "User" $.User
-                "CSRFToken" $.CSRFToken
-                "NoMedia" $.NoMedia
-            )}}
+        {{ range $index, $message := .Data.Thread.Messages }}
+            {{template "post" (postData $message $.Common)}}
         {{ end }}
     </div><!-- End posts-container -->
     <br clear="left"> <!-- Clear floats/inline-blocks -->
 
-    {{template "thread-pagination" .Thread}}
+    {{template "thread-pagination" .Data.Thread}}
 
     <hr class="post-separator"> <!-- Separator before bottom reply form -->
 
     <!-- Reply Form (Bottom) -->
      <div class="post-form-container" id="reply-form-bottom">
-        <form action="/{{ .Thread.Board }}/{{ .Thread.Id }}" method="post" enctype="multipart/form-data">
-             {{template "csrf-field" .}}
+        <form action="/{{ .Data.Thread.Board }}/{{ .Data.Thread.Id }}" method="post" enctype="multipart/form-data">
+             {{template "csrf-field" .Common}}
              <input type="hidden" name="form_action" value="reply">
              <table class="form-table">
                  <tbody>
                      <tr>
                          <td class="form-label"><label for="text-reply-bottom">Comment:</label></td>
                          <td>
-                             <textarea id="text-reply-bottom" name="text" cols="48" rows="4" maxlength="{{.Validation.MessageTextMaxLen}}"></textarea>
+                             <textarea id="text-reply-bottom" name="text" cols="48" rows="4" maxlength="{{.Common.Validation.MessageTextMaxLen}}"></textarea>
                          </td>
                      </tr>
                      <tr>
                          <td class="form-label"><label for="attachments-reply-bottom">File:</label></td>
-                         <td>{{template "file-input" dict "InputID" "attachments-reply-bottom" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
+                         <td>{{template "file-input" dict "InputID" "attachments-reply-bottom" "MaxCount" .Common.Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Common.Validation.MaxTotalAttachmentSize "MaxFileSize" .Common.Validation.MaxAttachmentSizeBytes "AllowedImages" .Common.Validation.AllowedImageMimeTypes "AllowedVideos" .Common.Validation.AllowedVideoMimeTypes}}</td>
                      </tr>
                      <tr>
                          <td class="form-label"></td>
@@ -71,7 +66,7 @@
 
     <div id="bottom"></div>
     <hr>
-    <span class="nav-links">[<a href="/{{ .Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
+    <span class="nav-links">[<a href="/{{ .Data.Thread.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
 
-    {{template "popup-reply-form" .}}
+    {{template "popup-reply-form" .Common}}
 {{ end }}

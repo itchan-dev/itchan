@@ -7,8 +7,8 @@
             <tr>
                 <td class="form-label"><label for="email">Email:</label></td>
                 <td>
-                    {{if .EmailPlaceholder}}
-                    <input type="email" id="email" name="email" value="{{.EmailPlaceholder}}" required size="30">
+                    {{if .Common.EmailPlaceholder}}
+                    <input type="email" id="email" name="email" value="{{.Common.EmailPlaceholder}}" required size="30">
                     {{else}}
                     <input type="email" id="email" name="email" required size="30">
                     {{end}}
@@ -16,7 +16,7 @@
             </tr>
             <tr>
                 <td class="form-label"><label for="password">Password:</label></td>
-                <td>{{template "password-input" dict "PasswordMinLen" .Validation.PasswordMinLen}}</td>
+                <td>{{template "password-input" dict "PasswordMinLen" .Common.Validation.PasswordMinLen}}</td>
             </tr>
             <tr>
                 <td class="form-label"></td>

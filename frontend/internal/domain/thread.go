@@ -6,5 +6,6 @@ import (
 
 type Thread struct {
 	domain.Thread
-	Messages []*Message
+	Messages       []*Message
+	OmittedReplies int
 }

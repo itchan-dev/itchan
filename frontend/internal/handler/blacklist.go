@@ -45,20 +45,19 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 // AdminGetHandler displays the admin panel with blacklisted users
 func (h *Handler) AdminGetHandler(w http.ResponseWriter, r *http.Request) {
 	var templateData struct {
-		CommonTemplateData
 		BlacklistedUsers []domain.BlacklistEntry
 	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 
 	users, err := h.APIClient.GetBlacklistedUsers(r)
+	var errMsg string
 	if err != nil {
 		logger.Log.Error("failed to get blacklisted users from API", "error", err)
-		templateData.Error = fmt.Sprintf("Failed to load blacklisted users: %v", err)
+		errMsg = fmt.Sprintf("Failed to load blacklisted users: %v", err)
 		users = []domain.BlacklistEntry{}
 	}
 	templateData.BlacklistedUsers = users
 
-	h.renderTemplate(w, "admin.html", templateData)
+	h.renderTemplateWithError(w, r, "admin.html", templateData, errMsg)
 }
 
 // UnblacklistUserHandler removes a user from the blacklist
