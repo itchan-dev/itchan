@@ -13,21 +13,28 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
+// serverStart is used as a cache-buster: any server restart (i.e. deployment) advances
+// the effective Last-Modified time, immediately invalidating all client-side cached responses.
+var serverStart = time.Now().UTC().Truncate(time.Second)
+
 // checkNotModified handles HTTP conditional GET requests using Last-Modified/If-Modified-Since.
+// The effective Last-Modified is max(content timestamp, server start time) so that deployments
+// always bust the client cache regardless of when the content last changed.
 // Returns true if a 304 Not Modified response was sent (caller should return early).
 func checkNotModified(w http.ResponseWriter, r *http.Request, lastModified time.Time) bool {
 	lastModified = lastModified.UTC().Truncate(time.Second)
+	if serverStart.After(lastModified) {
+		lastModified = serverStart
+	}
 
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Vary", "Cookie")
 	w.Header().Set("Last-Modified", lastModified.Format(http.TimeFormat))
 
-	if ifModifiedSince := r.Header.Get("If-Modified-Since"); ifModifiedSince != "" {
-		if t, err := http.ParseTime(ifModifiedSince); err == nil {
-			if !lastModified.After(t.UTC().Truncate(time.Second)) {
-				w.WriteHeader(http.StatusNotModified)
-				return true
-			}
+	if ims := r.Header.Get("If-Modified-Since"); ims != "" {
+		if t, err := http.ParseTime(ims); err == nil && !lastModified.After(t.UTC().Truncate(time.Second)) {
+			w.WriteHeader(http.StatusNotModified)
+			return true
 		}
 	}
 	return false
