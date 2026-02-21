@@ -89,20 +89,20 @@
     {{/* Show pinned indicator for OP messages (id=1) */}}
     {{if and .Message.IsOp .Message.Context.IsPinned}}<span class="pinned-indicator" title="Pinned thread">[Pinned]</span>{{end}}
     {{if .Message.Context.Subject}}<span class="post-subject">{{.Message.Context.Subject}}</span>{{end}}
-    <span class="post-author">{{if and .User .User.Admin}}ID:{{.Message.Author.Id}} @{{.Message.Author.EmailDomain}}{{if .Message.Author.Admin}} <span class="admin-badge">[admin]</span>{{end}}{{else}}{{if .Message.ShowEmailDomain}}@{{.Message.Author.EmailDomain}}{{else}}Anonymous{{end}}{{end}}</span>
+    <span class="post-author">{{if and .Common.User .Common.User.Admin}}ID:{{.Message.Author.Id}} @{{.Message.Author.EmailDomain}}{{if .Message.Author.Admin}} <span class="admin-badge">[admin]</span>{{end}}{{else}}{{if .Message.ShowEmailDomain}}@{{.Message.Author.EmailDomain}}{{else}}Anonymous{{end}}{{end}}</span>
     <time class="post-date" datetime="{{.Message.CreatedAt.UTC.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.CreatedAt.UTC.Format "Mon, 02 Jan 2006 15:04:05"}} GMT</time>
     <span class="post-id"><a href="/{{.Message.Board}}/{{.Message.ThreadId}}" class="thread-link">No.</a>{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-link" "Text" .Message.Id)}}</span>
     <span class="post-reply">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Anchor" "reply-" "Class" "post-reply-link" "Text" "[reply]")}}</span>
     <span class="post-reply-popup">{{template "message-link" (dict "Board" .Message.Board "ThreadId" .Message.ThreadId "MessageId" .Message.Id "Page" .Message.Page "Class" "post-reply-popup-link" "Text" "[popup-reply]")}}</span>
-    {{if .User}}
-        {{if .User.Admin}}
+    {{if .Common.User}}
+        {{if .Common.User.Admin}}
             {{/* Show pin toggle for OP messages (id=1) */}}
             {{if .Message.IsOp}}
-                {{template "pin-toggle-button" dict "Action" (printf "/%s/%d/pin" $.Message.Board $.Message.ThreadId) "IsPinned" .Message.Context.IsPinned "CSRFToken" $.CSRFToken}}
-                {{template "delete-button" dict "Action" (printf "/%s/%d/delete" $.Message.Board $.Message.ThreadId) "ConfirmMessage" (printf "Delete thread #%d and all its messages?" $.Message.ThreadId) "ButtonText" "delete thread" "CSRFToken" $.CSRFToken}}
+                {{template "pin-toggle-button" dict "Action" (printf "/%s/%d/pin" $.Message.Board $.Message.ThreadId) "IsPinned" .Message.Context.IsPinned "CSRFToken" $.Common.CSRFToken}}
+                {{template "delete-button" dict "Action" (printf "/%s/%d/delete" $.Message.Board $.Message.ThreadId) "ConfirmMessage" (printf "Delete thread #%d and all its messages?" $.Message.ThreadId) "ButtonText" "delete thread" "CSRFToken" $.Common.CSRFToken}}
             {{end}}
-            {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete" "CSRFToken" $.CSRFToken}}
-            {{template "blacklist-button" dict "UserId" .Message.Author.Id "CSRFToken" $.CSRFToken}}
+            {{template "delete-button" dict "Action" (printf "/%s/%d/%d/delete" $.Message.Board $.Message.ThreadId $.Message.Id) "ConfirmMessage" (printf "Delete message #%d?" $.Message.Id) "ButtonText" "delete" "CSRFToken" $.Common.CSRFToken}}
+            {{template "blacklist-button" dict "UserId" .Message.Author.Id "CSRFToken" $.Common.CSRFToken}}
         {{end}}
     {{end}}
     {{if .Message.Replies}}
@@ -121,14 +121,9 @@
 <div class="post-attachments">
     {{range .Message.Attachments}}
         {{if .File}}
-            {{$mediaUrl := printf "/media/%s" .File.FilePath}}
+            {{$mediaUrl := .File.MediaURL}}
             {{if .File.IsImage}}
-                {{$thumbnailUrl := $mediaUrl}}
-                {{if .File.ThumbnailPath}}
-                    {{/* Dereference pointer first, then use printf */}}
-                    {{$thumb := derefStr .File.ThumbnailPath}}
-                    {{$thumbnailUrl = printf "/media/%s" $thumb}}
-                {{end}}
+                {{$thumbnailUrl := or (.File.ThumbnailURL) $mediaUrl}}
                 {{$dims := thumbDims .File.ImageWidth .File.ImageHeight $maxThumb}}
 
                 <div class="attachment-item">
@@ -141,14 +136,10 @@
                     </div>
                 </div>
             {{else if .File.IsVideo}}
-                {{$thumbnailUrl := ""}}
-                {{if .File.ThumbnailPath}}
-                    {{$thumb := derefStr .File.ThumbnailPath}}
-                    {{$thumbnailUrl = printf "/media/%s" $thumb}}
-                {{end}}
+                {{$thumbnailUrl := .File.ThumbnailURL}}
                 {{$dims := thumbDims .File.ImageWidth .File.ImageHeight $maxThumb}}
                 <div class="attachment-item">
-                    <video controls preload="none" {{if and $thumbnailUrl (not $.NoMedia)}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
+                    <video controls preload="none" {{if and $thumbnailUrl (not $.Common.NoMedia)}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
                         <source src="{{$mediaUrl}}" type="{{.File.MimeType}}">
                         Your browser does not support the video tag.
                     </video>
@@ -177,16 +168,15 @@
 {{/* Complete post structure */}}
 {{/*
     Renders a single post, used on board and thread pages.
-    Expects a MessageView struct that embeds Message with context fields:
-    - From Message: Board, Id, ThreadId, Text, Attachments, Replies, CreatedAt
-    - Context: ExtraClasses, ShowDeleteButton, ShowReplyButton, Subject
-    URLs are built in the template using printf.
+    Expects a dict with "Message" and "Common" keys.
+    - Message: frontend_domain.Message with Context, Author, Attachments, Replies, etc.
+    - Common: CommonTemplateData with User, CSRFToken, NoMedia, Validation, etc.
 */}}
 {{define "post"}}
 {{/* Compute final CSS classes including highlighting */}}
 {{$classes := .Message.Context.ExtraClasses}}
-{{if and .User .Message}}
-    {{if eq .Message.Author.Id .User.Id}}
+{{if and .Common.User .Message}}
+    {{if eq .Message.Author.Id .Common.User.Id}}
         {{$classes = printf "%s my-message" $classes}}
     {{end}}
 {{end}}

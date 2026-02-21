@@ -33,15 +33,36 @@ func checkNotModified(w http.ResponseWriter, r *http.Request, lastModified time.
 	return false
 }
 
-func (h *Handler) renderTemplate(w http.ResponseWriter, name string, data interface{}) {
-	tmpl, ok := h.Templates[name]
+// TemplateData wraps page-specific data with common template data.
+// Templates access page data via .Data and common data via .Common.
+type TemplateData struct {
+	Data   any
+	Common frontend_domain.CommonTemplateData
+}
+
+func (h *Handler) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) {
+	h.renderTemplateWithError(w, r, name, data, "")
+}
+
+func (h *Handler) renderTemplateWithError(w http.ResponseWriter, r *http.Request, name string, data any, errMsg string) {
+	tmpl, ok := h.getTemplate(name)
 	if !ok {
 		http.Error(w, fmt.Sprintf("Template %s not found", name), http.StatusInternalServerError)
 		return
 	}
 
+	common := h.initCommonTemplateData(w, r)
+	if errMsg != "" {
+		common.Error = errMsg
+	}
+
+	wrapped := TemplateData{
+		Data:   data,
+		Common: common,
+	}
+
 	buf := new(bytes.Buffer)
-	if err := tmpl.Execute(buf, data); err != nil {
+	if err := tmpl.Execute(buf, wrapped); err != nil {
 		logger.Log.Error("error executing template", "template", name, "error", err)
 		http.Error(w, "Internal Server Error rendering template", http.StatusInternalServerError)
 		return
@@ -65,7 +86,11 @@ func renderMessage(message domain.Message) *frontend_domain.Message {
 }
 
 func renderThread(thread domain.Thread) *frontend_domain.Thread {
-	renderedThread := frontend_domain.Thread{Thread: thread, Messages: make([]*frontend_domain.Message, len(thread.Messages))}
+	renderedThread := frontend_domain.Thread{
+		Thread:         thread,
+		Messages:       make([]*frontend_domain.Message, len(thread.Messages)),
+		OmittedReplies: thread.MessageCount - len(thread.Messages),
+	}
 	for i, msg := range thread.Messages {
 		renderedThread.Messages[i] = renderMessage(*msg)
 

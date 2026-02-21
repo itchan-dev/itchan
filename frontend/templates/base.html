@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="shortcut icon" href="/favicon.ico"> <!-- Add favicon link -->
 </head>
-<body{{if .NoMedia}} class="no-media"{{end}}>
+<body{{if .Common.NoMedia}} class="no-media"{{end}}>
     <header class="site-header">
         <div class="header-content">
             <div class="header-left">
@@ -17,11 +17,11 @@
             <div class="auth-links">
                 [<a href="/">Home</a>]
                 [<a href="/faq">FAQ</a>]
-                {{if .User}}
-                    <span class="user-info">[<a href="/account">@{{.User.EmailDomain}}</a>]</span>
+                {{if .Common.User}}
+                    <span class="user-info">[<a href="/account">@{{.Common.User.EmailDomain}}</a>]</span>
                     [<a href="/invites">Invites</a>]
-                    [<a href="/settings/no-media">{{if .NoMedia}}Show Media{{else}}No Media{{end}}</a>]
-                    {{if .User.Admin}}[<a href="/admin">Admin</a>]{{end}}
+                    [<a href="/settings/no-media">{{if .Common.NoMedia}}Show Media{{else}}No Media{{end}}</a>]
+                    {{if .Common.User.Admin}}[<a href="/admin">Admin</a>]{{end}}
                     [<a href="/logout">Logout</a>]
                 {{else}}
                     [<a href="/login">Login</a>]
@@ -34,11 +34,11 @@
 
     <main class="content">
         {{/* Global flash messages - displayed once and automatically removed on page load */}}
-        {{if .Error}}
-        <div class="error-message">{{.Error}}</div>
+        {{if .Common.Error}}
+        <div class="error-message">{{.Common.Error}}</div>
         {{end}}
-        {{if .Success}}
-        <div class="success-message">{{.Success}}</div>
+        {{if .Common.Success}}
+        <div class="success-message">{{.Common.Success}}</div>
         {{end}}
 
         {{template "content" .}}

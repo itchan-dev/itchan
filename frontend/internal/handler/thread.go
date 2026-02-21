@@ -14,15 +14,9 @@ import (
 )
 
 func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		CommonTemplateData
-		Thread *frontend_domain.Thread
-	}
-	templateData.CommonTemplateData = h.InitCommonTemplateData(w, r)
 	shortName := chi.URLParam(r, "board")
 	threadId := chi.URLParam(r, "thread")
 
-	// Parse page parameter (default to 1)
 	page := 1
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
 		if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
@@ -40,9 +34,9 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templateData.Thread = renderThread(thread)
-
-	h.renderTemplate(w, "thread.html", templateData)
+	h.renderTemplate(w, r, "thread.html", frontend_domain.ThreadPageData{
+		Thread: renderThread(thread),
+	})
 }
 
 func (h *Handler) ThreadPostHandler(w http.ResponseWriter, r *http.Request) {

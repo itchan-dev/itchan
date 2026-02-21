@@ -1,31 +1,31 @@
-{{define "title"}}/{{ .Board.ShortName }}/ - {{ .Board.Name }}{{end}}
+{{define "title"}}/{{ .Data.Board.ShortName }}/ - {{ .Data.Board.Name }}{{end}}
 {{ define "content" }}
     <div class="board-header">
-        <h1><a href="/{{ .Board.ShortName }}">/{{ .Board.ShortName }}/ - {{ .Board.Name }}</a></h1>
+        <h1><a href="/{{ .Data.Board.ShortName }}">/{{ .Data.Board.ShortName }}/ - {{ .Data.Board.Name }}</a></h1>
         <hr>
     </div>
 
     <!-- New Thread Form -->
     <div class="post-form-container">
-        <form action="/{{ .Board.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
-             {{template "csrf-field" .}}
+        <form action="/{{ .Data.Board.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
+             {{template "csrf-field" .Common}}
              <input type="hidden" name="form_action" value="new_thread">
              <table class="form-table">
                  <tbody>
                      <tr>
                          <td class="form-label"><label for="title">Subject:</label></td>
                          <td>
-                             <input type="text" id="title" name="title" size="40" maxlength="{{.Validation.ThreadTitleMaxLen}}">
+                             <input type="text" id="title" name="title" size="40" maxlength="{{.Common.Validation.ThreadTitleMaxLen}}">
                              <button type="submit">Post</button>
                          </td>
                      </tr>
                      <tr>
                          <td class="form-label"><label for="text">Comment:</label></td>
-                         <td><textarea id="text" name="text" cols="48" rows="4" maxlength="{{.Validation.MessageTextMaxLen}}"></textarea></td>
+                         <td><textarea id="text" name="text" cols="48" rows="4" maxlength="{{.Common.Validation.MessageTextMaxLen}}"></textarea></td>
                      </tr>
                      <tr>
                          <td class="form-label"><label for="attachments">File:</label></td>
-                         <td>{{template "file-input" dict "InputID" "attachments" "MaxCount" .Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Validation.MaxTotalAttachmentSize "MaxFileSize" .Validation.MaxAttachmentSizeBytes "AllowedImages" .Validation.AllowedImageMimeTypes "AllowedVideos" .Validation.AllowedVideoMimeTypes}}</td>
+                         <td>{{template "file-input" dict "InputID" "attachments" "MaxCount" .Common.Validation.MaxAttachmentsPerMessage "MaxTotalSize" .Common.Validation.MaxTotalAttachmentSize "MaxFileSize" .Common.Validation.MaxAttachmentSizeBytes "AllowedImages" .Common.Validation.AllowedImageMimeTypes "AllowedVideos" .Common.Validation.AllowedVideoMimeTypes}}</td>
                      </tr>
                      <tr>
                          <td class="form-label"></td>
@@ -39,7 +39,7 @@
     <hr class="section-separator">
 
     <div class="threads-container">
-        {{ range $threadIndex, $thread := .Board.Threads }}
+        {{ range $threadIndex, $thread := .Data.Board.Threads }}
             {{ if gt $threadIndex 0 }}
                 <hr class="thread-separator">
             {{ end }}
@@ -47,33 +47,18 @@
             <div class="thread-preview">
                 {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
                     {{ $opMessage := index $thread.Messages 0 }}
-                    {{template "post" (dict
-                        "Message" $opMessage
-                        "User" $.User
-                        "CSRFToken" $.CSRFToken
-                        "NoMedia" $.NoMedia
-                    )}}
+                    {{template "post" (postData $opMessage $.Common)}}
 
                     {{/* Display Reply Previews (rest of the messages) */}}
                     {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
                     {{ range $replyIndex, $reply := $previewReplies }}
                         {{/* Context already populated */}}
-                        {{template "post" (dict
-                            "Message" $reply
-                            "User" $.User
-                            "CSRFToken" $.CSRFToken
-                            "NoMedia" $.NoMedia
-                        )}}
+                        {{template "post" (postData $reply $.Common)}}
                     {{ end }}
 
-                    {{/* Calculate and Display Omitted Count Info */}}
-                    {{ $numShownMessages := len $thread.Messages }}
-                    {{/* Omitted = TotalReplies - ShownReplies */}}
-                    {{ $omittedReplies := sub $thread.MessageCount $numShownMessages }}
-
-                    {{ if gt $omittedReplies 0 }}
+                    {{ if gt $thread.OmittedReplies 0 }}
                          <div class="reply-summary">
-                            {{ $omittedReplies }} {{if eq $omittedReplies 1}}post{{else}}posts{{end}} omitted.
+                            {{ $thread.OmittedReplies }} {{if eq $thread.OmittedReplies 1}}post{{else}}posts{{end}} omitted.
                          </div>
                     {{ end }}
 
@@ -88,8 +73,8 @@
             <p>No threads on this board yet. Why not create one?</p>
         {{ end }}
     </div> <!-- End threads-container -->
-    
-    {{ $currentPage := .CurrentPage }}
+
+    {{ $currentPage := .Data.CurrentPage }}
     <div class="pagination">
         {{ $prevPage := sub $currentPage 1 }}
         {{ $nextPage := add $currentPage 1 }}
@@ -103,5 +88,5 @@
     <!-- Delete Form -->
     <!-- <form id="delete-form" action="/delete" method="post"> ... </form> -->
 
-    {{template "popup-reply-form" .}}
+    {{template "popup-reply-form" .Common}}
 {{ end }}

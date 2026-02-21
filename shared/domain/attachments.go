@@ -56,6 +56,19 @@ type File struct {
 	ThumbnailPath      *string `json:"thumbnail_path,omitempty"`     // Path to generated thumbnail (images only)
 }
 
+// MediaURL returns the public URL for serving this file.
+func (f *File) MediaURL() string {
+	return "/media/" + f.FilePath
+}
+
+// ThumbnailURL returns the public URL for the thumbnail, or empty string if none.
+func (f *File) ThumbnailURL() string {
+	if f.ThumbnailPath == nil {
+		return ""
+	}
+	return "/media/" + *f.ThumbnailPath
+}
+
 // Attachment represents an attachment linking a message to a file
 type Attachment struct {
 	Id        AttachmentId   `json:"id,omitempty"`

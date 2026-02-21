@@ -4,51 +4,41 @@
 <div class="welcome-message">
     <h2>Добро пожаловать на Itchan</h2>
     <p>
-        <strong>Itchan</strong> — это анонимный имиджборд для IT-специалистов. 
+        <strong>Itchan</strong> — это анонимный имиджборд для IT-специалистов.
         Здесь можно обсуждать офферы, компании, технологии, зарплаты и начальство, не опасаясь, что это увидит ваш HR.
     </p>
     <hr>
     <p>
-        <strong>Важно:</strong> Мы понимаем важность свободы слова, но сайт работает в правовом поле РФ. 
-        Пожалуйста, ознакомьтесь с <a href="/faq">FAQ и правилами</a> перед постингом. 
+        <strong>Важно:</strong> Мы понимаем важность свободы слова, но сайт работает в правовом поле РФ.
+        Пожалуйста, ознакомьтесь с <a href="/faq">FAQ и правилами</a> перед постингом.
         Мы вынуждены удалять контент, нарушающий Уголовный кодекс, чтобы ресурс не заблокировали.
     </p>
 </div>
 <h1>Доски</h1>
-{{if .Boards}}
-    {{$publicBoards := list}}
-    {{$corporateBoards := list}}
-    {{range .Boards}}
-        {{if .AllowedEmailDomains}}
-            {{$corporateBoards = append $corporateBoards .}}
-        {{else}}
-            {{$publicBoards = append $publicBoards .}}
-        {{end}}
-    {{end}}
-
-    {{if $publicBoards}}
+{{if or .Data.PublicBoards .Data.CorporateBoards}}
+    {{if .Data.PublicBoards}}
     <h2 class="board-category">Общие доски</h2>
     <ul class="boards-list">
-        {{range $publicBoards}}
+        {{range .Data.PublicBoards}}
         <li>
             <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
-            {{if $.User.Admin}}
-            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.CSRFToken}}
+            {{if $.Common.User.Admin}}
+            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
             {{end}}
         </li>
         {{end}}
     </ul>
     {{end}}
 
-    {{if $corporateBoards}}
+    {{if .Data.CorporateBoards}}
     <h2 class="board-category">Корпоративные доски</h2>
     <ul class="boards-list corporate">
-        {{range $corporateBoards}}
+        {{range .Data.CorporateBoards}}
         <li>
             <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
             <span class="corporate-badge" title="Доступ только для: {{join .AllowedEmailDomains ", "}}">🏢</span>
-            {{if $.User.Admin}}
-            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.CSRFToken}}
+            {{if $.Common.User.Admin}}
+            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
             {{end}}
         </li>
         {{end}}
@@ -58,21 +48,21 @@
 <p>No boards found.</p>
 {{end}}
 
-{{if .User.Admin}}
+{{if .Common.User.Admin}}
 <hr class="section-separator">
 <div class="admin-panel">
     <h2>Create New Board</h2>
     <form method="POST" action="/">
-        {{template "csrf-field" .}}
+        {{template "csrf-field" .Common}}
         <table class="form-table">
             <tbody>
                 <tr>
                     <td class="form-label"><label for="short-name">Short Name:</label></td>
-                    <td><input type="text" id="short-name" name="shortName" required pattern="[a-zA-Z0-9]+" size="10" maxlength="{{.Validation.BoardShortNameMaxLen}}"> (e.g., 'b', 'g', 'gog')</td>
+                    <td><input type="text" id="short-name" name="shortName" required pattern="[a-zA-Z0-9]+" size="10" maxlength="{{.Common.Validation.BoardShortNameMaxLen}}"> (e.g., 'b', 'g', 'gog')</td>
                 </tr>
                  <tr>
                     <td class="form-label"><label for="name">Full Name:</label></td>
-                    <td><input type="text" id="name" name="name" required size="30" maxlength="{{.Validation.BoardNameMaxLen}}"> (e.g., 'Random', 'Technology')</td>
+                    <td><input type="text" id="name" name="name" required size="30" maxlength="{{.Common.Validation.BoardNameMaxLen}}"> (e.g., 'Random', 'Technology')</td>
                 </tr>
                  <tr>
                     <td class="form-label"><label for="allowed-emails">Allowed Emails:</label></td>

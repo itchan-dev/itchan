@@ -9,8 +9,8 @@
             <tr>
                 <td class="form-label"><label for="email">Email:</label></td>
                 <td>
-                    {{if .EmailPlaceholder}}
-                    <input type="email" id="email" name="email" value="{{.EmailPlaceholder}}" required readonly size="30">
+                    {{if .Common.EmailPlaceholder}}
+                    <input type="email" id="email" name="email" value="{{.Common.EmailPlaceholder}}" required readonly size="30">
                     {{else}}
                     <input type="email" id="email" name="email" required size="30" placeholder="Enter email if not prefilled">
                     {{end}}
@@ -18,7 +18,7 @@
             </tr>
             <tr>
                 <td class="form-label"><label for="confirmation_code">Confirmation code:</label></td>
-                <td><input type="text" id="confirmation_code" name="confirmation_code" required size="30" minlength="{{.Validation.ConfirmationCodeLen}}" maxlength="{{.Validation.ConfirmationCodeLen}}"></td>
+                <td><input type="text" id="confirmation_code" name="confirmation_code" required size="30" minlength="{{.Common.Validation.ConfirmationCodeLen}}" maxlength="{{.Common.Validation.ConfirmationCodeLen}}"></td>
             </tr>
             <tr>
                 <td class="form-label"></td>

@@ -3,7 +3,7 @@
 <h1>Admin Panel</h1>
 
 <h2>Blacklisted Users</h2>
-{{if .BlacklistedUsers}}
+{{if .Data.BlacklistedUsers}}
 <table class="blacklist-table">
     <thead>
         <tr>
@@ -15,7 +15,7 @@
         </tr>
     </thead>
     <tbody>
-        {{range .BlacklistedUsers}}
+        {{range .Data.BlacklistedUsers}}
         <tr>
             <td>{{.UserId}}</td>
             <td>{{.BlacklistedAt.UTC.Format "2006-01-02 15:04:05"}} GMT</td>
@@ -23,7 +23,7 @@
             <td>{{.BlacklistedBy}}</td>
             <td>
                 <form method="POST" action="/admin/unblacklist" class="js-confirm-form" data-confirm-message="Remove user {{.UserId}} from blacklist?" style="display:inline;">
-                    {{template "csrf-field" $}}
+                    {{template "csrf-field" $.Common}}
                     <input type="hidden" name="userId" value="{{.UserId}}">
                     <button type="submit" class="delete-button">unblacklist</button>
                 </form>
