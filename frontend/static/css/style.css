@@ -486,6 +486,9 @@ button[type="submit"]:hover {
 .attachment-item {
     display: flex;
     flex-direction: column;
+}
+
+.attachment-item:has(.attachment-thumbnail) {
     width: min-content;
 }
 
@@ -512,15 +515,6 @@ button[type="submit"]:hover {
 .attachment-info {
     font-size: 11px;
     word-break: break-word;
-}
-
-body.disable-media .attachment-link,
-body.disable-media .attachment-thumbnail {
-    display: none;
-}
-
-body.disable-media .attachment-item {
-    width: auto;
 }
 
 .post-body {

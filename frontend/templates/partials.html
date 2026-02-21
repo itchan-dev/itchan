@@ -127,9 +127,11 @@
                 {{$dims := thumbDims .File.ImageWidth .File.ImageHeight $maxThumb}}
 
                 <div class="attachment-item">
+                    {{if not $.Common.DisableMedia}}
                     <a href="{{$mediaUrl}}" target="_blank" class="attachment-link">
                         <img src="{{$thumbnailUrl}}" alt="{{.File.OriginalFilename}}" loading="lazy" class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
                     </a>
+                    {{end}}
                     <div class="attachment-info">
                         <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
                         ({{if .File.ImageWidth}}{{.File.ImageWidth}}x{{.File.ImageHeight}}, {{end}}{{.File.SizeBytes}} bytes)
@@ -139,10 +141,12 @@
                 {{$thumbnailUrl := .File.ThumbnailURL}}
                 {{$dims := thumbDims .File.ImageWidth .File.ImageHeight $maxThumb}}
                 <div class="attachment-item">
-                    <video controls preload="none" {{if and $thumbnailUrl (not $.Common.DisableMedia)}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
+                    {{if not $.Common.DisableMedia}}
+                    <video controls preload="none" {{if $thumbnailUrl}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
                         <source src="{{$mediaUrl}}" type="{{.File.MimeType}}">
                         Your browser does not support the video tag.
                     </video>
+                    {{end}}
                     <div class="attachment-info">
                         <a href="{{$mediaUrl}}" target="_blank">{{.File.OriginalFilename}}</a>
                         ({{.File.SizeBytes}} bytes)
