@@ -116,8 +116,8 @@
 {{/* Post attachments section */}}
 {{define "post-attachments"}}
 {{if .Message.Attachments}}
-{{$maxThumb := 150}}
-{{if .Message.IsOp}}{{$maxThumb = 225}}{{end}}
+{{$maxThumb := $.Common.Validation.ThumbnailDisplayReply}}
+{{if .Message.IsOp}}{{$maxThumb = $.Common.Validation.ThumbnailDisplayOp}}{{end}}
 <div class="post-attachments">
     {{range .Message.Attachments}}
         {{if .File}}

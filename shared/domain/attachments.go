@@ -44,6 +44,7 @@ type SanitizedImage struct {
 type SanitizedVideo struct {
 	FileCommonMetadata
 	TempFilePath string // Path to sanitized video on disk (always present)
+	Thumbnail    []byte // Scaled first-frame JPEG (nil if extraction failed)
 }
 
 // File represents a file stored in the system

@@ -425,7 +425,7 @@ func TestSanitizeVideo_ReturnsTempPath(t *testing.T) {
 		Data: bytes.NewReader(videoData),
 	}
 
-	result, err := SanitizeVideo(pendingFile)
+	result, err := SanitizeVideo(pendingFile, 225)
 
 	// Clean up temp file if sanitization created one
 	if result != nil {
@@ -481,7 +481,7 @@ func TestSanitizeVideo_TempFileExists(t *testing.T) {
 		Data: bytes.NewReader(videoData),
 	}
 
-	result, err := SanitizeVideo(pendingFile)
+	result, err := SanitizeVideo(pendingFile, 225)
 
 	// Clean up temp file
 	if result != nil {
@@ -541,7 +541,7 @@ func TestSanitizeVideo_FileSizeMatches(t *testing.T) {
 		Data: bytes.NewReader(videoData),
 	}
 
-	result, err := SanitizeVideo(pendingFile)
+	result, err := SanitizeVideo(pendingFile, 225)
 
 	// Clean up temp file
 	if result != nil {
@@ -563,4 +563,55 @@ func TestSanitizeVideo_FileSizeMatches(t *testing.T) {
 
 	// Verify SizeBytes matches actual file size
 	assert.Equal(t, fileInfo.Size(), result.SizeBytes, "SizeBytes should match actual file size")
+}
+
+// TestSanitizeVideo_ThumbnailExtracted tests that thumbnail is extracted during sanitization
+func TestSanitizeVideo_ThumbnailExtracted(t *testing.T) {
+	if err := CheckFFmpegAvailable(); err != nil {
+		t.Skip("ffmpeg not available, skipping video test")
+	}
+
+	// Use real test video (has actual video frames for thumbnail extraction)
+	videoData, err := os.ReadFile("../../../test_data/test_video.webm")
+	if err != nil {
+		t.Skip("test_video.webm not found, skipping thumbnail test")
+	}
+
+	pendingFile := &domain.PendingFile{
+		FileCommonMetadata: domain.FileCommonMetadata{
+			Filename:  "test.webm",
+			MimeType:  "video/webm",
+			SizeBytes: int64(len(videoData)),
+		},
+		Data: bytes.NewReader(videoData),
+	}
+
+	result, err := SanitizeVideo(pendingFile, 225)
+	if result != nil {
+		defer os.Remove(result.TempFilePath)
+	}
+
+	if err != nil {
+		if bytes.Contains([]byte(err.Error()), []byte("ffmpeg")) {
+			t.Skip("ffmpeg couldn't process test video, skipping")
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Thumbnail should be non-empty JPEG bytes
+	require.NotEmpty(t, result.Thumbnail, "Thumbnail should be extracted from real video")
+
+	// Verify it's valid JPEG (starts with JPEG SOI marker 0xFFD8)
+	assert.True(t, len(result.Thumbnail) > 2, "Thumbnail should have content")
+	assert.Equal(t, byte(0xFF), result.Thumbnail[0], "Thumbnail should start with JPEG SOI marker")
+	assert.Equal(t, byte(0xD8), result.Thumbnail[1], "Thumbnail should start with JPEG SOI marker")
+
+	// Verify thumbnail can be decoded as valid image
+	thumbImg, err := jpeg.Decode(bytes.NewReader(result.Thumbnail))
+	require.NoError(t, err, "Thumbnail should be a decodable JPEG")
+
+	// Verify thumbnail dimensions are within maxSize
+	bounds := thumbImg.Bounds()
+	assert.LessOrEqual(t, bounds.Dx(), 225, "Thumbnail width should be <= maxSize")
+	assert.LessOrEqual(t, bounds.Dy(), 225, "Thumbnail height should be <= maxSize")
 }

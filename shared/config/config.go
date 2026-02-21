@@ -70,6 +70,17 @@ type Public struct {
 
 	// Registration restrictions
 	AllowedRegistrationDomains []string `yaml:"allowed_registration_domains"` // Empty = allow all domains. Example: ["gmail.com", "company.com"]
+
+	// Media processing settings
+	Media MediaConfig `yaml:"media"`
+}
+
+type MediaConfig struct {
+	ThumbnailMaxSize     int `yaml:"thumbnail_max_size"`     // Max dimension (px) for generated thumbnails (backend)
+	ThumbnailDisplayOp   int `yaml:"thumbnail_display_op"`   // Display size (px) for OP post thumbnails (frontend)
+	ThumbnailDisplayReply int `yaml:"thumbnail_display_reply"` // Display size (px) for reply post thumbnails (frontend)
+	JpegQualityMain      int `yaml:"jpeg_quality_main"`      // JPEG quality for main images (0-100)
+	JpegQualityThumbnail int `yaml:"jpeg_quality_thumbnail"` // JPEG quality for thumbnails (0-100)
 }
 
 type Pg struct {
@@ -261,5 +272,22 @@ func applyValidationDefaults(public *Public) {
 	// Registration domain restrictions (empty = allow all)
 	if public.AllowedRegistrationDomains == nil {
 		public.AllowedRegistrationDomains = []string{}
+	}
+
+	// Media processing defaults
+	if public.Media.ThumbnailMaxSize == 0 {
+		public.Media.ThumbnailMaxSize = 225
+	}
+	if public.Media.ThumbnailDisplayOp == 0 {
+		public.Media.ThumbnailDisplayOp = 225
+	}
+	if public.Media.ThumbnailDisplayReply == 0 {
+		public.Media.ThumbnailDisplayReply = 150
+	}
+	if public.Media.JpegQualityMain == 0 {
+		public.Media.JpegQualityMain = 85
+	}
+	if public.Media.JpegQualityThumbnail == 0 {
+		public.Media.JpegQualityThumbnail = 75
 	}
 }

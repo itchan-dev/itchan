@@ -137,6 +137,8 @@ func (h *Handler) newValidationData() frontend_domain.ValidationData {
 		AllowedVideoMimeTypes:      h.Public.AllowedVideoMimeTypes,
 		UserMessagesPageLimit:      h.Public.UserMessagesPageLimit,
 		AllowedRegistrationDomains: h.Public.AllowedRegistrationDomains,
+		ThumbnailDisplayOp:         h.Public.Media.ThumbnailDisplayOp,
+		ThumbnailDisplayReply:      h.Public.Media.ThumbnailDisplayReply,
 	}
 }
 

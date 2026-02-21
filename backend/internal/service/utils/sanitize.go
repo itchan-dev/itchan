@@ -16,38 +16,64 @@ import (
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-func sanitizeVideo(inputPath string) (string, error) {
+// sanitizeVideoWithThumbnail strips metadata from a video and extracts a scaled
+// first-frame thumbnail in a single ffmpeg invocation.
+// Returns (sanitizedVideoPath, thumbnailJPEGBytes, error).
+// Thumbnail bytes may be nil if extraction failed (non-fatal).
+func sanitizeVideoWithThumbnail(inputPath string, thumbMaxSize int) (string, []byte, error) {
 	// Extract extension from input file so ffmpeg can determine output format
 	ext := filepath.Ext(inputPath)
 	tmpFile, err := os.CreateTemp("", "sanitized_video_*"+ext)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	outputPath := tmpFile.Name()
 	tmpFile.Close()
 
-	// Build ffmpeg command to strip all metadata while preserving quality
+	vfExpr := fmt.Sprintf(
+		"scale=w='min(iw,%d)':h='min(ih,%d)':force_original_aspect_ratio=decrease",
+		thumbMaxSize, thumbMaxSize,
+	)
+
+	// Single ffmpeg command with two outputs:
+	//   1. Sanitized video file (copy streams, strip metadata)
+	//   2. Scaled first-frame JPEG thumbnail (to stdout pipe)
 	cmd := exec.Command("ffmpeg",
 		"-protocol_whitelist", "file,pipe", // Prevent SSRF: only allow local file access
 		"-i", inputPath,
-		"-map_metadata", "-1", // Remove all global metadata (title, artist, etc.)
-		"-map_metadata:s:v", "-1", // Remove video stream metadata (encoder, creation time, etc.)
-		"-map_metadata:s:a", "-1", // Remove audio stream metadata
-		"-c", "copy", // Copy streams without re-encoding (fast, no quality loss)
-		"-fflags", "+bitexact", // Remove encoder version info for reproducible output
-		"-y", // Overwrite output file without prompting
+		// Output 1: sanitized video
+		"-map", "0",
+		"-c", "copy",
+		"-map_metadata", "-1",
+		"-map_metadata:s:v", "-1",
+		"-map_metadata:s:a", "-1",
+		"-fflags", "+bitexact",
+		"-y",
 		outputPath,
+		// Output 2: thumbnail to stdout
+		"-ss", "00:00:00",
+		"-vframes", "1",
+		"-vf", vfExpr,
+		"-f", "image2pipe",
+		"-vcodec", "mjpeg",
+		"pipe:1",
 	)
 
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
 		os.Remove(outputPath)
-		return "", fmt.Errorf("ffmpeg failed: %w (stderr: %s)", err, stderr.String())
+		return "", nil, fmt.Errorf("ffmpeg failed: %w (stderr: %s)", err, stderr.String())
 	}
 
-	return outputPath, nil
+	var thumbnail []byte
+	if stdout.Len() > 0 {
+		thumbnail = stdout.Bytes()
+	}
+
+	return outputPath, thumbnail, nil
 }
 
 func CheckFFmpegAvailable() error {
@@ -121,54 +147,11 @@ func SanitizeImage(pendingFile *domain.PendingFile, maxDecodedSize int64) (*doma
 	}, nil
 }
 
-// ExtractVideoThumbnail extracts the first frame from a video file as an image.
-// Uses ffmpeg to extract the frame. Returns nil if extraction fails (non-fatal).
-func ExtractVideoThumbnail(videoPath string) (image.Image, error) {
-	// Create temp file for thumbnail output
-	tmpFile, err := os.CreateTemp("", "video_thumb_*.jpg")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp thumbnail file: %w", err)
-	}
-	outputPath := tmpFile.Name()
-	tmpFile.Close()
-	defer os.Remove(outputPath) // Always clean up temp file
-
-	// Extract first frame using ffmpeg
-	cmd := exec.Command("ffmpeg",
-		"-protocol_whitelist", "file,pipe", // Prevent SSRF: only allow local file access
-		"-i", videoPath,
-		"-ss", "00:00:00", // Seek to start
-		"-vframes", "1", // Extract 1 frame
-		"-f", "image2", // Output as image
-		"-y", // Overwrite output
-		outputPath,
-	)
-
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("ffmpeg thumbnail extraction failed: %w (stderr: %s)", err, stderr.String())
-	}
-
-	// Read and decode the extracted frame
-	thumbFile, err := os.Open(outputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open extracted thumbnail: %w", err)
-	}
-	defer thumbFile.Close()
-
-	img, _, err := image.Decode(thumbFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode extracted thumbnail: %w", err)
-	}
-
-	return img, nil
-}
-
-// SanitizeVideo sanitizes a video file by stripping metadata using ffmpeg.
+// SanitizeVideo sanitizes a video file by stripping metadata and extracting a
+// scaled thumbnail, both in a single ffmpeg invocation.
+// thumbMaxSize is the maximum dimension (px) for the thumbnail.
 // Returns a SanitizedVideo with path to temp file on disk (caller must move/delete it).
-func SanitizeVideo(pendingFile *domain.PendingFile) (*domain.SanitizedVideo, error) {
+func SanitizeVideo(pendingFile *domain.PendingFile, thumbMaxSize int) (*domain.SanitizedVideo, error) {
 	origExt := filepath.Ext(pendingFile.Filename)
 
 	// Create temp input file for ffmpeg
@@ -186,8 +169,8 @@ func SanitizeVideo(pendingFile *domain.PendingFile) (*domain.SanitizedVideo, err
 		return nil, fmt.Errorf("failed to write temp video: %w", copyErr)
 	}
 
-	// Sanitize with ffmpeg
-	tmpOutputPath, err := sanitizeVideo(tmpInputPath)
+	// Sanitize + extract thumbnail in one ffmpeg pass
+	tmpOutputPath, thumbnail, err := sanitizeVideoWithThumbnail(tmpInputPath, thumbMaxSize)
 	os.Remove(tmpInputPath) // Clean up input immediately
 	if err != nil {
 		return nil, fmt.Errorf("failed to sanitize video: %w", err)
@@ -209,5 +192,6 @@ func SanitizeVideo(pendingFile *domain.PendingFile) (*domain.SanitizedVideo, err
 			ImageHeight: pendingFile.ImageHeight,
 		},
 		TempFilePath: tmpOutputPath,
+		Thumbnail:    thumbnail,
 	}, nil
 }

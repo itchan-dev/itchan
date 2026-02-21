@@ -1,10 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	_ "image/gif"
-	_ "image/jpeg"
+	"image/jpeg"
 	_ "image/png"
 	"os"
 	"strings"
@@ -117,8 +118,8 @@ func (b *Message) processAndSaveFiles(
 		var thumbnailPath *string
 
 		if pendingFile.IsVideo() {
-			// Video: Sanitize to temp file and move
-			sanitizedVideo, err := svcutils.SanitizeVideo(pendingFile)
+			// Video: Sanitize + extract thumbnail in one ffmpeg pass, then move
+			sanitizedVideo, err := svcutils.SanitizeVideo(pendingFile, b.cfg.Media.ThumbnailMaxSize)
 			if err != nil {
 				// Cleanup saved files
 				for _, p := range savedFiles {
@@ -126,9 +127,6 @@ func (b *Message) processAndSaveFiles(
 				}
 				return nil, nil, err
 			}
-
-			// Extract thumbnail from temp file before move (while we have full path)
-			videoThumbnail, _ := svcutils.ExtractVideoThumbnail(sanitizedVideo.TempFilePath)
 
 			// Move temp file to final destination
 			filePath, err = b.mediaStorage.MoveFile(
@@ -151,8 +149,8 @@ func (b *Message) processAndSaveFiles(
 			sanitizedMetadata = sanitizedVideo.FileCommonMetadata
 
 			// Save video thumbnail if extraction succeeded
-			if videoThumbnail != nil {
-				thumbPath, err := b.mediaStorage.SaveThumbnail(videoThumbnail, filePath)
+			if len(sanitizedVideo.Thumbnail) > 0 {
+				thumbPath, err := b.mediaStorage.SaveThumbnail(bytes.NewReader(sanitizedVideo.Thumbnail), filePath)
 				if err == nil {
 					savedFiles = append(savedFiles, thumbPath)
 					thumbnailPath = &thumbPath
@@ -191,12 +189,14 @@ func (b *Message) processAndSaveFiles(
 			sanitizedMetadata.SizeBytes = imageSize
 
 			// Generate thumbnail from the SAME decoded image (no re-decode!)
-			thumbnail := utils.GenerateThumbnail(sanitizedImage.Image.(image.Image), 225)
-			thumbPath, err := b.mediaStorage.SaveThumbnail(thumbnail, filePath)
-			if err == nil {
-				// Track thumbnail file
-				savedFiles = append(savedFiles, thumbPath)
-				thumbnailPath = &thumbPath
+			thumbnail := utils.GenerateThumbnail(sanitizedImage.Image.(image.Image), b.cfg.Media.ThumbnailMaxSize)
+			var thumbBuf bytes.Buffer
+			if err := jpeg.Encode(&thumbBuf, thumbnail, &jpeg.Options{Quality: b.cfg.Media.JpegQualityThumbnail}); err == nil {
+				thumbPath, err := b.mediaStorage.SaveThumbnail(&thumbBuf, filePath)
+				if err == nil {
+					savedFiles = append(savedFiles, thumbPath)
+					thumbnailPath = &thumbPath
+				}
 			}
 			// Note: We don't fail the upload if thumbnail generation fails
 
