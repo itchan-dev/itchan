@@ -152,9 +152,9 @@ func (h *Handler) initCommonTemplateData(w http.ResponseWriter, r *http.Request)
 	common.Error, common.Success = h.getFlashes(w, r)
 	// Read email prefill cookie (reuses flash pattern)
 	common.EmailPlaceholder = h.getFlash(w, r, emailPrefillCookie)
-	// Read no_media preference cookie
-	if c, err := r.Cookie("no_media"); err == nil && c.Value == "1" {
-		common.NoMedia = true
+	// Read disable_media preference cookie
+	if c, err := r.Cookie("disable_media"); err == nil && c.Value == "1" {
+		common.DisableMedia = true
 	}
 	return common
 }

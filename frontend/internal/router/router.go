@@ -122,7 +122,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		mediaPath := deps.Handler.MediaPath
 		authRouter.Handle("/media/{board}/*", http.StripPrefix("/media/", noDirectoryListing(cacheStaticFiles(http.FileServer(http.Dir(mediaPath)), deps.Public.MediaCacheMaxAge))))
 
-		authRouter.Get("/settings/no-media", deps.Handler.ToggleNoMedia)
+		authRouter.Get("/settings/disable-media", deps.Handler.ToggleDisableMedia)
 
 		authRouter.Get("/", deps.Handler.IndexGetHandler)
 		authRouter.Post("/", deps.Handler.IndexPostHandler)

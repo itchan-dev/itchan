@@ -11,7 +11,7 @@ type CommonTemplateData struct {
 	Validation       ValidationData
 	CSRFToken        string // CSRF token for form submissions
 	EmailPlaceholder string // Pre-filled email for auth forms (from cookie, not URL)
-	NoMedia          bool   // Hide media (images/videos) and show text placeholders
+	DisableMedia     bool   // Hide media (images/videos) and show text placeholders
 }
 
 // ValidationData holds all validation constants needed by templates.
