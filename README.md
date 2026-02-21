@@ -41,7 +41,7 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 - **Thread Bumping**: Automatic bump-to-top with configurable bump limits
 - **Pinned Threads**: Pin important threads to the top of boards
 - **Pagination**: Efficient board browsing with configurable threads per page
-- **No Media Mode**: Cookie-based toggle to replace all images and videos with text placeholders
+- **Disable Media Mode**: Cookie-based toggle to replace all images and videos with text placeholders
 
 ### Authentication & Authorization
 - **User Registration**: Email-based registration with confirmation codes
@@ -617,7 +617,7 @@ The frontend includes a lightweight custom markdown parser optimized for imagebo
 - **Preview Chains**: Navigate through reply chains with automatic cleanup and smart timeout handling
 - **File Upload Manager**: Real-time file preview with thumbnails, size validation, and individual file removal
 - **Hash-based Reply Links**: Support for #reply-{id} URLs to auto-populate reply forms
-- **No Media Mode**: Toggle in header to hide all images/videos, showing only filenames and metadata as text links (useful for slow connections, persists via cookie, works without JS)
+- **Disable Media Mode**: Toggle in header to hide all images/videos, showing only filenames and metadata as text links (useful for slow connections, persists via cookie, works without JS)
 
 ### Static Assets
 

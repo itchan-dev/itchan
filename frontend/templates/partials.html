@@ -139,7 +139,7 @@
                 {{$thumbnailUrl := .File.ThumbnailURL}}
                 {{$dims := thumbDims .File.ImageWidth .File.ImageHeight $maxThumb}}
                 <div class="attachment-item">
-                    <video controls preload="none" {{if and $thumbnailUrl (not $.Common.NoMedia)}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
+                    <video controls preload="none" {{if and $thumbnailUrl (not $.Common.DisableMedia)}}poster="{{$thumbnailUrl}}"{{end}} class="attachment-thumbnail"{{if $dims.W}} width="{{$dims.W}}" height="{{$dims.H}}"{{end}}>
                         <source src="{{$mediaUrl}}" type="{{.File.MimeType}}">
                         Your browser does not support the video tag.
                     </video>
