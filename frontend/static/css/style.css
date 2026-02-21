@@ -514,12 +514,12 @@ button[type="submit"]:hover {
     word-break: break-word;
 }
 
-body.no-media .attachment-link,
-body.no-media video.attachment-thumbnail {
+body.disable-media .attachment-link,
+body.disable-media .attachment-thumbnail {
     display: none;
 }
 
-body.no-media .attachment-item {
+body.disable-media .attachment-item {
     width: auto;
 }
 
