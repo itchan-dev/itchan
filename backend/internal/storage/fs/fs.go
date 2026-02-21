@@ -32,9 +32,9 @@ type MediaStorage interface {
 	// Returns the relative path where the file was stored.
 	MoveFile(sourcePath, boardID, threadID, filename string) (string, error)
 
-	// SaveThumbnail saves a thumbnail image as JPEG.
+	// SaveThumbnail saves pre-encoded thumbnail bytes (e.g. JPEG from ffmpeg or Go encoder).
 	// It returns the relative path where the thumbnail was stored.
-	SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error)
+	SaveThumbnail(data io.Reader, originalRelativePath string) (string, error)
 
 	// Read opens a file for reading given its relative path.
 	Read(filePath string) (io.ReadCloser, error)
@@ -50,13 +50,14 @@ type MediaStorage interface {
 }
 
 type Storage struct {
-	rootPath string
+	rootPath        string
+	jpegQualityMain int
 }
 
 // Ensure Storage struct implements the interface at compile time.
 var _ MediaStorage = (*Storage)(nil)
 
-func New(rootPath string) (*Storage, error) {
+func New(rootPath string, jpegQualityMain int) (*Storage, error) {
 	// Use filepath.Clean to prevent path traversal issues like "media/../"
 	p := filepath.Clean(rootPath)
 
@@ -66,7 +67,10 @@ func New(rootPath string) (*Storage, error) {
 		return nil, fmt.Errorf("failed to create root storage directory %s: %w", p, err)
 	}
 
-	return &Storage{rootPath: p}, nil
+	return &Storage{
+		rootPath:        p,
+		jpegQualityMain: jpegQualityMain,
+	}, nil
 }
 
 // generateUniqueFilename generates a unique filename based on a pattern.
@@ -157,7 +161,7 @@ func (s *Storage) SaveImage(img image.Image, format, boardID, threadID, original
 		err = png.Encode(&buf, img)
 		ext = ".png"
 	} else {
-		err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 85})
+		err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: s.jpegQualityMain})
 		ext = ".jpg"
 	}
 
@@ -240,10 +244,10 @@ func (s *Storage) MoveFile(sourcePath, boardID, threadID, filename string) (stri
 	return relativePath, nil
 }
 
-// SaveThumbnail saves a thumbnail image as JPEG in the same directory as the original file.
+// SaveThumbnail saves pre-encoded thumbnail bytes in the same directory as the original file.
 // The thumbnail filename is generated with "thumb_" prefix for easy identification.
 // Returns the relative path to the thumbnail.
-func (s *Storage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
+func (s *Storage) SaveThumbnail(data io.Reader, originalRelativePath string) (string, error) {
 	// Get directory from original file path
 	dir := filepath.Dir(originalRelativePath)
 
@@ -256,14 +260,8 @@ func (s *Storage) SaveThumbnail(thumbnail image.Image, originalRelativePath stri
 	// Construct relative path
 	thumbnailRelativePath := filepath.Join(dir, thumbnailFilename)
 
-	// Encode thumbnail as JPEG to a buffer
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, thumbnail, &jpeg.Options{Quality: 75}); err != nil {
-		return "", fmt.Errorf("failed to encode thumbnail as JPEG: %w", err)
-	}
-
 	// Save file
-	if err := s.saveFile(&buf, thumbnailRelativePath); err != nil {
+	if err := s.saveFile(data, thumbnailRelativePath); err != nil {
 		return "", err
 	}
 

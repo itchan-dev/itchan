@@ -42,7 +42,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	}
 
 	// Initialize filesystem storage for media files
-	mediaStorage, err := fs.New("./media")
+	mediaStorage, err := fs.New("./media", cfg.Public.Media.JpegQualityMain)
 	if err != nil {
 		cancel()
 		return nil, err

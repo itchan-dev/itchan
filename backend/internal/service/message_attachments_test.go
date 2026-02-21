@@ -138,7 +138,7 @@ func (m *SharedMockMediaStorage) MoveFile(sourcePath, boardID, threadID, filenam
 	return boardID + "/" + threadID + "/" + filename, nil
 }
 
-func (m *SharedMockMediaStorage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
+func (m *SharedMockMediaStorage) SaveThumbnail(data io.Reader, originalRelativePath string) (string, error) {
 	// Mock implementation - just return a thumbnail path
 	return "thumb_" + originalRelativePath, nil
 }

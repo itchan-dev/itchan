@@ -43,4 +43,8 @@ type ValidationData struct {
 
 	// Registration restrictions
 	AllowedRegistrationDomains []string
+
+	// Thumbnail display sizes
+	ThumbnailDisplayOp    int
+	ThumbnailDisplayReply int
 }

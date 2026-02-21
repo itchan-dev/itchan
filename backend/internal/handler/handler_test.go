@@ -85,7 +85,7 @@ func (m *MockMediaStorage) MoveFile(sourcePath, boardID, threadID, filename stri
 	return "", nil
 }
 
-func (m *MockMediaStorage) SaveThumbnail(thumbnail image.Image, originalRelativePath string) (string, error) {
+func (m *MockMediaStorage) SaveThumbnail(data io.Reader, originalRelativePath string) (string, error) {
 	return "", nil
 }
 

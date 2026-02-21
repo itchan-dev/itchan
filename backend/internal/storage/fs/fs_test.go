@@ -16,7 +16,7 @@ import (
 func TestNew(t *testing.T) {
 	t.Run("creates storage with valid path", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		storage, err := New(tmpDir)
+		storage, err := New(tmpDir, 85)
 
 		require.NoError(t, err)
 		assert.NotNil(t, storage)
@@ -31,7 +31,7 @@ func TestNew(t *testing.T) {
 		tmpDir := t.TempDir()
 		nestedPath := filepath.Join(tmpDir, "a", "b", "c")
 
-		storage, err := New(nestedPath)
+		storage, err := New(nestedPath, 85)
 
 		require.NoError(t, err)
 		assert.NotNil(t, storage)
@@ -45,7 +45,7 @@ func TestNew(t *testing.T) {
 		tmpDir := t.TempDir()
 		dirtyPath := filepath.Join(tmpDir, "media", "..", "media")
 
-		storage, err := New(dirtyPath)
+		storage, err := New(dirtyPath, 85)
 
 		require.NoError(t, err)
 		// Path should be cleaned
@@ -56,7 +56,7 @@ func TestNew(t *testing.T) {
 // TestSaveFile tests the SaveFile method
 func TestSaveFile(t *testing.T) {
 	t.Run("saves file successfully", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		content := []byte("test file content")
@@ -80,7 +80,7 @@ func TestSaveFile(t *testing.T) {
 	})
 
 	t.Run("generates unique filenames", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		content := []byte("test")
@@ -103,7 +103,7 @@ func TestSaveFile(t *testing.T) {
 	})
 
 	t.Run("preserves file extension", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		testCases := []struct {
@@ -126,7 +126,7 @@ func TestSaveFile(t *testing.T) {
 	})
 
 	t.Run("handles files without extension", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		path, err := storage.SaveFile(bytes.NewReader([]byte("test")), "b", "t", "noextension")
@@ -135,7 +135,7 @@ func TestSaveFile(t *testing.T) {
 	})
 
 	t.Run("creates board and thread directories", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		path, err := storage.SaveFile(bytes.NewReader([]byte("test")), "newboard", "newthread", "file.txt")
@@ -155,7 +155,7 @@ func TestSaveFile(t *testing.T) {
 	})
 
 	t.Run("handles empty reader", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		path, err := storage.SaveFile(bytes.NewReader([]byte{}), "b", "t", "empty.txt")
@@ -169,7 +169,7 @@ func TestSaveFile(t *testing.T) {
 	})
 
 	t.Run("sanitizes filename", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Test with potentially problematic filename
@@ -185,7 +185,7 @@ func TestSaveFile(t *testing.T) {
 // TestMoveFile tests the MoveFile method
 func TestMoveFile(t *testing.T) {
 	t.Run("moves file successfully", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create a temp file to move
@@ -219,7 +219,7 @@ func TestMoveFile(t *testing.T) {
 	})
 
 	t.Run("generates unique filenames", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		content := []byte("test content")
@@ -253,7 +253,7 @@ func TestMoveFile(t *testing.T) {
 	})
 
 	t.Run("creates board and thread directories", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create temp file
@@ -279,7 +279,7 @@ func TestMoveFile(t *testing.T) {
 	})
 
 	t.Run("removes source file after successful move", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create temp file
@@ -302,7 +302,7 @@ func TestMoveFile(t *testing.T) {
 	})
 
 	t.Run("returns error if source file doesn't exist", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		_, err = storage.MoveFile("/nonexistent/file.mp4", "b", "t", "video.mp4")
@@ -311,7 +311,7 @@ func TestMoveFile(t *testing.T) {
 	})
 
 	t.Run("preserves file extension", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		testCases := []struct {
@@ -341,7 +341,7 @@ func TestMoveFile(t *testing.T) {
 // TestRead tests the Read method
 func TestRead(t *testing.T) {
 	t.Run("reads existing file", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Save a file first
@@ -360,7 +360,7 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent file", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		_, err = storage.Read("nonexistent/path/file.txt")
@@ -369,7 +369,7 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("handles path traversal attempts", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Try to read outside root
@@ -381,7 +381,7 @@ func TestRead(t *testing.T) {
 // TestDeleteFile tests the DeleteFile method
 func TestDeleteFile(t *testing.T) {
 	t.Run("deletes existing file", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create a file
@@ -403,7 +403,7 @@ func TestDeleteFile(t *testing.T) {
 	})
 
 	t.Run("succeeds when file doesn't exist", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Try to delete non-existent file
@@ -412,7 +412,7 @@ func TestDeleteFile(t *testing.T) {
 	})
 
 	t.Run("deletes multiple files independently", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create multiple files
@@ -435,7 +435,7 @@ func TestDeleteFile(t *testing.T) {
 // TestDeleteThread tests the DeleteThread method
 func TestDeleteThread(t *testing.T) {
 	t.Run("deletes thread directory and all files", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create multiple files in the thread
@@ -460,7 +460,7 @@ func TestDeleteThread(t *testing.T) {
 	})
 
 	t.Run("doesn't delete other threads", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create files in two threads
@@ -484,7 +484,7 @@ func TestDeleteThread(t *testing.T) {
 	})
 
 	t.Run("succeeds when thread doesn't exist", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		err = storage.DeleteThread("board1", "nonexistent")
@@ -495,7 +495,7 @@ func TestDeleteThread(t *testing.T) {
 // TestDeleteBoard tests the DeleteBoard method
 func TestDeleteBoard(t *testing.T) {
 	t.Run("deletes board directory and all threads", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create files in multiple threads
@@ -520,7 +520,7 @@ func TestDeleteBoard(t *testing.T) {
 	})
 
 	t.Run("doesn't delete other boards", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		// Create files in two boards
@@ -544,7 +544,7 @@ func TestDeleteBoard(t *testing.T) {
 	})
 
 	t.Run("succeeds when board doesn't exist", func(t *testing.T) {
-		storage, err := New(t.TempDir())
+		storage, err := New(t.TempDir(), 85)
 		require.NoError(t, err)
 
 		err = storage.DeleteBoard("nonexistent")
@@ -554,7 +554,7 @@ func TestDeleteBoard(t *testing.T) {
 
 // TestFullWorkflow tests a complete workflow
 func TestFullWorkflow(t *testing.T) {
-	storage, err := New(t.TempDir())
+	storage, err := New(t.TempDir(), 85)
 	require.NoError(t, err)
 
 	// 1. Save files in multiple threads
@@ -604,4 +604,59 @@ func TestFullWorkflow(t *testing.T) {
 
 	_, err = storage.Read(file3)
 	assert.Error(t, err) // Should be gone
+}
+
+func TestSaveThumbnail(t *testing.T) {
+	t.Run("saves thumbnail in same directory as original", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		storage, err := New(tmpDir, 85)
+		require.NoError(t, err)
+
+		// Create a file first so the directory exists
+		originalPath, err := storage.SaveFile(
+			bytes.NewReader([]byte("original")),
+			"board", "1", "photo.jpg",
+		)
+		require.NoError(t, err)
+
+		thumbData := []byte("fake-thumbnail-data")
+		thumbPath, err := storage.SaveThumbnail(bytes.NewReader(thumbData), originalPath)
+		require.NoError(t, err)
+
+		// Thumbnail should be in the same directory
+		assert.Equal(t, filepath.Dir(originalPath), filepath.Dir(thumbPath))
+
+		// Thumbnail filename should have thumb_ prefix and .jpg extension
+		assert.True(t, strings.HasPrefix(filepath.Base(thumbPath), "thumb_"))
+		assert.True(t, strings.HasSuffix(thumbPath, ".jpg"))
+
+		// Content should match
+		reader, err := storage.Read(thumbPath)
+		require.NoError(t, err)
+		defer reader.Close()
+
+		content, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		assert.Equal(t, thumbData, content)
+	})
+
+	t.Run("generates unique filenames", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		storage, err := New(tmpDir, 85)
+		require.NoError(t, err)
+
+		originalPath, err := storage.SaveFile(
+			bytes.NewReader([]byte("original")),
+			"board", "1", "photo.jpg",
+		)
+		require.NoError(t, err)
+
+		path1, err := storage.SaveThumbnail(bytes.NewReader([]byte("thumb1")), originalPath)
+		require.NoError(t, err)
+
+		path2, err := storage.SaveThumbnail(bytes.NewReader([]byte("thumb2")), originalPath)
+		require.NoError(t, err)
+
+		assert.NotEqual(t, path1, path2)
+	})
 }
