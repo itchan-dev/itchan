@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	svcutils "github.com/itchan-dev/itchan/backend/internal/service/utils"
-	"github.com/itchan-dev/itchan/backend/internal/storage/fs"
 	"github.com/itchan-dev/itchan/backend/internal/utils"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -27,7 +26,7 @@ type MessageService interface {
 type Message struct {
 	storage      MessageStorage
 	validator    MessageValidator
-	mediaStorage fs.MediaStorage
+	mediaStorage MediaStorage
 	cfg          *config.Public
 }
 
@@ -42,7 +41,7 @@ type MessageValidator interface {
 	PendingFiles(files []*domain.PendingFile) error
 }
 
-func NewMessage(storage MessageStorage, validator MessageValidator, mediaStorage fs.MediaStorage, cfg *config.Public) MessageService {
+func NewMessage(storage MessageStorage, validator MessageValidator, mediaStorage MediaStorage, cfg *config.Public) MessageService {
 	return &Message{
 		storage:      storage,
 		validator:    validator,
