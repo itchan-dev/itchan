@@ -321,6 +321,9 @@ function setupPopupReplySystem() {
     const popup = document.querySelector('.popup-reply-container');
     if (!popup) return; // Do nothing if the popup isn't on the page
 
+    const formEl = popup.querySelector('form');
+    const textareaEl = popup.querySelector('textarea');
+
     // Main click listener using event delegation
     document.body.addEventListener('click', (e) => {
         const replyLink = e.target.closest('.post-reply-popup-link');
@@ -337,8 +340,7 @@ function setupPopupReplySystem() {
             const messageId = postElement.dataset.messageId;
 
             // 1. CONFIGURE: Update the form's action attribute for current board/thread
-            const form = popup.querySelector('form');
-            form.action = `/${board}/${threadId}`;
+            formEl.action = `/${board}/${threadId}`;
 
             // 2. POSITION: Place it near the clicked link
             const linkRect = replyLink.getBoundingClientRect();
@@ -347,8 +349,7 @@ function setupPopupReplySystem() {
             popup.style.display = 'block';
 
             // 3. ACTIVATE: Add reply link to the textarea (accumulates)
-            const textarea = popup.querySelector('textarea');
-            addReplyLink(textarea, threadId, messageId);
+            addReplyLink(textareaEl, threadId, messageId);
 
             // Note: File preview works automatically via event delegation - no setup needed!
 

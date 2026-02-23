@@ -75,6 +75,7 @@ func New(cfg *config.Public) *TextProcessor {
 	}
 
 	p.inlineRules = []InlineRule{
+		{marker: "***", OpenTag: "<strong><em>", CloseTag: "</em></strong>"}, // 100% legit and elegant ***abc*** fix.
 		{marker: "**", OpenTag: "<strong>", CloseTag: "</strong>"},
 		{marker: "~~", OpenTag: "<del>", CloseTag: "</del>"},
 		{marker: "||", OpenTag: `<span class="spoiler">`, CloseTag: "</span>"},
