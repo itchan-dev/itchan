@@ -499,10 +499,10 @@ func (s *Storage) togglePinnedStatus(q Querier, board domain.BoardShortName, thr
 		return false, fmt.Errorf("failed to update board activity on pin toggle: %w", err)
 	}
 
-	// Toggle the thread's pinned status and return the new value.
+	// Toggle the thread's pinned status, update last_modified_at, and return the new value.
 	var newStatus bool
 	err = q.QueryRow(
-		"UPDATE threads SET is_pinned = NOT is_pinned WHERE board = $1 AND id = $2 RETURNING is_pinned",
+		"UPDATE threads SET is_pinned = NOT is_pinned, last_modified_at = NOW() AT TIME ZONE 'utc' WHERE board = $1 AND id = $2 RETURNING is_pinned",
 		board, threadId,
 	).Scan(&newStatus)
 	if err != nil {
