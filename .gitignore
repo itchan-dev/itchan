@@ -13,3 +13,4 @@ fmtcoverage.html
 !.gitignore
 !.editorconfig
 !.env.example
+!.githooks
