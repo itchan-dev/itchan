@@ -15,35 +15,35 @@
                  <h1 class="site-title"><a href="/">Itchan</a></h1>
             </div>
             <div class="auth-links">
-                {{if .Common.User}}
+                {{- if .Common.User}}
                     [<a href="/settings/disable-media">{{if .Common.DisableMedia}}Show Media{{else}}Disable Media{{end}}</a>]
-                {{end}}
+                {{- end}}
                 [<a href="/">Home</a>]
                 [<a href="/faq">FAQ</a>]
-                {{if .Common.User}}
+                {{- if .Common.User}}
                     <span class="user-info">[<a href="/account">@{{.Common.User.EmailDomain}}</a>]</span>
                     [<a href="/invites">Invites</a>]
-                    {{if .Common.User.Admin}}[<a href="/admin">Admin</a>]{{end}}
+                    {{- if .Common.User.Admin}} [<a href="/admin">Admin</a>]{{end}}
                     [<a href="/logout">Logout</a>]
-                {{else}}
+                {{- else}}
                     [<a href="/login">Login</a>]
                     [<a href="/register">Register</a>]
                     [<a href="/register_invite">Register with Invite</a>]
-                {{end}}
+                {{- end}}
             </div>
         </div>
     </header>
 
     <main class="content">
-        {{/* Global flash messages - displayed once and automatically removed on page load */}}
-        {{if .Common.Error}}
+        {{- /* Global flash messages - displayed once and automatically removed on page load */ -}}
+        {{- if .Common.Error}}
         <div class="error-message">{{.Common.Error}}</div>
-        {{end}}
-        {{if .Common.Success}}
+        {{- end}}
+        {{- if .Common.Success}}
         <div class="success-message">{{.Common.Success}}</div>
-        {{end}}
+        {{- end}}
 
-        {{template "content" .}}
+        {{- template "content" .}}
     </main>
 
     <footer class="site-footer">

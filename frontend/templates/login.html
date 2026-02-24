@@ -1,5 +1,5 @@
 {{define "title"}}Login{{end}}
-{{define "content"}}
+{{- define "content"}}
 <h2>Login</h2>
 <form method="POST" action="/login" class="auth-form">
     <table class="form-table">
@@ -7,16 +7,16 @@
             <tr>
                 <td class="form-label"><label for="email">Email:</label></td>
                 <td>
-                    {{if .Common.EmailPlaceholder}}
+                    {{- if .Common.EmailPlaceholder}}
                     <input type="email" id="email" name="email" value="{{.Common.EmailPlaceholder}}" required size="30">
-                    {{else}}
+                    {{- else}}
                     <input type="email" id="email" name="email" required size="30">
-                    {{end}}
+                    {{- end}}
                 </td>
             </tr>
             <tr>
                 <td class="form-label"><label for="password">Password:</label></td>
-                <td>{{template "password-input" dict "PasswordMinLen" .Common.Validation.PasswordMinLen}}</td>
+                <td>{{- template "password-input" dict "PasswordMinLen" .Common.Validation.PasswordMinLen}}</td>
             </tr>
             <tr>
                 <td class="form-label"></td>
@@ -26,4 +26,4 @@
     </table>
 </form>
 <p style="margin-top: 1em; font-size: 0.9em;">Don't have an account? <a href="/register">Register here</a>.</p>
-{{end}}
+{{- end}}

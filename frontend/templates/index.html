@@ -1,5 +1,5 @@
 {{define "title"}}Home{{end}}
-{{define "content"}}
+{{- define "content"}}
 <div class="index-container">
 <div class="welcome-message">
     <h2>Добро пожаловать на Itchan</h2>
@@ -15,45 +15,45 @@
     </p>
 </div>
 <h1>Доски</h1>
-{{if or .Data.PublicBoards .Data.CorporateBoards}}
-    {{if .Data.PublicBoards}}
+{{- if or .Data.PublicBoards .Data.CorporateBoards}}
+    {{- if .Data.PublicBoards}}
     <h2 class="board-category">Общие доски</h2>
     <ul class="boards-list">
-        {{range .Data.PublicBoards}}
+        {{- range .Data.PublicBoards}}
         <li>
             <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
-            {{if $.Common.User.Admin}}
-            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
-            {{end}}
+            {{- if $.Common.User.Admin}}
+            {{- template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
+            {{- end}}
         </li>
-        {{end}}
+        {{- end}}
     </ul>
-    {{end}}
+    {{- end}}
 
-    {{if .Data.CorporateBoards}}
+    {{- if .Data.CorporateBoards}}
     <h2 class="board-category">Корпоративные доски</h2>
     <ul class="boards-list corporate">
-        {{range .Data.CorporateBoards}}
+        {{- range .Data.CorporateBoards}}
         <li>
             <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
             <span class="corporate-badge" title="Доступ только для: {{join .AllowedEmailDomains ", "}}">🏢</span>
-            {{if $.Common.User.Admin}}
-            {{template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
-            {{end}}
+            {{- if $.Common.User.Admin}}
+            {{- template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
+            {{- end}}
         </li>
-        {{end}}
+        {{- end}}
     </ul>
-    {{end}}
-{{else}}
+    {{- end}}
+{{- else}}
 <p>No boards found.</p>
-{{end}}
+{{- end}}
 
-{{if .Common.User.Admin}}
+{{- if .Common.User.Admin}}
 <hr class="section-separator">
 <div class="admin-panel">
     <h2>Create New Board</h2>
     <form method="POST" action="/">
-        {{template "csrf-field" .Common}}
+        {{- template "csrf-field" .Common}}
         <table class="form-table">
             <tbody>
                 <tr>
@@ -76,6 +76,6 @@
         </table>
     </form>
 </div>
-{{end}}
+{{- end}}
 </div>
-{{end}}
+{{- end}}

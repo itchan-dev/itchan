@@ -1,37 +1,37 @@
 {{define "title"}}Invites{{end}}
-{{define "content"}}
+{{- define "content"}}
 <h1>Invite Codes</h1>
 
 <!-- Stats section -->
 <div class="invite-stats">
     <p><strong>Account age:</strong> {{.Data.AccountAgeDays}} days
-        {{if not .Common.User.Admin}}
+        {{- if not .Common.User.Admin}}
         (Required: {{.Data.RequiredAgeDays}} days)
-        {{if not .Data.IsEligibleByAge}}
+        {{- if not .Data.IsEligibleByAge}}
         <span style="color: red;">⚠ Account too young to generate invites</span>
-        {{end}}
-        {{end}}
+        {{- end}}
+        {{- end}}
     </p>
     <p><strong>Invites remaining:</strong> {{if .Common.User.Admin}}∞ (Unlimited){{else}}{{.Data.RemainingInvites}}{{end}}</p>
 </div>
 
 <!-- Generate form -->
 <form method="POST" action="/invites/generate">
-    {{template "csrf-field" .Common}}
-    {{if and (not .Common.User.Admin) (not .Data.IsEligibleByAge)}}
+    {{- template "csrf-field" .Common}}
+    {{- if and (not .Common.User.Admin) (not .Data.IsEligibleByAge)}}
     <input type="submit" value="Generate New Invite" disabled title="Account too young">
-    {{else if and (not .Common.User.Admin) (eq .Data.RemainingInvites 0)}}
+    {{- else if and (not .Common.User.Admin) (eq .Data.RemainingInvites 0)}}
     <input type="submit" value="Generate New Invite" disabled title="Invite limit reached">
-    {{else}}
+    {{- else}}
     <input type="submit" value="Generate New Invite">
-    {{end}}
+    {{- end}}
 </form>
 
 <hr>
 
 <!-- List of invites -->
 <h2>Your Invite Codes</h2>
-{{if .Data.Invites}}
+{{- if .Data.Invites}}
 <table class="invites-table">
     <thead>
         <tr>
@@ -43,34 +43,34 @@
         </tr>
     </thead>
     <tbody>
-        {{range .Data.Invites}}
+        {{- range .Data.Invites}}
         <tr>
             <td><code>{{.CodeHash}}</code></td>
             <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
             <td>{{.ExpiresAt.Format "2006-01-02 15:04"}}</td>
             <td>
-                {{if .UsedBy}}
+                {{- if .UsedBy}}
                 Used (User: {{.UsedBy}})
-                {{else}}
+                {{- else}}
                 Active
-                {{end}}
+                {{- end}}
             </td>
             <td>
-                {{if not .UsedBy}}
+                {{- if not .UsedBy}}
                 <form method="POST" action="/invites/revoke" style="display:inline;">
-                    {{template "csrf-field" $.Common}}
+                    {{- template "csrf-field" $.Common}}
                     <input type="hidden" name="codeHash" value="{{.CodeHash}}">
                     <input type="submit" value="Revoke" onclick="return confirm('Revoke this invite?')">
                 </form>
-                {{else}}
+                {{- else}}
                 -
-                {{end}}
+                {{- end}}
             </td>
         </tr>
-        {{end}}
+        {{- end}}
     </tbody>
 </table>
-{{else}}
+{{- else}}
 <p>No invites found. Generate one to get started!</p>
-{{end}}
-{{end}}
+{{- end}}
+{{- end}}
