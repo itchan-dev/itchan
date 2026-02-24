@@ -1,5 +1,5 @@
 {{define "title"}}Confirm Email{{end}}
-{{define "content"}}
+{{- define "content"}}
 <h2>Confirm Email Address</h2>
 <p>Please enter the confirmation code sent to your email address.</p>
 <p class="warning-notice">Код отправлен на вашу почту. Обычно он приходит мгновенно, но корпоративные фильтры безопасности могут задерживать первое письмо на срок от нескольких минут до часа. Пожалуйста, подождите и проверьте папку Спам.</p>
@@ -9,11 +9,11 @@
             <tr>
                 <td class="form-label"><label for="email">Email:</label></td>
                 <td>
-                    {{if .Common.EmailPlaceholder}}
+                    {{- if .Common.EmailPlaceholder}}
                     <input type="email" id="email" name="email" value="{{.Common.EmailPlaceholder}}" required readonly size="30">
-                    {{else}}
+                    {{- else}}
                     <input type="email" id="email" name="email" required size="30" placeholder="Enter email if not prefilled">
-                    {{end}}
+                    {{- end}}
                  </td>
             </tr>
             <tr>
@@ -27,4 +27,4 @@
         </tbody>
     </table>
 </form>
-{{end}}
+{{- end}}
