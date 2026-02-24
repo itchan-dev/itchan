@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
@@ -44,6 +45,10 @@ func (m *MockThreadService) Delete(board domain.BoardShortName, id domain.Thread
 		return m.MockDelete(board, id)
 	}
 	return nil
+}
+
+func (m *MockThreadService) GetLastModified(board domain.BoardShortName, id domain.ThreadId) (time.Time, error) {
+	return time.Now().UTC(), nil
 }
 
 func (m *MockThreadService) TogglePinned(board domain.BoardShortName, id domain.ThreadId) (bool, error) {

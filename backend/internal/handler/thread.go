@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
@@ -79,6 +80,24 @@ func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
 
 	response := api.ThreadResponse{Thread: thread}
 	writeJSON(w, response)
+}
+
+func (h *Handler) GetThreadLastModified(w http.ResponseWriter, r *http.Request) {
+	board := chi.URLParam(r, "board")
+	threadIdStr := chi.URLParam(r, "thread")
+	threadId, err := parseIntParam(threadIdStr, "thread ID")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	lastModified, err := h.thread.GetLastModified(board, domain.ThreadId(threadId))
+	if err != nil {
+		utils.WriteErrorAndStatusCode(w, err)
+		return
+	}
+
+	writeJSON(w, map[string]time.Time{"last_modified_at": lastModified})
 }
 
 func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +40,10 @@ func (m *MockBoardStorage) DeleteBoard(shortName domain.BoardShortName) error {
 		return m.deleteBoardFunc(shortName)
 	}
 	return nil // Default success
+}
+
+func (m *MockBoardStorage) GetBoardLastModified(shortName domain.BoardShortName) (time.Time, error) {
+	return time.Now().UTC(), nil
 }
 
 func (m *MockBoardStorage) GetBoardsByUser(user domain.User) ([]domain.Board, error) {

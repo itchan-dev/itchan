@@ -30,14 +30,14 @@ func TestAuth(t *testing.T) {
 		{
 			name:           "Valid token - Admin",
 			adminOnly:      true,
-			cookie:         &http.Cookie{Name: "accessToken", Value: tokenAdmin},
+			cookie:         &http.Cookie{Name: "access_token", Value: tokenAdmin},
 			expectedStatus: http.StatusOK,
 			expectedUser:   admin,
 		},
 		{
 			name:           "Valid token - Non-admin",
 			adminOnly:      false,
-			cookie:         &http.Cookie{Name: "accessToken", Value: token},
+			cookie:         &http.Cookie{Name: "access_token", Value: token},
 			expectedStatus: http.StatusOK,
 			expectedUser:   user,
 		},
@@ -51,14 +51,14 @@ func TestAuth(t *testing.T) {
 		{
 			name:           "Invalid token",
 			adminOnly:      false,
-			cookie:         &http.Cookie{Name: "accessToken", Value: "invalid_token"},
+			cookie:         &http.Cookie{Name: "access_token", Value: "invalid_token"},
 			expectedStatus: http.StatusUnauthorized,
 			expectedUser:   nil,
 		},
 		{
 			name:           "Non-admin accessing admin route",
 			adminOnly:      true,
-			cookie:         &http.Cookie{Name: "accessToken", Value: token},
+			cookie:         &http.Cookie{Name: "access_token", Value: token},
 			expectedStatus: http.StatusForbidden,
 			expectedUser:   nil,
 		},
@@ -227,7 +227,7 @@ func TestAuthCookieTakesPrecedenceOverBearer(t *testing.T) {
 	bearerToken, _ := jwtService.NewToken(*bearerUser)
 
 	req := httptest.NewRequest("GET", "http://example.com", nil)
-	req.AddCookie(&http.Cookie{Name: "accessToken", Value: cookieToken})
+	req.AddCookie(&http.Cookie{Name: "access_token", Value: cookieToken})
 	req.Header.Set("Authorization", "Bearer "+bearerToken)
 
 	rr := httptest.NewRecorder()
@@ -262,7 +262,7 @@ func TestAuthWithBlacklist(t *testing.T) {
 	}{
 		{
 			name:   "Non-blacklisted user with valid token",
-			cookie: &http.Cookie{Name: "accessToken", Value: token},
+			cookie: &http.Cookie{Name: "access_token", Value: token},
 			blacklist: &mockBlacklistCache{
 				blacklistedUsers: map[domain.UserId]bool{},
 			},
@@ -271,7 +271,7 @@ func TestAuthWithBlacklist(t *testing.T) {
 		},
 		{
 			name:   "Blacklisted user with valid token",
-			cookie: &http.Cookie{Name: "accessToken", Value: blacklistedToken},
+			cookie: &http.Cookie{Name: "access_token", Value: blacklistedToken},
 			blacklist: &mockBlacklistCache{
 				blacklistedUsers: map[domain.UserId]bool{2: true},
 			},
@@ -280,7 +280,7 @@ func TestAuthWithBlacklist(t *testing.T) {
 		},
 		{
 			name:           "User with valid token and nil blacklist cache",
-			cookie:         &http.Cookie{Name: "accessToken", Value: token},
+			cookie:         &http.Cookie{Name: "access_token", Value: token},
 			blacklist:      nil,
 			expectedStatus: http.StatusOK,
 			shouldSetUser:  true,
@@ -312,7 +312,7 @@ func TestAuthWithBlacklist(t *testing.T) {
 				cookies := rr.Result().Cookies()
 				var accessTokenCookie *http.Cookie
 				for _, c := range cookies {
-					if c.Name == "accessToken" {
+					if c.Name == "access_token" {
 						accessTokenCookie = c
 						break
 					}

@@ -1,6 +1,9 @@
 package handler
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 func (h *Handler) ToggleDisableMedia(w http.ResponseWriter, r *http.Request) {
 	value := "1"
@@ -21,7 +24,7 @@ func (h *Handler) ToggleDisableMedia(w http.ResponseWriter, r *http.Request) {
 	})
 
 	target := r.Referer()
-	if target == "" {
+	if target == "" || !strings.HasPrefix(target, "/") {
 		target = "/"
 	}
 	http.Redirect(w, r, target, http.StatusSeeOther)

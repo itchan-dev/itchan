@@ -22,13 +22,19 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	board, err := h.APIClient.GetBoard(r, shortName, page)
+	lastModified, err := h.APIClient.GetBoardLastModified(r, shortName)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	if checkNotModified(w, r, board.LastActivityAt) {
+	if checkNotModified(w, r, lastModified) {
+		return
+	}
+
+	board, err := h.APIClient.GetBoard(r, shortName, page)
+	if err != nil {
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 

@@ -1,4 +1,4 @@
-.PHONY: down dev test show-coverage deploy deploy-monitoring logs logs-frontend logs-api gen-configs
+.PHONY: down dev test show-coverage deploy deploy-monitoring logs logs-frontend logs-api gen-configs install-hooks
 
 dev:
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -34,3 +34,6 @@ test:
 show-coverage:
 	go test ./... -coverprofile fmtcoverage.html
 	go tool cover -html fmtcoverage.html
+
+install-hooks:
+	git config core.hooksPath .githooks

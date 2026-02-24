@@ -81,6 +81,23 @@ func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error
 	return s.getActiveBoards(s.db, interval)
 }
 
+// GetBoardLastModified returns only the last_activity_at timestamp for a board.
+func (s *Storage) GetBoardLastModified(shortName domain.BoardShortName) (time.Time, error) {
+	var lastModified time.Time
+	err := s.db.QueryRow(
+		`SELECT last_activity_at FROM boards WHERE short_name = $1`, shortName,
+	).Scan(&lastModified)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, &internal_errors.ErrorWithStatusCode{
+				Message: fmt.Sprintf("Board '%s' not found", shortName), StatusCode: http.StatusNotFound,
+			}
+		}
+		return time.Time{}, fmt.Errorf("failed to fetch board last modified for '%s': %w", shortName, err)
+	}
+	return lastModified, nil
+}
+
 // GetBoardsWithPermissions returns a map of board short names to their allowed email domains.
 // Returns nil for boards without restrictions (public boards).
 func (s *Storage) GetBoardsWithPermissions() (map[string][]string, error) {

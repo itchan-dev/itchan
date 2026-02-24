@@ -35,7 +35,7 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 ### Core Functionality
 - **Boards & Threads**: Create boards with custom names, organize discussions in threads
 - **Messages & Replies**: Post messages with cross-thread reply support
-- **File Attachments**: Upload images (PNG, JPEG, GIF, WebP) and videos with automatic thumbnail generation
+- **File Attachments**: Upload images (JPEG, PNG, GIF) and videos (MP4, WebM, OGG) with automatic thumbnail generation
 - **Attachments-Only Messages**: Post messages with only attachments (text is optional)
 - **Markdown Support**: Rich text formatting using a custom markdown parser
 - **Thread Bumping**: Automatic bump-to-top with configurable bump limits
@@ -45,16 +45,19 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 
 ### Authentication & Authorization
 - **User Registration**: Email-based registration with confirmation codes
+- **Invite System**: Registered users can generate invite codes to bring in friends without corporate email
 - **JWT Authentication**: Secure, stateless authentication using JWT tokens
 - **Dual Auth Methods**: Cookie-based (browsers) and Bearer token (API/mobile clients) support
 - **Admin Roles**: Special privileges for board and content moderation
 - **User Blacklist**: Admin-managed user blacklist with cached validation for banned users
 - **Board Permissions**: Domain-based access control (restrict boards to specific email domains)
+- **CSRF Protection**: Token-based CSRF protection for state-changing requests
 
 ### Performance & Security
 - **Nginx Reverse Proxy**: TLS termination, HTTP/2, connection limits, slowloris protection
 - **Two-Layer Rate Limiting**: Nginx (per-IP, connection limits) + Go (per-user, token bucket)
 - **Media Sanitization**: Automatic EXIF/metadata stripping from images and videos using ffmpeg
+- **Email Encryption**: AES-256-GCM encryption of email addresses at the application level
 - **Database Partitioning**: Automatic table partitioning by board for optimal performance
 - **Materialized Views**: Fast board previews with configurable refresh intervals
 - **Security Headers**: HSTS, CSP, X-Frame-Options, X-Content-Type-Options
@@ -187,23 +190,31 @@ go run cmd/frontend/main.go -config_folder ../config
 ```
 itchan/
 ├── backend/                    # Backend API service
-│   ├── cmd/itchan-api/        # Main entry point
-│   │   └── main.go
+│   ├── cmd/
+│   │   ├── itchan-api/        # Main entry point
+│   │   │   └── main.go
+│   │   └── tools/             # CLI utilities
+│   │       └── generate-encryption-key/  # Generate AES-256 encryption key
 │   ├── internal/
 │   │   ├── handler/           # HTTP handlers (REST endpoints)
 │   │   │   ├── auth.go        # Register, login, logout
 │   │   │   ├── blacklist.go   # User blacklist management
 │   │   │   ├── board.go       # Board CRUD operations
-│   │   │   ├── thread.go      # Thread operations
+│   │   │   ├── handler.go     # Handler dependencies
+│   │   │   ├── health.go      # Health and readiness probes
+│   │   │   ├── helpers.go     # Shared handler helpers
+│   │   │   ├── invite.go      # Invite code management
 │   │   │   ├── message.go     # Message posting and retrieval
-│   │   │   └── handler.go     # Handler dependencies
+│   │   │   ├── thread.go      # Thread operations
+│   │   │   └── user_activity.go # User activity tracking
 │   │   ├── service/           # Business logic layer
-│   │   │   ├── auth.go        # Authentication logic
+│   │   │   ├── auth.go        # Authentication logic (incl. invites)
 │   │   │   ├── board.go       # Board management
-│   │   │   ├── thread.go      # Thread management
-│   │   │   ├── message.go     # Message processing
-│   │   │   ├── fs.go          # File storage service
 │   │   │   ├── gc.go          # Orphaned media cleanup
+│   │   │   ├── media_storage.go # File storage service
+│   │   │   ├── message.go     # Message processing
+│   │   │   ├── thread.go      # Thread management
+│   │   │   ├── user_activity.go # User activity tracking
 │   │   │   └── utils/         # Service utilities
 │   │   │       └── sanitize.go # Media sanitization (EXIF/metadata stripping)
 │   │   ├── storage/           # Data access layer
@@ -211,13 +222,20 @@ itchan/
 │   │   │   │   ├── auth.go    # User storage operations
 │   │   │   │   ├── blacklist.go # User blacklist operations
 │   │   │   │   ├── board.go   # Board storage
+│   │   │   │   ├── board_enrichment.go # Board data enrichment
 │   │   │   │   ├── board_view.go  # Materialized view management
-│   │   │   │   ├── thread.go  # Thread storage
 │   │   │   │   ├── message.go # Message storage
+│   │   │   │   ├── message_enrichment.go # Message data enrichment
 │   │   │   │   ├── pg.go      # DB connection & partitioning
-│   │   │   │   └── migrations/init.sql  # Database schema
+│   │   │   │   ├── thread.go  # Thread storage
+│   │   │   │   ├── user_activity.go # User activity storage
+│   │   │   │   ├── migrations/init.sql  # Database schema
+│   │   │   │   └── templates/ # SQL templates for partitioning & views
 │   │   │   └── fs/            # File system storage
 │   │   │       └── fs.go      # File upload/download
+│   │   ├── utils/             # Backend utilities
+│   │   │   ├── utils.go       # Helper functions
+│   │   │   └── email/         # Email sending service
 │   │   ├── router/            # Route configuration
 │   │   │   └── router.go      # All API routes and middleware
 │   │   └── setup/             # Dependency injection
@@ -229,26 +247,42 @@ itchan/
 │   │   └── main.go
 │   ├── internal/
 │   │   ├── handler/           # HTTP handlers for pages
-│   │   │   ├── index.go       # Homepage
-│   │   │   ├── board.go       # Board view
-│   │   │   ├── thread.go      # Thread view
-│   │   │   ├── message.go     # Message actions
+│   │   │   ├── account.go     # Account management page
 │   │   │   ├── auth.go        # Login/register pages
+│   │   │   ├── blacklist.go   # Blacklist management page
+│   │   │   ├── board.go       # Board view
+│   │   │   ├── faq.go         # FAQ page
+│   │   │   ├── handler.go     # Handler dependencies
+│   │   │   ├── helpers.go     # Shared handler helpers
+│   │   │   ├── index.go       # Homepage
+│   │   │   ├── invites.go     # Invite management page
+│   │   │   ├── legal.go       # Legal pages (terms, privacy, contacts)
+│   │   │   ├── message.go     # Message actions
 │   │   │   ├── render.go      # Template rendering
-│   │   │   └── settings.go   # User settings
+│   │   │   ├── settings.go    # User settings
+│   │   │   └── thread.go      # Thread view
 │   │   ├── apiclient/         # Backend API client
 │   │   │   ├── apiclient.go
 │   │   │   ├── auth.go
+│   │   │   ├── blacklist.go
 │   │   │   ├── board.go
+│   │   │   ├── invites.go
+│   │   │   ├── message.go
 │   │   │   ├── thread.go
-│   │   │   └── message.go
+│   │   │   └── user_activity.go
 │   │   ├── domain/            # Frontend domain models
 │   │   │   ├── board.go
-│   │   │   ├── thread.go
-│   │   │   └── message.go
+│   │   │   ├── common.go      # Common template data
+│   │   │   ├── message.go
+│   │   │   ├── pages.go       # Page-specific data structs
+│   │   │   ├── partials.go    # Partial-specific data structs
+│   │   │   └── thread.go
 │   │   ├── markdown/          # Markdown processing
 │   │   │   ├── parser.go      # Custom parser with block/inline rules
 │   │   │   └── trie.go        # Trie for fast marker matching
+│   │   ├── middleware/        # Frontend middleware
+│   │   │   ├── auth.go        # Authentication forwarding
+│   │   │   └── csrf.go        # CSRF token handling
 │   │   ├── router/            # Route configuration
 │   │   │   └── router.go
 │   │   └── setup/             # Dependency setup
@@ -260,6 +294,16 @@ itchan/
 │   │   ├── thread.html        # Thread view
 │   │   ├── login.html         # Login page
 │   │   ├── register.html      # Registration page
+│   │   ├── register_invite.html # Invite-based registration
+│   │   ├── check_confirmation_code.html # Email confirmation
+│   │   ├── account.html       # Account management
+│   │   ├── admin.html         # Admin panel
+│   │   ├── invites.html       # Invite management
+│   │   ├── faq.html           # FAQ and rules
+│   │   ├── about.html         # About page
+│   │   ├── contacts.html      # Contact information
+│   │   ├── privacy.html       # Privacy policy
+│   │   ├── terms.html         # Terms of service
 │   │   └── partials.html      # Reusable components
 │   ├── static/                # Static assets
 │   │   ├── css/style.css
@@ -268,32 +312,36 @@ itchan/
 │   └── Dockerfile
 │
 ├── shared/                     # Shared packages
+│   ├── api/                   # API request/response types
+│   ├── blacklist/             # Blacklist caching
+│   ├── config/                # Configuration management
+│   ├── crypto/                # Email encryption (AES-256-GCM)
+│   ├── csrf/                  # CSRF token protection
 │   ├── domain/                # Domain models
+│   │   ├── attachments.go     # File attachment models
 │   │   ├── auth.go            # User, credentials
 │   │   ├── board.go           # Board models
-│   │   ├── thread.go          # Thread models
+│   │   ├── helpers.go         # Domain helper functions
 │   │   ├── message.go         # Message models
-│   │   ├── attachments.go     # File attachment models
+│   │   ├── thread.go          # Thread models
 │   │   └── types.go           # Custom types and validation
+│   ├── errors/                # Error types
+│   ├── jwt/                   # JWT utilities
+│   ├── logger/                # Structured logging
 │   ├── middleware/            # HTTP middleware
 │   │   ├── auth.go            # JWT authentication
+│   │   ├── security_headers.go # Security headers (HSTS, CSP, etc.)
 │   │   ├── board_access/      # Board permission check
-│   │   │   └── board_access.go
+│   │   ├── metrics/           # Prometheus metrics
 │   │   └── ratelimiter/       # Rate limiting
-│   │       └── ratelimiter.go
-│   ├── validation/            # Input validation
-│   │   ├── attachment.go      # File validation
-│   │   ├── multipart.go       # Multipart form handling
-│   │   └── errors.go
-│   ├── config/                # Configuration management
-│   │   └── config.go
-│   ├── jwt/                   # JWT utilities
-│   │   └── jwt.go
 │   ├── storage/               # Storage interfaces
-│   │   └── storage.go
-│   └── utils/                 # Utility functions
-│       ├── crypto.go          # Hashing utilities
-│       └── web.go             # HTTP helpers
+│   ├── utils/                 # Utility functions
+│   │   ├── crypto.go          # Hashing utilities
+│   │   └── web.go             # HTTP helpers
+│   └── validation/            # Input validation
+│       ├── attachment.go      # File validation
+│       ├── multipart.go       # Multipart form handling
+│       └── errors.go
 │
 ├── nginx/                      # Reverse proxy
 │   ├── nginx.conf             # Nginx configuration
@@ -301,17 +349,27 @@ itchan/
 │   ├── certs/                 # SSL certificates (generated)
 │   └── certbot/               # ACME challenge files
 │
+├── monitoring/                 # Prometheus + Grafana
+│   ├── prometheus.yml         # Prometheus configuration
+│   └── grafana/               # Grafana dashboards
+│
 ├── scripts/                    # Setup and maintenance
 │   ├── setup.sh               # Full initial setup (configs + SSL + cron)
+│   ├── gen-configs.sh         # Generate configuration files
 │   └── renew-ssl.sh           # SSL certificate renewal (called by cron)
 │
 ├── config/                     # Configuration files
 │   ├── public.yaml            # Public configuration (shared with frontend)
 │   └── private.yaml           # Private configuration (backend only, generated)
 │
-├── docker-compose.yml         # Docker orchestration
+├── docker-compose.yml         # Docker orchestration (production)
+├── docker-compose.dev.yml     # Docker orchestration (development)
+├── docker-compose.monitoring.yml # Monitoring stack
 ├── Makefile                   # Build and deployment commands
 ├── SETUP.md                   # Production setup guide
+├── CONTRIBUTING.md            # Contribution guidelines
+├── SECURITY.md                # Security policy
+├── CODE_OF_CONDUCT.md         # Code of conduct
 ├── go.mod                     # Go module definition
 ├── go.sum                     # Go module checksums
 └── README.md
@@ -383,9 +441,10 @@ The database uses PostgreSQL's **table partitioning** for scalability. Each boar
 
 ### Key Tables
 
-- **users**: User accounts with email and password hash
+- **users**: User accounts with encrypted email and password hash
 - **user_blacklist**: Blacklisted users with reason and admin reference (cached for JWT validation)
 - **confirmation_data**: Email confirmation codes for registration
+- **invite_codes**: User-generated invite codes for registration
 - **boards**: Board metadata (name, short_name, activity timestamps)
 - **board_permissions**: Domain-based access control (email domain allowlist per board)
 - **threads**: Thread metadata (title, message count, bump time, pinned flag) - **partitioned by board**
@@ -416,19 +475,33 @@ Configuration is split into two files:
 ```yaml
 jwt_ttl: 24h                           # JWT token lifetime
 threads_per_page: 15                   # Pagination
+messages_per_thread_page: 1000         # Messages per thread page (0 = all)
 max_thread_count: 100                  # Max threads per board (null = unlimited)
 n_last_msg: 3                          # Messages shown in board preview
 bump_limit: 500                        # Messages before thread stops bumping
 board_preview_refresh_internval: 30s   # Materialized view refresh rate
-secure_cookies: false                  # Set to true for HTTPS
+board_activity_window: 3m              # How far back to check for board activity
+blacklist_cache_interval: 300          # Blacklist cache refresh interval (seconds)
 
-# Text length limits
-board_name_max_len: 100
-board_short_name_max_len: 10
-thread_title_max_len: 200
+# Auth
+confirmation_code_ttl: 10m             # Email confirmation code expiration
+
+# Logging
+log_level: info                        # debug, info, warn, error
+log_format: text                       # text or json
+
+# Security settings
+secure_cookies: false                  # Set to true for HTTPS
+csrf_enabled: true                     # Enable CSRF protection
+
+# Text length limits (defaults shown, all optional)
+board_name_max_len: 10
+board_short_name_max_len: 3
+thread_title_max_len: 50
 message_text_max_len: 10000
 message_text_min_len: 1
 password_min_len: 8
+max_replies_per_message: 50            # Max >>reply links per message
 
 # File upload limits
 max_attachments_per_message: 4
@@ -438,10 +511,32 @@ allowed_image_mime_types:
   - image/jpeg
   - image/png
   - image/gif
-  - image/webp
 allowed_video_mime_types:
   - video/mp4
   - video/webm
+  - video/ogg
+
+# Invite system
+invite_enabled: false
+invite_code_length: 12
+invite_code_ttl: 720h                  # 30 days
+max_invites_per_user: 5                # 0 = unlimited
+min_account_age_for_invites: 720h      # 30 days
+
+# User activity page
+user_messages_page_limit: 50           # Messages shown on account page
+
+# Caching
+static_cache_max_age: 240h             # Static file cache (CSS, JS)
+media_cache_max_age: 168h              # User-uploaded media cache
+
+# Media processing
+media:
+  thumbnail_max_size: 225              # Max dimension (px) for thumbnails
+  thumbnail_display_op: 225            # Display size for OP thumbnails
+  thumbnail_display_reply: 150         # Display size for reply thumbnails
+  jpeg_quality_main: 85               # JPEG quality for main images (0-100)
+  jpeg_quality_thumbnail: 75          # JPEG quality for thumbnails (0-100)
 
 # Registration restrictions
 allowed_registration_domains: []       # Empty = allow all domains. Example: ["gmail.com", "company.com"]
@@ -450,6 +545,7 @@ allowed_registration_domains: []       # Empty = allow all domains. Example: ["g
 ### `config/private.yaml` (Backend only - never commit to git!)
 ```yaml
 jwt_key: "<your-secret-key>"           # JWT signing key (generate random 512+ bit string)
+encryption_key: "<your-encryption-key>" # AES-256-GCM key for email encryption (use backend/cmd/tools/generate-encryption-key)
 
 pg:
   host: localhost
@@ -485,9 +581,10 @@ The API supports **two authentication methods**:
 
 ### Authentication Endpoints
 ```
-POST   /v1/auth/register                 - Register new user (rate limited: 1/10s per IP)
-POST   /v1/auth/check_confirmation_code  - Verify email confirmation code
+POST   /v1/auth/register                 - Register new user (rate limited: 1/s per email & IP)
+POST   /v1/auth/check_confirmation_code  - Verify email confirmation code (5 attempts per 10 min per email)
 POST   /v1/auth/login                    - Login with credentials (returns access_token)
+POST   /v1/auth/register_with_invite     - Register with an invite code (rate limited: 1/s per IP)
 POST   /v1/auth/logout                   - Logout (clear cookies)
 ```
 
@@ -503,6 +600,7 @@ POST   /v1/auth/logout                   - Logout (clear cookies)
 ```
 GET    /v1/boards                        - List all accessible boards
 GET    /v1/{board}                       - Get board with threads (paginated)
+GET    /v1/{board}/last_modified         - Get board's last modification timestamp
 ```
 
 **Example with Bearer Token:**
@@ -515,32 +613,57 @@ curl -H "Authorization: Bearer <your_token>" \
 ```
 POST   /v1/{board}                       - Create new thread (rate limited: 1/minute per user)
 GET    /v1/{board}/{thread}              - Get thread with all messages
-DELETE /v1/admin/{board}/{thread}        - Delete thread (admin only)
+GET    /v1/{board}/{thread}/last_modified - Get thread's last modification timestamp
 ```
 
 ### Messages (Authenticated)
 ```
 POST   /v1/{board}/{thread}              - Post message to thread (rate limited: 1/second per user)
 GET    /v1/{board}/{thread}/{message}    - Get single message
-DELETE /v1/admin/{board}/{thread}/{message} - Delete message (admin only)
+```
+
+### Invites (Authenticated)
+```
+GET    /v1/invites/                      - Get user's invite codes
+POST   /v1/invites/                      - Generate new invite code (rate limited: 1/minute per user)
+DELETE /v1/invites/{codeHash}            - Revoke an invite code
+```
+
+### User (Authenticated)
+```
+GET    /v1/users/me/activity             - Get current user's activity data
+GET    /v1/public_config                 - Get public configuration
 ```
 
 ### Admin (Admin only)
 ```
 POST   /v1/admin/boards                  - Create new board
 DELETE /v1/admin/{board}                 - Delete board
+DELETE /v1/admin/{board}/{thread}        - Delete thread
+POST   /v1/admin/{board}/{thread}/pin    - Toggle thread pinned status
+DELETE /v1/admin/{board}/{thread}/{message} - Delete message
 POST   /v1/admin/users/{userId}/blacklist - Blacklist user (with optional reason)
 DELETE /v1/admin/users/{userId}/blacklist - Remove user from blacklist
 GET    /v1/admin/blacklist               - Get all blacklisted users with details
 POST   /v1/admin/blacklist/refresh       - Manually refresh blacklist cache
 ```
 
+### Health & Monitoring (No auth)
+```
+GET    /health                           - Liveness probe (200 if running)
+GET    /ready                            - Readiness probe (200 if DB connected)
+GET    /metrics                          - Prometheus metrics
+```
+
 ### Rate Limits
 
-- **Registration**: 1 request per 10 seconds per IP, 100 global RPS
-- **Login**: 1 request per second per IP, 1000 global RPS
+- **Registration**: 1/s per email, 1/s per IP, 100 global RPS
+- **Confirmation Code**: 5 attempts per 10 minutes per email, 1/s per IP, 100 global RPS
+- **Login**: 1/s per IP, 1000 global RPS
+- **Invite Registration**: 1/s per IP, 100 global RPS
 - **Create Thread**: 1 per minute per user
-- **Post Message**: 1 per second per user (fixed, not token bucket)
+- **Post Message**: 1 per second per user
+- **Generate Invite**: 1 per minute per user
 - **Get Board**: 10 RPS per user
 - **General authenticated**: 100 RPS per user
 - **Admin**: No rate limits
@@ -599,7 +722,13 @@ The frontend is a server-rendered Go application using `html/template`.
 - **index.html**: Board listing and creation form
 - **board.html**: Thread list with pagination
 - **thread.html**: Full thread view with all messages and reply form
-- **login.html** / **register.html**: Authentication pages
+- **login.html** / **register.html** / **register_invite.html**: Authentication pages
+- **check_confirmation_code.html**: Email confirmation page
+- **account.html**: Account management
+- **admin.html**: Admin panel
+- **invites.html**: Invite code management
+- **faq.html** / **about.html** / **contacts.html**: Info pages
+- **privacy.html** / **terms.html**: Legal pages
 - **partials.html**: Reusable components (message rendering, forms)
 
 ### Markdown Support
@@ -664,9 +793,12 @@ Integration tests use a separate test database and clean up after execution.
 ### Authentication & Authorization
 - **JWT-based authentication** with configurable TTL
 - **Dual authentication support**: Cookie-based (browsers) and Bearer token (API clients)
+- **Invite system**: Users can generate invite codes for registration without corporate email
 - **Blacklist cache validation**: Automatic JWT rejection for blacklisted users with cached validation
 - **Secure cookie storage** with HttpOnly and Secure flags (when enabled)
 - **Password hashing** using bcrypt
+- **Email encryption**: AES-256-GCM encryption of email addresses at the application level
+- **CSRF protection**: Token-based CSRF protection for state-changing requests
 - **Email confirmation** required for registration
 - **Registration domain restrictions**: Optional email domain allowlist for registration
 - **Admin role** for moderation capabilities

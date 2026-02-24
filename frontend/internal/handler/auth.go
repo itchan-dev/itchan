@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/logger"
+	"github.com/itchan-dev/itchan/shared/middleware"
 )
 
 func (h *Handler) RegisterGetHandler(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +104,7 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		Path:     "/",
-		Name:     "accessToken",
+		Name:     middleware.CookieName,
 		Value:    "",
 		MaxAge:   -1, // Expire immediately
 		HttpOnly: true,

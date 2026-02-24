@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
@@ -43,6 +44,10 @@ func (m *MockBoardService) Delete(shortName domain.BoardShortName) error {
 		return m.MockDelete(shortName)
 	}
 	return nil
+}
+
+func (m *MockBoardService) GetLastModified(shortName domain.BoardShortName) (time.Time, error) {
+	return time.Now().UTC(), nil
 }
 
 func (m *MockBoardService) GetAll(user domain.User) ([]domain.Board, error) {

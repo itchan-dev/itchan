@@ -45,11 +45,12 @@ func (url *UserRateLimiter) cleanup(userID string) {
 
 // resetTimer resets the expiration timer for a limiter
 func (rl *RateLimiter) resetTimer() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
 	if rl.timer != nil {
 		rl.timer.Stop()
 	}
 
-	// Create new timer
 	rl.timer = time.AfterFunc(rl.parent.expirationTime, func() {
 		rl.parent.cleanup(rl.userID)
 	})

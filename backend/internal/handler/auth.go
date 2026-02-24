@@ -52,7 +52,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	cookie := &http.Cookie{
 		Path:     "/",
-		Name:     "accessToken",
+		Name:     "access_token",
 		Value:    accessToken,
 		MaxAge:   int(h.cfg.JwtTTL().Seconds()),
 		HttpOnly: true,
@@ -70,7 +70,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		Path:     "/",
-		Name:     "accessToken",
+		Name:     "access_token",
 		Value:    "",
 		MaxAge:   -1,
 		HttpOnly: true,

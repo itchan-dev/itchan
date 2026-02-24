@@ -24,13 +24,19 @@ func (h *Handler) ThreadGetHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	thread, err := h.APIClient.GetThread(r, shortName, threadId, page)
+	lastModified, err := h.APIClient.GetThreadLastModified(r, shortName, threadId)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	if checkNotModified(w, r, thread.LastModifiedAt) {
+	if checkNotModified(w, r, lastModified) {
+		return
+	}
+
+	thread, err := h.APIClient.GetThread(r, shortName, threadId, page)
+	if err != nil {
+		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 

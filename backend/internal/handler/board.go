@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
@@ -50,6 +51,18 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 
 	response := api.BoardResponse{Board: board}
 	writeJSON(w, response)
+}
+
+func (h *Handler) GetBoardLastModified(w http.ResponseWriter, r *http.Request) {
+	shortName := chi.URLParam(r, "board")
+
+	lastModified, err := h.board.GetLastModified(domain.BoardShortName(shortName))
+	if err != nil {
+		utils.WriteErrorAndStatusCode(w, err)
+		return
+	}
+
+	writeJSON(w, map[string]time.Time{"last_modified_at": lastModified})
 }
 
 func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
