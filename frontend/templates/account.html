@@ -1,5 +1,5 @@
 {{define "title"}}Account{{end}}
-{{define "content"}}
+{{- define "content"}}
 <h1>Account Activity</h1>
 
 <!-- User info -->
@@ -14,17 +14,16 @@
 
 <!-- Recent activity feed -->
 <h2>My Recent Posts (Last {{.Common.Validation.UserMessagesPageLimit}})</h2>
-{{if .Data.ActivityMessages}}
+{{- if .Data.ActivityMessages}}
 <div class="activity-feed">
-    {{range .Data.ActivityMessages}}
-        {{/* Render using standard post template */}}
-        {{template "post" (postData . $.Common)}}
-    {{end}}
+    {{- range .Data.ActivityMessages}}
+        {{- template "post" (postData . $.Common)}}
+    {{- end}}
 </div>
-{{else}}
+{{- else}}
 <p>No messages yet. <a href="/">Browse boards</a> to start posting!</p>
-{{end}}
+{{- end}}
 
-{{template "popup-reply-form" .Common}}
+{{- template "popup-reply-form" .Common}}
 
-{{end}}
+{{- end}}

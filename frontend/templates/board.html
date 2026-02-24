@@ -1,5 +1,5 @@
 {{define "title"}}/{{ .Data.Board.ShortName }}/ - {{ .Data.Board.Name }}{{end}}
-{{ define "content" }}
+{{- define "content"}}
     <div class="board-header">
         <h1><a href="/{{ .Data.Board.ShortName }}">/{{ .Data.Board.ShortName }}/ - {{ .Data.Board.Name }}</a></h1>
         <hr>
@@ -8,7 +8,7 @@
     <!-- New Thread Form -->
     <div class="post-form-container">
         <form action="/{{ .Data.Board.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
-             {{template "csrf-field" .Common}}
+             {{- template "csrf-field" .Common}}
              <input type="hidden" name="form_action" value="new_thread">
              <table class="form-table">
                  <tbody>
@@ -39,54 +39,46 @@
     <hr class="section-separator">
 
     <div class="threads-container">
-        {{ range $threadIndex, $thread := .Data.Board.Threads }}
-            {{ if gt $threadIndex 0 }}
+        {{- range $threadIndex, $thread := .Data.Board.Threads}}
+            {{- if gt $threadIndex 0}}
                 <hr class="thread-separator">
-            {{ end }}
+            {{- end}}
 
             <div class="thread-preview">
-                {{ if $thread.Messages }} {{/* Check if Messages slice is not empty */}}
-                    {{ $opMessage := index $thread.Messages 0 }}
-                    {{template "post" (postData $opMessage $.Common)}}
+                {{- if $thread.Messages}}
+                    {{- $opMessage := index $thread.Messages 0}}
+                    {{- template "post" (postData $opMessage $.Common)}}
 
-                    {{/* Display Reply Previews (rest of the messages) */}}
-                    {{ $previewReplies := slice $thread.Messages 1 }} {{/* Get messages from index 1 onwards */}}
-                    {{ range $replyIndex, $reply := $previewReplies }}
-                        {{/* Context already populated */}}
-                        {{template "post" (postData $reply $.Common)}}
-                    {{ end }}
+                    {{- /* Display Reply Previews (rest of the messages) */ -}}
+                    {{- $previewReplies := slice $thread.Messages 1}}
+                    {{- range $replyIndex, $reply := $previewReplies}}
+                        {{- template "post" (postData $reply $.Common)}}
+                    {{- end}}
 
-                    {{ if gt $thread.OmittedReplies 0 }}
+                    {{- if gt $thread.OmittedReplies 0}}
                          <div class="reply-summary">
                             {{ $thread.OmittedReplies }} {{if eq $thread.OmittedReplies 1}}post{{else}}posts{{end}} omitted.
                          </div>
-                    {{ end }}
-
-
-                {{ else }}
-                    {{/* Should ideally not happen if a thread exists */}}
+                    {{- end}}
+                {{- else}}
                     <p>Thread {{ $thread.Id }} has no messages.</p>
-                {{ end }}
-            </div> <!-- End thread-preview -->
-
-        {{ else }}
+                {{- end}}
+            </div>
+        {{- else}}
             <p>No threads on this board yet. Why not create one?</p>
-        {{ end }}
-    </div> <!-- End threads-container -->
+        {{- end}}
+    </div>
 
-    {{ $currentPage := .Data.CurrentPage }}
+    {{- $currentPage := .Data.CurrentPage}}
     <div class="pagination">
-        {{ $prevPage := sub $currentPage 1 }}
-        {{ $nextPage := add $currentPage 1 }}
-        {{ if gt $currentPage 1 }}
+        {{- $prevPage := sub $currentPage 1}}
+        {{- $nextPage := add $currentPage 1}}
+        {{- if gt $currentPage 1}}
         <a href="?page={{ $prevPage }}">&lt;&lt; prev</a>
-        {{ end }}
+        {{- end}}
         <form class="page-form" method="get" action=""><input type="number" class="page-input" name="page" value="{{ $currentPage }}" min="1"></form>
         <a href="?page={{ $nextPage }}">next &gt;&gt;</a>
     </div>
 
-    <!-- Delete Form -->
-    <!-- <form id="delete-form" action="/delete" method="post"> ... </form> -->
-
-    {{template "popup-reply-form" .Common}}
-{{ end }}
+    {{- template "popup-reply-form" .Common}}
+{{- end}}

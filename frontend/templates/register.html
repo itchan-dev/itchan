@@ -1,10 +1,10 @@
 {{define "title"}}Register{{end}}
-{{define "content"}}
+{{- define "content"}}
 <h2>Register / Reset Password</h2>
 <p>Enter your email and desired password. A confirmation code will be sent to your email.</p>
-{{if .Common.Validation.AllowedRegistrationDomains}}
+{{- if .Common.Validation.AllowedRegistrationDomains}}
 <p><strong>Note:</strong> Registration is restricted to the following email domains: {{range $i, $d := .Common.Validation.AllowedRegistrationDomains}}{{if $i}}, {{end}}@{{$d}}{{end}}</p>
-{{end}}
+{{- end}}
 <form method="POST" action="/register" class="auth-form">
     <table class="form-table">
         <tbody>
@@ -15,12 +15,12 @@
             <tr>
                 <td class="form-label"><label for="password">Password:</label></td>
                 <td>
-                    {{template "password-input" dict "PasswordMinLen" .Common.Validation.PasswordMinLen}}
+                    {{- template "password-input" dict "PasswordMinLen" .Common.Validation.PasswordMinLen}}
                 </td>
             </tr>
             <tr>
                 <td class="form-label"></td>
-                <td>{{template "agreement-notice"}}</td>
+                <td>{{- template "agreement-notice"}}</td>
             </tr>
             <tr>
                 <td class="form-label"></td>
@@ -31,4 +31,4 @@
 </form>
 <p style="margin-top: 1em; font-size: 0.9em;">Already have a code? <a href="/check_confirmation_code">Confirm here</a>.</p>
 <p style="font-size: 0.9em;">Want to register via invite code? <a href="/register_invite">Click here</a>.</p>
-{{end}}
+{{- end}}
