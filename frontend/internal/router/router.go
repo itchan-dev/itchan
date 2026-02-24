@@ -170,7 +170,7 @@ func rateLimitExceededRedirect(secureCookies bool) func(http.ResponseWriter, *ht
 			SameSite: http.SameSiteLaxMode,
 		})
 		target := r.Referer()
-		if target == "" || !strings.HasPrefix(target, "/") {
+		if target == "" {
 			target = "/"
 		}
 		http.Redirect(w, r, target, http.StatusSeeOther)
