@@ -8,8 +8,9 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/itchan.git`
-3. Set up the development environment (see [README.md](README.md#local-development))
-4. Create a feature branch: `git checkout -b feature/your-feature`
+3. Install git hooks: `make install-hooks`
+4. Set up the development environment (see [README.md](README.md#local-development))
+5. Create a feature branch: `git checkout -b feature/your-feature`
 
 ## Development Setup
 

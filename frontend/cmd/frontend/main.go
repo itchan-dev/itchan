@@ -16,12 +16,9 @@ import (
 )
 
 const (
-	defaultPort            = "8081"
-	templateReloadInterval = 5 * time.Second
-	apiBaseURL             = "http://api:8080/v1"
-	cookieName             = "accessToken"
-	readTimeout            = 5 * time.Second
-	writeTimeout           = 10 * time.Second
+	defaultPort  = "8081"
+	readTimeout  = 5 * time.Second
+	writeTimeout = 10 * time.Second
 )
 
 func main() {

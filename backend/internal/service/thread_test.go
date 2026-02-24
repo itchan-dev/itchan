@@ -90,6 +90,10 @@ func (m *MockThreadStorage) DeleteThread(board domain.BoardShortName, id domain.
 	return nil
 }
 
+func (m *MockThreadStorage) GetThreadLastModified(board domain.BoardShortName, id domain.ThreadId) (time.Time, error) {
+	return time.Now().UTC(), nil
+}
+
 func (m *MockThreadStorage) TogglePinnedStatus(board domain.BoardShortName, threadId domain.ThreadId) (bool, error) {
 	if m.togglePinnedStatusFunc != nil {
 		return m.togglePinnedStatusFunc(board, threadId)

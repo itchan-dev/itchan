@@ -33,13 +33,18 @@ type AuthService interface {
 	RefreshBlacklistCache() error
 }
 
+type CredentialsValidator interface {
+	Password(password string) error
+}
+
 type Auth struct {
-	storage        AuthStorage
-	email          Email
-	jwt            Jwt
-	cfg            *config.Public
-	blacklistCache *blacklist.Cache
-	emailCrypto    EmailCrypto
+	storage              AuthStorage
+	email                Email
+	jwt                  Jwt
+	cfg                  *config.Public
+	blacklistCache       *blacklist.Cache
+	emailCrypto          EmailCrypto
+	credentialsValidator CredentialsValidator
 }
 
 type EmailCrypto interface {
@@ -82,14 +87,15 @@ type Jwt interface {
 	NewToken(user domain.User) (string, error)
 }
 
-func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache, emailCrypto EmailCrypto) *Auth {
+func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache, emailCrypto EmailCrypto, credentialsValidator CredentialsValidator) *Auth {
 	return &Auth{
-		storage:        storage,
-		email:          email,
-		emailCrypto:    emailCrypto,
-		jwt:            jwt,
-		cfg:            cfg,
-		blacklistCache: blacklistCache,
+		storage:              storage,
+		email:                email,
+		emailCrypto:          emailCrypto,
+		jwt:                  jwt,
+		cfg:                  cfg,
+		blacklistCache:       blacklistCache,
+		credentialsValidator: credentialsValidator,
 	}
 }
 
@@ -100,6 +106,10 @@ func (a *Auth) Register(creds domain.Credentials) error {
 
 	err = a.email.IsCorrect(email)
 	if err != nil {
+		return err
+	}
+
+	if err := a.credentialsValidator.Password(string(creds.Password)); err != nil {
 		return err
 	}
 
@@ -264,8 +274,10 @@ func (a *Auth) Login(creds domain.Credentials) (string, error) {
 
 	emailHash := a.emailCrypto.Hash(email)
 
+	dummyHash := []byte("$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") // prevent timing attack
 	user, err := a.storage.User(emailHash)
 	if err != nil {
+		bcrypt.CompareHashAndPassword(dummyHash, []byte(password)) // constant time
 		e, ok := err.(*errors.ErrorWithStatusCode)
 		if ok && e.StatusCode == http.StatusNotFound {
 			return "", &errors.ErrorWithStatusCode{
@@ -387,7 +399,12 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (
 		}
 	}
 
-	// 4. Generate random @itchan.ru email (retry on collision)
+	// 4. Validate password
+	if err := a.credentialsValidator.Password(string(password)); err != nil {
+		return "", err
+	}
+
+	// 5. Generate random @itchan.ru email (retry on collision)
 	email := sharedutils.GenerateRandomEmail()
 	var emailHash []byte
 	for range 10 {
@@ -403,14 +420,14 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (
 		email = sharedutils.GenerateRandomEmail()
 	}
 
-	// 5. Hash password
+	// 6. Hash password
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		logger.Log.Error("failed to hash password", "error", err)
 		return "", err
 	}
 
-	// 6. Create user
+	// 7. Create user
 	// Encrypt email data
 	emailEncrypted, err := a.emailCrypto.Encrypt(email)
 	if err != nil {
@@ -433,7 +450,7 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (
 		return "", err
 	}
 
-	// 7. Mark invite as used
+	// 8. Mark invite as used
 	if err := a.storage.MarkInviteUsed(inviteCodeHash, userId); err != nil {
 		logger.Log.Error("failed to mark invite used", "user_id", userId, "error", err)
 		// Don't fail - user is already created

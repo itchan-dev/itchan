@@ -261,7 +261,7 @@ func TestAuthLoginHandler(t *testing.T) {
 		cookies := rr.Result().Cookies()
 		require.Len(t, cookies, 1)
 		cookie := cookies[0]
-		assert.Equal(t, "accessToken", cookie.Name)
+		assert.Equal(t, "access_token", cookie.Name)
 		assert.Equal(t, expectedToken, cookie.Value)
 		assert.True(t, cookie.HttpOnly)
 		assert.Equal(t, "/", cookie.Path)
@@ -301,7 +301,7 @@ func TestAuthLogoutHandler(t *testing.T) {
 
 	t.Run("successful logout", func(t *testing.T) {
 		existingCookie := &http.Cookie{
-			Name:  "accessToken",
+			Name:  "access_token",
 			Value: "some_valid_token",
 			Path:  "/",
 		}
@@ -317,7 +317,7 @@ func TestAuthLogoutHandler(t *testing.T) {
 		require.Len(t, cookies, 1)
 		clearedCookie := cookies[0]
 
-		assert.Equal(t, "accessToken", clearedCookie.Name)
+		assert.Equal(t, "access_token", clearedCookie.Name)
 		assert.Equal(t, "", clearedCookie.Value)
 		assert.Equal(t, -1, clearedCookie.MaxAge)
 		assert.True(t, clearedCookie.HttpOnly)

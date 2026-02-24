@@ -27,6 +27,7 @@ const (
 	baseTemplate           = "base.html"
 	tmplPath               = "./templates"
 	templateReloadInterval = 5 * time.Second
+	apiBaseURL             = "http://api:8080"
 )
 
 type Dependencies struct {
@@ -58,7 +59,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 	// Load templates and other dependencies
 	templates := mustLoadTemplates(tmplPath)
 	textProcessor := markdown.New(&cfg.Public)
-	apiClient := apiclient.New("http://api:8080")
+	apiClient := apiclient.New(apiBaseURL)
 
 	// Get media path from environment or use default
 	mediaPath := os.Getenv("MEDIA_PATH")

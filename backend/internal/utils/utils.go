@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"image"
+	"net/http"
 	"unicode"
 	"unicode/utf8"
 
@@ -141,6 +142,35 @@ func (e *MessageValidator) validateFileMeta(mimeType string, size int64, allowed
 		}
 	}
 
+	return nil
+}
+
+type PasswordValidator struct{ Сfg *config.Public }
+
+func (v *PasswordValidator) Password(password string) error {
+	if len(password) < v.Сfg.PasswordMinLen {
+		return &errors.ErrorWithStatusCode{
+			Message:    fmt.Sprintf("Password must be at least %d characters", v.Сfg.PasswordMinLen),
+			StatusCode: http.StatusBadRequest,
+		}
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, r := range password {
+		switch {
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		}
+	}
+	if !hasUpper || !hasLower || !hasDigit {
+		return &errors.ErrorWithStatusCode{
+			Message:    "Password must contain at least one uppercase letter, one lowercase letter, and one digit",
+			StatusCode: http.StatusBadRequest,
+		}
+	}
 	return nil
 }
 

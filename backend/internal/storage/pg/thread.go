@@ -75,6 +75,23 @@ func (s *Storage) TogglePinnedStatus(board domain.BoardShortName, threadId domai
 	return newStatus, err
 }
 
+// GetThreadLastModified returns only the last_modified_at timestamp for a thread.
+func (s *Storage) GetThreadLastModified(board domain.BoardShortName, id domain.ThreadId) (time.Time, error) {
+	var lastModified time.Time
+	err := s.db.QueryRow(
+		`SELECT last_modified_at FROM threads WHERE board = $1 AND id = $2`, board, id,
+	).Scan(&lastModified)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, &internal_errors.ErrorWithStatusCode{
+				Message: "Thread not found", StatusCode: http.StatusNotFound,
+			}
+		}
+		return time.Time{}, fmt.Errorf("failed to fetch thread last modified: %w", err)
+	}
+	return lastModified, nil
+}
+
 // =========================================================================
 // Internal Methods (Core Database Logic)
 // These methods accept a Querier and are transaction-agnostic.

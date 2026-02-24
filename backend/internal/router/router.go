@@ -138,10 +138,12 @@ func New(deps *setup.Dependencies) *chi.Mux {
 				boards.Get("/boards", h.GetBoards)
 				// GetBoard: 10 RPS per user
 				boards.With(mw.RateLimit(rl.Rps10(), mw.GetUserIDFromContext)).Get("/{board}", h.GetBoard)
+				boards.Get("/{board}/last_modified", h.GetBoardLastModified)
 				// CreateThread: 1 per minute per user
 				boards.With(mw.RateLimit(rl.OncePerMinute(), mw.GetUserIDFromContext)).Post("/{board}", h.CreateThread)
 
 				boards.Get("/{board}/{thread}", h.GetThread)
+				boards.Get("/{board}/{thread}/last_modified", h.GetThreadLastModified)
 				boards.With(mw.RateLimit(rl.OncePerSecond(), mw.GetUserIDFromContext)).Post("/{board}/{thread}", h.CreateMessage)
 				boards.Get("/{board}/{thread}/{message}", h.GetMessage)
 			})

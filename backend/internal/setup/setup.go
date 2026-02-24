@@ -83,7 +83,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 		return nil, err
 	}
 
-	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache, emailCrypto)
+	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache, emailCrypto, &utils.PasswordValidator{Сfg: &cfg.Public})
 	board := service.NewBoard(storage, utils.New(&cfg.Public), mediaStorage)
 	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public}, mediaStorage, &cfg.Public)
 	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, message, mediaStorage, cfg.Public.MaxThreadCount)

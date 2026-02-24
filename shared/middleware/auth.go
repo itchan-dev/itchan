@@ -20,7 +20,10 @@ type BlacklistCache interface {
 
 type key int
 
-const UserClaimsKey key = 0
+const (
+	UserClaimsKey key    = 0
+	CookieName    string = "access_token"
+)
 
 // Auth holds dependencies for authentication middleware
 type Auth struct {
@@ -63,7 +66,7 @@ func (a *Auth) OptionalAuth() func(http.Handler) http.Handler {
 func (a *Auth) extractUser(r *http.Request) (*domain.User, error) {
 	// Try to get token from cookie first (for browser clients)
 	var tokenString string
-	accessCookie, err := r.Cookie("accessToken")
+	accessCookie, err := r.Cookie(CookieName)
 	if err == nil {
 		tokenString = accessCookie.Value
 	} else if token, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
@@ -143,7 +146,7 @@ func (a *Auth) auth(adminOnly bool) func(http.Handler) http.Handler {
 					// Clear JWT cookie to force re-login
 					cookie := &http.Cookie{
 						Path:     "/",
-						Name:     "accessToken",
+						Name:     CookieName,
 						Value:    "",
 						MaxAge:   -1,
 						HttpOnly: true,

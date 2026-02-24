@@ -1,12 +1,15 @@
 package service
 
 import (
+	"time"
+
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
 type BoardService interface {
 	Create(creationData domain.BoardCreationData) error
 	Get(shortName domain.BoardShortName, page int) (domain.Board, error)
+	GetLastModified(shortName domain.BoardShortName) (time.Time, error)
 	Delete(shortName domain.BoardShortName) error
 	GetAll(user domain.User) ([]domain.Board, error)
 }
@@ -20,6 +23,7 @@ type Board struct {
 type BoardStorage interface {
 	CreateBoard(creationData domain.BoardCreationData) error
 	GetBoard(shortName domain.BoardShortName, page int) (domain.Board, error)
+	GetBoardLastModified(shortName domain.BoardShortName) (time.Time, error)
 	DeleteBoard(shortName domain.BoardShortName) error
 	GetBoardsByUser(user domain.User) ([]domain.Board, error)
 }
@@ -63,6 +67,13 @@ func (b *Board) Get(shortName domain.BoardShortName, page int) (domain.Board, er
 		return domain.Board{}, err
 	}
 	return board, nil
+}
+
+func (b *Board) GetLastModified(shortName domain.BoardShortName) (time.Time, error) {
+	if err := b.nameValidator.ShortName(shortName); err != nil {
+		return time.Time{}, err
+	}
+	return b.storage.GetBoardLastModified(shortName)
 }
 
 func (b *Board) GetAll(user domain.User) ([]domain.Board, error) {

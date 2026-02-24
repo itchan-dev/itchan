@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"strings"
+	"time"
 
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -43,6 +44,27 @@ func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page 
 		return thread, fmt.Errorf("cannot decode thread response: %w", err)
 	}
 	return thread, nil
+}
+
+func (c *APIClient) GetThreadLastModified(r *http.Request, shortName, threadID string) (time.Time, error) {
+	path := fmt.Sprintf("/v1/%s/%s/last_modified", shortName, threadID)
+	resp, err := c.do("GET", path, nil, r.Cookies()...)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return time.Time{}, fmt.Errorf("backend returned status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		LastModifiedAt time.Time `json:"last_modified_at"`
+	}
+	if err := utils.Decode(resp.Body, &result); err != nil {
+		return time.Time{}, fmt.Errorf("cannot decode last_modified response: %w", err)
+	}
+	return result.LastModifiedAt, nil
 }
 
 // postMultipartRequest sends a multipart/form-data POST request with JSON payload and optional file attachments
