@@ -461,7 +461,7 @@ func TestGetInvitesByUser(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("get invites for user1", func(t *testing.T) {
-		invites, err := storage.getInvitesByUser(tx, user1Id)
+		invites, err := storage.getInvitesByUser(tx, user1Id, 100, 0)
 		require.NoError(t, err)
 		assert.Len(t, invites, 2)
 		// Should be ordered by created_at DESC (most recent first)
@@ -470,7 +470,7 @@ func TestGetInvitesByUser(t *testing.T) {
 	})
 
 	t.Run("get invites for user2", func(t *testing.T) {
-		invites, err := storage.getInvitesByUser(tx, user2Id)
+		invites, err := storage.getInvitesByUser(tx, user2Id, 100, 0)
 		require.NoError(t, err)
 		assert.Len(t, invites, 1)
 		assert.Equal(t, "user2_invite_1", invites[0].CodeHash)
@@ -478,7 +478,7 @@ func TestGetInvitesByUser(t *testing.T) {
 
 	t.Run("get invites for user with no invites", func(t *testing.T) {
 		user3Id := createTestUser(t, tx, "user3@test.com")
-		invites, err := storage.getInvitesByUser(tx, user3Id)
+		invites, err := storage.getInvitesByUser(tx, user3Id, 100, 0)
 		require.NoError(t, err)
 		assert.Len(t, invites, 0)
 	})

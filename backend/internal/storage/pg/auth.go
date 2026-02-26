@@ -224,9 +224,9 @@ func (s *Storage) InviteCodeByHash(codeHash string) (domain.InviteCode, error) {
 	return s.inviteCodeByHash(s.db, codeHash)
 }
 
-// GetInvitesByUser returns all invite codes created by a user
-func (s *Storage) GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error) {
-	return s.getInvitesByUser(s.db, userId)
+// GetInvitesByUser returns invite codes created by a user, with pagination.
+func (s *Storage) GetInvitesByUser(userId domain.UserId, limit, offset int) ([]domain.InviteCode, error) {
+	return s.getInvitesByUser(s.db, userId, limit, offset)
 }
 
 // CountActiveInvites returns the number of active (unused, unexpired) invites for a user
@@ -302,13 +302,14 @@ func (s *Storage) inviteCodeByHash(q Querier, codeHash string) (domain.InviteCod
 	return invite, nil
 }
 
-func (s *Storage) getInvitesByUser(q Querier, userId domain.UserId) ([]domain.InviteCode, error) {
+func (s *Storage) getInvitesByUser(q Querier, userId domain.UserId, limit, offset int) ([]domain.InviteCode, error) {
 	rows, err := q.Query(`
 		SELECT code_hash, created_by, created_at, expires_at, used_by, used_at
 		FROM invite_codes
 		WHERE created_by = $1
-		ORDER BY created_at DESC`,
-		userId,
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`,
+		userId, limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query user invites: %w", err)

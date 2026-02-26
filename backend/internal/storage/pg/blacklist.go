@@ -49,10 +49,10 @@ func (s *Storage) IsUserBlacklisted(userId domain.UserId) (bool, error) {
 	return s.isUserBlacklisted(s.db, userId)
 }
 
-// GetBlacklistedUsersWithDetails retrieves all blacklisted users with their full details
-// (email, reason, blacklisted_at, blacklisted_by) for admin display purposes.
-func (s *Storage) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
-	return s.getBlacklistedUsersWithDetails(s.db)
+// GetBlacklistedUsersWithDetails retrieves blacklisted users with their full details
+// (reason, blacklisted_at, blacklisted_by) for admin display purposes, with pagination.
+func (s *Storage) GetBlacklistedUsersWithDetails(limit, offset int) ([]domain.BlacklistEntry, error) {
+	return s.getBlacklistedUsersWithDetails(s.db, limit, offset)
 }
 
 // =========================================================================
@@ -151,8 +151,8 @@ func (s *Storage) isUserBlacklisted(q Querier, userId domain.UserId) (bool, erro
 	return exists, nil
 }
 
-// getBlacklistedUsersWithDetails contains the core logic for fetching all blacklist entries with details.
-func (s *Storage) getBlacklistedUsersWithDetails(q Querier) ([]domain.BlacklistEntry, error) {
+// getBlacklistedUsersWithDetails contains the core logic for fetching blacklist entries with details.
+func (s *Storage) getBlacklistedUsersWithDetails(q Querier, limit, offset int) ([]domain.BlacklistEntry, error) {
 	rows, err := q.Query(`
 		SELECT
 			ub.user_id,
@@ -160,7 +160,9 @@ func (s *Storage) getBlacklistedUsersWithDetails(q Querier) ([]domain.BlacklistE
 			ub.reason,
 			ub.blacklisted_by
 		FROM user_blacklist ub
-		ORDER BY ub.blacklisted_at DESC`,
+		ORDER BY ub.blacklisted_at DESC
+		LIMIT $1 OFFSET $2`,
+		limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query blacklisted users with details: %w", err)

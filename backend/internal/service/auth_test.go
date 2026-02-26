@@ -29,12 +29,12 @@ type MockAuthStorage struct {
 	IsUserBlacklistedFunc              func(userId domain.UserId) (bool, error)
 	BlacklistUserFunc                  func(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
 	UnblacklistUserFunc                func(userId domain.UserId) error
-	GetBlacklistedUsersWithDetailsFunc func() ([]domain.BlacklistEntry, error)
+	GetBlacklistedUsersWithDetailsFunc func(limit, offset int) ([]domain.BlacklistEntry, error)
 
 	// Invite code function fields
 	SaveInviteCodeFunc      func(invite domain.InviteCode) error
 	InviteCodeByHashFunc    func(codeHash string) (domain.InviteCode, error)
-	GetInvitesByUserFunc    func(userId domain.UserId) ([]domain.InviteCode, error)
+	GetInvitesByUserFunc    func(userId domain.UserId, limit, offset int) ([]domain.InviteCode, error)
 	CountActiveInvitesFunc  func(userId domain.UserId) (int, error)
 	MarkInviteUsedFunc      func(codeHash string, usedBy domain.UserId) error
 	DeleteInviteCodeFunc    func(codeHash string) error
@@ -118,9 +118,9 @@ func (m *MockAuthStorage) UnblacklistUser(userId domain.UserId) error {
 	return nil
 }
 
-func (m *MockAuthStorage) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
+func (m *MockAuthStorage) GetBlacklistedUsersWithDetails(limit, offset int) ([]domain.BlacklistEntry, error) {
 	if m.GetBlacklistedUsersWithDetailsFunc != nil {
-		return m.GetBlacklistedUsersWithDetailsFunc()
+		return m.GetBlacklistedUsersWithDetailsFunc(limit, offset)
 	}
 	return nil, nil
 }
@@ -140,9 +140,9 @@ func (m *MockAuthStorage) InviteCodeByHash(codeHash string) (domain.InviteCode, 
 	return domain.InviteCode{}, &internal_errors.ErrorWithStatusCode{Message: "Invite code not found", StatusCode: http.StatusNotFound}
 }
 
-func (m *MockAuthStorage) GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error) {
+func (m *MockAuthStorage) GetInvitesByUser(userId domain.UserId, limit, offset int) ([]domain.InviteCode, error) {
 	if m.GetInvitesByUserFunc != nil {
-		return m.GetInvitesByUserFunc(userId)
+		return m.GetInvitesByUserFunc(userId, limit, offset)
 	}
 	return nil, nil
 }
@@ -1649,14 +1649,14 @@ func TestGetUserInvites(t *testing.T) {
 			{CodeHash: "hash1", CreatedBy: userId},
 			{CodeHash: "hash2", CreatedBy: userId},
 		}
-		storage.GetInvitesByUserFunc = func(id domain.UserId) ([]domain.InviteCode, error) {
+		storage.GetInvitesByUserFunc = func(id domain.UserId, limit, offset int) ([]domain.InviteCode, error) {
 			assert.Equal(t, userId, id)
 			return expectedInvites, nil
 		}
 		defer func() { storage.GetInvitesByUserFunc = nil }()
 
 		// Act
-		invites, err := service.GetUserInvites(userId)
+		invites, err := service.GetUserInvites(userId, 1)
 
 		// Assert
 		require.NoError(t, err)
@@ -1666,13 +1666,13 @@ func TestGetUserInvites(t *testing.T) {
 	t.Run("storage error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("storage error")
-		storage.GetInvitesByUserFunc = func(id domain.UserId) ([]domain.InviteCode, error) {
+		storage.GetInvitesByUserFunc = func(id domain.UserId, limit, offset int) ([]domain.InviteCode, error) {
 			return nil, mockError
 		}
 		defer func() { storage.GetInvitesByUserFunc = nil }()
 
 		// Act
-		invites, err := service.GetUserInvites(userId)
+		invites, err := service.GetUserInvites(userId, 1)
 
 		// Assert
 		require.Error(t, err)
@@ -1979,13 +1979,13 @@ func TestGetBlacklistedUsersWithDetails(t *testing.T) {
 			{UserId: 1, Reason: "Spam", BlacklistedBy: 100},
 			{UserId: 2, Reason: "Harassment", BlacklistedBy: 100},
 		}
-		storage.GetBlacklistedUsersWithDetailsFunc = func() ([]domain.BlacklistEntry, error) {
+		storage.GetBlacklistedUsersWithDetailsFunc = func(limit, offset int) ([]domain.BlacklistEntry, error) {
 			return expectedEntries, nil
 		}
 		defer func() { storage.GetBlacklistedUsersWithDetailsFunc = nil }()
 
 		// Act
-		entries, err := service.GetBlacklistedUsersWithDetails()
+		entries, err := service.GetBlacklistedUsersWithDetails(1)
 
 		// Assert
 		require.NoError(t, err)
@@ -1995,13 +1995,13 @@ func TestGetBlacklistedUsersWithDetails(t *testing.T) {
 	t.Run("storage error", func(t *testing.T) {
 		// Arrange
 		mockError := errors.New("storage error")
-		storage.GetBlacklistedUsersWithDetailsFunc = func() ([]domain.BlacklistEntry, error) {
+		storage.GetBlacklistedUsersWithDetailsFunc = func(limit, offset int) ([]domain.BlacklistEntry, error) {
 			return nil, mockError
 		}
 		defer func() { storage.GetBlacklistedUsersWithDetailsFunc = nil }()
 
 		// Act
-		entries, err := service.GetBlacklistedUsersWithDetails()
+		entries, err := service.GetBlacklistedUsersWithDetails(1)
 
 		// Assert
 		require.Error(t, err)

@@ -2,9 +2,11 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
@@ -55,11 +57,18 @@ func (h *Handler) GenerateInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetMyInvites handles GET /v1/invites
-// Returns all invite codes created by the authenticated user
+// Returns invite codes created by the authenticated user, with pagination.
 func (h *Handler) GetMyInvites(w http.ResponseWriter, r *http.Request) {
 	user := mw.GetUserFromContext(r)
 
-	invites, err := h.auth.GetUserInvites(user.Id)
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	invites, err := h.auth.GetUserInvites(user.Id, page)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -70,7 +79,7 @@ func (h *Handler) GetMyInvites(w http.ResponseWriter, r *http.Request) {
 		invites = []domain.InviteCode{}
 	}
 
-	writeJSON(w, invites)
+	writeJSON(w, api.InviteListResponse{Invites: invites, Page: page})
 }
 
 // RevokeInvite handles DELETE /v1/invites/{codeHash}

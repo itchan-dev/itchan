@@ -8,28 +8,31 @@ import (
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/api"
-	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-// GetBlacklistedUsers returns all blacklisted users
-func (c *APIClient) GetBlacklistedUsers(r *http.Request) ([]domain.BlacklistEntry, error) {
-	resp, err := c.do("GET", "/v1/admin/blacklist", nil, r.Cookies()...)
+// GetBlacklistedUsers returns blacklisted users for the given page
+func (c *APIClient) GetBlacklistedUsers(r *http.Request, page int) (api.BlacklistResponse, error) {
+	path := "/v1/admin/blacklist"
+	if page > 1 {
+		path = fmt.Sprintf("%s?page=%d", path, page)
+	}
+	resp, err := c.do("GET", path, nil, r.Cookies()...)
 	if err != nil {
-		return nil, err
+		return api.BlacklistResponse{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to get blacklisted users: %s", string(bodyBytes))
+		return api.BlacklistResponse{}, fmt.Errorf("failed to get blacklisted users: %s", string(bodyBytes))
 	}
 
 	var result api.BlacklistResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode blacklist response: %w", err)
+		return api.BlacklistResponse{}, fmt.Errorf("failed to decode blacklist response: %w", err)
 	}
 
-	return result.Users, nil
+	return result, nil
 }
 
 // UnblacklistUser removes a user from the blacklist

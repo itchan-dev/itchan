@@ -70,7 +70,6 @@
         {{- end}}
     </tbody>
 </table>
-{{- else}}
-<p>No invites found. Generate one to get started!</p>
 {{- end}}
+{{- template "pagination" .Data.Page}}
 {{- end}}

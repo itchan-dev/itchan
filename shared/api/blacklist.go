@@ -12,4 +12,5 @@ type BlacklistUserRequest struct {
 
 type BlacklistResponse struct {
 	Users []domain.BlacklistEntry `json:"users"`
+	Page  int                     `json:"page"`
 }

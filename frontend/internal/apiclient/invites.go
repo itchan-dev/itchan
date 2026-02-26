@@ -6,37 +6,37 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
-// GetMyInvites fetches all invite codes created by the authenticated user
-func (c *APIClient) GetMyInvites(r *http.Request) ([]domain.InviteCode, error) {
-	resp, err := c.do("GET", "/v1/invites", nil, r.Cookies()...)
+// GetMyInvites fetches invite codes created by the authenticated user for the given page
+func (c *APIClient) GetMyInvites(r *http.Request, page int) (api.InviteListResponse, error) {
+	path := "/v1/invites"
+	if page > 1 {
+		path = fmt.Sprintf("%s?page=%d", path, page)
+	}
+	resp, err := c.do("GET", path, nil, r.Cookies()...)
 	if err != nil {
-		return nil, err
+		return api.InviteListResponse{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to get invites: %s", string(bodyBytes))
+		return api.InviteListResponse{}, fmt.Errorf("failed to get invites: %s", string(bodyBytes))
 	}
 
-	var invites []domain.InviteCode
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+	var result api.InviteListResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return api.InviteListResponse{}, fmt.Errorf("failed to parse invites: %w", err)
 	}
 
-	if err := json.Unmarshal(bodyBytes, &invites); err != nil {
-		return nil, fmt.Errorf("failed to parse invites: %w", err)
+	if result.Invites == nil {
+		result.Invites = []domain.InviteCode{}
 	}
 
-	if invites == nil {
-		invites = []domain.InviteCode{}
-	}
-
-	return invites, nil
+	return result, nil
 }
 
 // GenerateInvite creates a new invite code for the authenticated user

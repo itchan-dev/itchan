@@ -39,8 +39,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.renderTemplate(w, r, "board.html", frontend_domain.BoardPageData{
-		Board:       renderBoard(board),
-		CurrentPage: page,
+		Board: renderBoard(board),
 	})
 }
 

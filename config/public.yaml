@@ -29,6 +29,10 @@ min_account_age_for_invites: 720h    # 30 days (1 month)
 # User activity page settings
 user_messages_page_limit: 50          # Number of messages/replies shown on account page
 
+# Pagination limits
+blacklist_page_limit: 20              # Number of blacklisted users per page on admin panel
+invites_page_limit: 20                # Number of invite codes per page on invites page
+
 # Static file caching (CSS, JS, images)
 static_cache_max_age: 720h            # 30 days
 

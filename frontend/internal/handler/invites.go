@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
@@ -14,28 +15,38 @@ import (
 func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 	user := mw.GetUserFromContext(r)
 
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
 	var templateData struct {
 		Invites          []domain.InviteCode
+		Page             int
 		RemainingInvites int
 		AccountAgeDays   int
 		RequiredAgeDays  int
 		IsEligibleByAge  bool
 	}
 
-	invites, err := h.APIClient.GetMyInvites(r)
+	result, err := h.APIClient.GetMyInvites(r, page)
 	var errMsg string
 	if err != nil {
 		logger.Log.Error("failed to get invites from API", "error", err)
 		errMsg = fmt.Sprintf("Failed to load invites: %v", err)
-		invites = []domain.InviteCode{}
+		result.Invites = []domain.InviteCode{}
+		result.Page = page
 	}
-	templateData.Invites = invites
+	templateData.Invites = result.Invites
+	templateData.Page = result.Page
 
 	if user.Admin {
 		templateData.RemainingInvites = -1
 	} else {
 		unusedCount := 0
-		for _, invite := range invites {
+		for _, invite := range result.Invites {
 			if invite.UsedBy == nil {
 				unusedCount++
 			}

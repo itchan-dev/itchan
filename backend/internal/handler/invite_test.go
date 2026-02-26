@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -9,9 +10,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupInviteTestHandler(authService *MockAuthService) (*Handler, *chi.Mux) {
@@ -193,7 +196,7 @@ func TestGetMyInvites(t *testing.T) {
 		}
 
 		mockService := &MockAuthService{
-			MockGetUserInvites: func(userId domain.UserId) ([]domain.InviteCode, error) {
+			MockGetUserInvites: func(userId domain.UserId, page int) ([]domain.InviteCode, error) {
 				assert.Equal(t, domain.UserId(123), userId)
 				return expectedInvites, nil
 			},
@@ -211,7 +214,7 @@ func TestGetMyInvites(t *testing.T) {
 
 	t.Run("return empty array when no invites", func(t *testing.T) {
 		mockService := &MockAuthService{
-			MockGetUserInvites: func(userId domain.UserId) ([]domain.InviteCode, error) {
+			MockGetUserInvites: func(userId domain.UserId, page int) ([]domain.InviteCode, error) {
 				return nil, nil
 			},
 		}
@@ -223,13 +226,17 @@ func TestGetMyInvites(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		// Should return empty array, not null
-		assert.Equal(t, "[]\n", rr.Body.String())
+		var response api.InviteListResponse
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.NotNil(t, response.Invites)
+		assert.Len(t, response.Invites, 0)
 	})
 
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("database error")
 		mockService := &MockAuthService{
-			MockGetUserInvites: func(userId domain.UserId) ([]domain.InviteCode, error) {
+			MockGetUserInvites: func(userId domain.UserId, page int) ([]domain.InviteCode, error) {
 				return nil, mockErr
 			},
 		}

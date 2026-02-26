@@ -234,7 +234,8 @@ func TestBoardGet(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, expectedBoard, board)
+		assert.Equal(t, expectedBoard.BoardMetadata, board.BoardMetadata)
+		assert.Equal(t, requestedPage, board.Page)
 		assert.True(t, storageCalled, "Storage GetBoard should be called")
 	})
 
@@ -322,7 +323,8 @@ func TestBoardGet(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Equal(t, expectedBoard, board)
+		assert.Equal(t, expectedBoard.BoardMetadata, board.BoardMetadata)
+		assert.Equal(t, 1, board.Page, "Page should be corrected to 1")
 		assert.True(t, storageCalled, "Storage GetBoard should be called")
 	})
 }

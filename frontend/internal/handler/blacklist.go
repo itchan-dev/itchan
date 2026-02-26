@@ -3,10 +3,32 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
 )
+
+// AdminGetHandler displays the admin panel with blacklisted users
+func (h *Handler) AdminGetHandler(w http.ResponseWriter, r *http.Request) {
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	result, err := h.APIClient.GetBlacklistedUsers(r, page)
+	var errMsg string
+	if err != nil {
+		logger.Log.Error("failed to get blacklisted users from API", "error", err)
+		errMsg = fmt.Sprintf("Failed to load blacklisted users: %v", err)
+		result = api.BlacklistResponse{Users: []domain.BlacklistEntry{}, Page: page}
+	}
+
+	h.renderTemplateWithError(w, r, "admin.html", result, errMsg)
+}
 
 // BlacklistUserHandler handles blacklist requests from the UI
 func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
@@ -40,24 +62,6 @@ func (h *Handler) BlacklistUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.redirectWithFlash(w, r, targetURL, flashCookieSuccess, "User blacklisted successfully")
-}
-
-// AdminGetHandler displays the admin panel with blacklisted users
-func (h *Handler) AdminGetHandler(w http.ResponseWriter, r *http.Request) {
-	var templateData struct {
-		BlacklistedUsers []domain.BlacklistEntry
-	}
-
-	users, err := h.APIClient.GetBlacklistedUsers(r)
-	var errMsg string
-	if err != nil {
-		logger.Log.Error("failed to get blacklisted users from API", "error", err)
-		errMsg = fmt.Sprintf("Failed to load blacklisted users: %v", err)
-		users = []domain.BlacklistEntry{}
-	}
-	templateData.BlacklistedUsers = users
-
-	h.renderTemplateWithError(w, r, "admin.html", templateData, errMsg)
 }
 
 // UnblacklistUserHandler removes a user from the blacklist

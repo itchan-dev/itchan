@@ -23,13 +23,13 @@ type AuthService interface {
 	// Invite system methods
 	RegisterWithInvite(inviteCode string, password domain.Password) (string, error)
 	GenerateInvite(user domain.User) (*domain.InviteCodeWithPlaintext, error)
-	GetUserInvites(userId domain.UserId) ([]domain.InviteCode, error)
+	GetUserInvites(userId domain.UserId, page int) ([]domain.InviteCode, error)
 	RevokeInvite(userId domain.UserId, codeHash string) error
 
 	// Admin blacklist operations
 	BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
 	UnblacklistUser(userId domain.UserId) error
-	GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error)
+	GetBlacklistedUsersWithDetails(page int) ([]domain.BlacklistEntry, error)
 	RefreshBlacklistCache() error
 }
 
@@ -65,7 +65,7 @@ type AuthStorage interface {
 	// Invite code operations
 	SaveInviteCode(invite domain.InviteCode) error
 	InviteCodeByHash(codeHash string) (domain.InviteCode, error)
-	GetInvitesByUser(userId domain.UserId) ([]domain.InviteCode, error)
+	GetInvitesByUser(userId domain.UserId, limit, offset int) ([]domain.InviteCode, error)
 	CountActiveInvites(userId domain.UserId) (int, error)
 	MarkInviteUsed(codeHash string, usedBy domain.UserId) error
 	DeleteInviteCode(codeHash string) error
@@ -75,7 +75,7 @@ type AuthStorage interface {
 	IsUserBlacklisted(userId domain.UserId) (bool, error)
 	BlacklistUser(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
 	UnblacklistUser(userId domain.UserId) error
-	GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error)
+	GetBlacklistedUsersWithDetails(limit, offset int) ([]domain.BlacklistEntry, error)
 }
 
 type Email interface {
@@ -353,8 +353,11 @@ func (a *Auth) UnblacklistUser(userId domain.UserId) error {
 	return nil
 }
 
-func (a *Auth) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
-	return a.storage.GetBlacklistedUsersWithDetails()
+func (a *Auth) GetBlacklistedUsersWithDetails(page int) ([]domain.BlacklistEntry, error) {
+	page = max(1, page)
+	limit := a.cfg.BlacklistPageLimit
+	offset := (page - 1) * limit
+	return a.storage.GetBlacklistedUsersWithDetails(limit, offset)
 }
 
 func (a *Auth) RefreshBlacklistCache() error {
@@ -538,9 +541,12 @@ func (a *Auth) GenerateInvite(user domain.User) (*domain.InviteCodeWithPlaintext
 	}, nil
 }
 
-// GetUserInvites returns all invite codes created by a user
-func (a *Auth) GetUserInvites(userId domain.UserId) ([]domain.InviteCode, error) {
-	return a.storage.GetInvitesByUser(userId)
+// GetUserInvites returns invite codes created by a user, with pagination.
+func (a *Auth) GetUserInvites(userId domain.UserId, page int) ([]domain.InviteCode, error) {
+	page = max(1, page)
+	limit := a.cfg.InvitesPageLimit
+	offset := (page - 1) * limit
+	return a.storage.GetInvitesByUser(userId, limit, offset)
 }
 
 // RevokeInvite deletes an unused invite code

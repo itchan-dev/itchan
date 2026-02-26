@@ -61,6 +61,10 @@ type Public struct {
 	// User activity page settings
 	UserMessagesPageLimit int `yaml:"user_messages_page_limit"` // Number of messages/replies shown on account page
 
+	// Pagination limits
+	BlacklistPageLimit int `yaml:"blacklist_page_limit"` // Number of blacklisted users per page on admin panel
+	InvitesPageLimit   int `yaml:"invites_page_limit"`   // Number of invite codes per page on invites page
+
 	// Message processing settings
 	MaxRepliesPerMessage int `yaml:"max_replies_per_message"` // Maximum number of >>thread#msg reply links per message
 
@@ -76,11 +80,11 @@ type Public struct {
 }
 
 type MediaConfig struct {
-	ThumbnailMaxSize     int `yaml:"thumbnail_max_size"`     // Max dimension (px) for generated thumbnails (backend)
-	ThumbnailDisplayOp   int `yaml:"thumbnail_display_op"`   // Display size (px) for OP post thumbnails (frontend)
+	ThumbnailMaxSize      int `yaml:"thumbnail_max_size"`      // Max dimension (px) for generated thumbnails (backend)
+	ThumbnailDisplayOp    int `yaml:"thumbnail_display_op"`    // Display size (px) for OP post thumbnails (frontend)
 	ThumbnailDisplayReply int `yaml:"thumbnail_display_reply"` // Display size (px) for reply post thumbnails (frontend)
-	JpegQualityMain      int `yaml:"jpeg_quality_main"`      // JPEG quality for main images (0-100)
-	JpegQualityThumbnail int `yaml:"jpeg_quality_thumbnail"` // JPEG quality for thumbnails (0-100)
+	JpegQualityMain       int `yaml:"jpeg_quality_main"`       // JPEG quality for main images (0-100)
+	JpegQualityThumbnail  int `yaml:"jpeg_quality_thumbnail"`  // JPEG quality for thumbnails (0-100)
 }
 
 type Pg struct {
@@ -237,6 +241,14 @@ func applyValidationDefaults(public *Public) {
 	// User activity page defaults
 	if public.UserMessagesPageLimit == 0 {
 		public.UserMessagesPageLimit = 50
+	}
+
+	// Pagination defaults
+	if public.BlacklistPageLimit == 0 {
+		public.BlacklistPageLimit = 20
+	}
+	if public.InvitesPageLimit == 0 {
+		public.InvitesPageLimit = 20
 	}
 
 	// Thread pagination defaults

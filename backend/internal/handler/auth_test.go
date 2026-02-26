@@ -21,11 +21,11 @@ type MockAuthService struct {
 	MockLogin                          func(creds domain.Credentials) (string, error)
 	MockBlacklistUser                  func(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
 	MockUnblacklistUser                func(userId domain.UserId) error
-	MockGetBlacklistedUsersWithDetails func() ([]domain.BlacklistEntry, error)
+	MockGetBlacklistedUsersWithDetails func(page int) ([]domain.BlacklistEntry, error)
 	MockRefreshBlacklistCache          func() error
 	MockRegisterWithInvite             func(inviteCode string, password domain.Password) (string, error)
 	MockGenerateInvite                 func(user domain.User) (*domain.InviteCodeWithPlaintext, error)
-	MockGetUserInvites                 func(userId domain.UserId) ([]domain.InviteCode, error)
+	MockGetUserInvites                 func(userId domain.UserId, page int) ([]domain.InviteCode, error)
 	MockRevokeInvite                   func(userId domain.UserId, codeHash string) error
 }
 
@@ -64,9 +64,9 @@ func (m *MockAuthService) UnblacklistUser(userId domain.UserId) error {
 	return nil
 }
 
-func (m *MockAuthService) GetBlacklistedUsersWithDetails() ([]domain.BlacklistEntry, error) {
+func (m *MockAuthService) GetBlacklistedUsersWithDetails(page int) ([]domain.BlacklistEntry, error) {
 	if m.MockGetBlacklistedUsersWithDetails != nil {
-		return m.MockGetBlacklistedUsersWithDetails()
+		return m.MockGetBlacklistedUsersWithDetails(page)
 	}
 	return nil, nil
 }
@@ -100,9 +100,9 @@ func (m *MockAuthService) GenerateInvite(user domain.User) (*domain.InviteCodeWi
 	}, nil
 }
 
-func (m *MockAuthService) GetUserInvites(userId domain.UserId) ([]domain.InviteCode, error) {
+func (m *MockAuthService) GetUserInvites(userId domain.UserId, page int) ([]domain.InviteCode, error) {
 	if m.MockGetUserInvites != nil {
-		return m.MockGetUserInvites(userId)
+		return m.MockGetUserInvites(userId, page)
 	}
 	return []domain.InviteCode{}, nil
 }

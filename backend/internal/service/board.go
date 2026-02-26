@@ -66,6 +66,7 @@ func (b *Board) Get(shortName domain.BoardShortName, page int) (domain.Board, er
 	if err != nil {
 		return domain.Board{}, err
 	}
+	board.Page = page
 	return board, nil
 }
 

@@ -3,7 +3,7 @@
 <h1>Admin Panel</h1>
 
 <h2>Blacklisted Users</h2>
-{{- if .Data.BlacklistedUsers}}
+{{- if .Data.Users}}
 <table class="blacklist-table">
     <thead>
         <tr>
@@ -15,7 +15,7 @@
         </tr>
     </thead>
     <tbody>
-        {{- range .Data.BlacklistedUsers}}
+        {{- range .Data.Users}}
         <tr>
             <td>{{.UserId}}</td>
             <td>{{.BlacklistedAt.UTC.Format "2006-01-02 15:04:05"}} GMT</td>
@@ -32,7 +32,6 @@
         {{- end}}
     </tbody>
 </table>
-{{- else}}
-<p>No blacklisted users.</p>
 {{- end}}
+{{- template "pagination" .Data.Page}}
 {{- end}}

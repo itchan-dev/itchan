@@ -69,16 +69,7 @@
         {{- end}}
     </div>
 
-    {{- $currentPage := .Data.CurrentPage}}
-    <div class="pagination">
-        {{- $prevPage := sub $currentPage 1}}
-        {{- $nextPage := add $currentPage 1}}
-        {{- if gt $currentPage 1}}
-        <a href="?page={{ $prevPage }}">&lt;&lt; prev</a>
-        {{- end}}
-        <form class="page-form" method="get" action=""><input type="number" class="page-input" name="page" value="{{ $currentPage }}" min="1"></form>
-        <a href="?page={{ $nextPage }}">next &gt;&gt;</a>
-    </div>
+    {{- template "pagination" .Data.Board.Page}}
 
     {{- template "popup-reply-form" .Common}}
 {{- end}}

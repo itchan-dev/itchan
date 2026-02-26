@@ -156,9 +156,9 @@ func formatAcceptMimeTypes(images, videos []string) string {
 }
 
 var functionMap template.FuncMap = template.FuncMap{
-	"sub":                   sub,
-	"add":                   add,
-	"dict":                  dict,
+	"sub":  sub,
+	"add":  add,
+	"dict": dict,
 	"postData": func(msg *frontend_domain.Message, common frontend_domain.CommonTemplateData) *frontend_domain.PostData {
 		return &frontend_domain.PostData{Message: msg, Common: &common}
 	},

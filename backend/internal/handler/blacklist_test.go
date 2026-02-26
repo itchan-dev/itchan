@@ -210,7 +210,7 @@ func TestGetBlacklistedUsers(t *testing.T) {
 		}
 
 		mockAuth := &MockAuthService{
-			MockGetBlacklistedUsersWithDetails: func() ([]domain.BlacklistEntry, error) {
+			MockGetBlacklistedUsersWithDetails: func(page int) ([]domain.BlacklistEntry, error) {
 				return expectedEntries, nil
 			},
 		}
@@ -234,7 +234,7 @@ func TestGetBlacklistedUsers(t *testing.T) {
 
 	t.Run("successful retrieval with empty list", func(t *testing.T) {
 		mockAuth := &MockAuthService{
-			MockGetBlacklistedUsersWithDetails: func() ([]domain.BlacklistEntry, error) {
+			MockGetBlacklistedUsersWithDetails: func(page int) ([]domain.BlacklistEntry, error) {
 				return nil, nil
 			},
 		}
@@ -259,7 +259,7 @@ func TestGetBlacklistedUsers(t *testing.T) {
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("database error")
 		mockAuth := &MockAuthService{
-			MockGetBlacklistedUsersWithDetails: func() ([]domain.BlacklistEntry, error) {
+			MockGetBlacklistedUsersWithDetails: func(page int) ([]domain.BlacklistEntry, error) {
 				return nil, mockErr
 			},
 		}

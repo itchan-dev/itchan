@@ -22,4 +22,5 @@ type BoardMetadata struct {
 type Board struct {
 	BoardMetadata
 	Threads []*Thread
+	Page    int `json:"page,omitempty"`
 }

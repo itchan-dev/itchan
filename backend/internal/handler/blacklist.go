@@ -74,7 +74,14 @@ func (h *Handler) RefreshBlacklistCache(w http.ResponseWriter, r *http.Request) 
 
 // GetBlacklistedUsers handles GET /v1/admin/blacklist
 func (h *Handler) GetBlacklistedUsers(w http.ResponseWriter, r *http.Request) {
-	entries, err := h.auth.GetBlacklistedUsersWithDetails()
+	page := 1
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	entries, err := h.auth.GetBlacklistedUsersWithDetails(page)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
@@ -85,5 +92,5 @@ func (h *Handler) GetBlacklistedUsers(w http.ResponseWriter, r *http.Request) {
 		entries = []domain.BlacklistEntry{}
 	}
 
-	writeJSON(w, api.BlacklistResponse{Users: entries})
+	writeJSON(w, api.BlacklistResponse{Users: entries, Page: page})
 }

@@ -207,7 +207,7 @@ func TestGetBlacklistedUsersWithDetails(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("get all blacklisted users with details", func(t *testing.T) {
-		entries, err := storage.getBlacklistedUsersWithDetails(tx)
+		entries, err := storage.getBlacklistedUsersWithDetails(tx, 100, 0)
 		require.NoError(t, err)
 
 		assert.Len(t, entries, 2)
@@ -242,7 +242,7 @@ func TestGetBlacklistedUsersWithDetails(t *testing.T) {
 		tx2, rollback2 := beginTx(t)
 		defer rollback2()
 
-		entries, err := storage.getBlacklistedUsersWithDetails(tx2)
+		entries, err := storage.getBlacklistedUsersWithDetails(tx2, 100, 0)
 		require.NoError(t, err)
 		assert.Len(t, entries, 0)
 	})

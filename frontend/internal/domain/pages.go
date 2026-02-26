@@ -8,8 +8,7 @@ type IndexPageData struct {
 }
 
 type BoardPageData struct {
-	Board       *Board
-	CurrentPage int
+	Board *Board
 }
 
 type ThreadPageData struct {

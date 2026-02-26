@@ -227,3 +227,18 @@
 {{- $text := .Text}}{{if not $text}}{{$text = printf ">>%d#%d" .ThreadId .MessageId}}{{end}}
 <a href="/{{.Board}}/{{.ThreadId}}{{$pageParam}}#{{$anchor}}{{.MessageId}}" class="{{$class}}" data-board="{{.Board}}" data-message-id="{{.MessageId}}" data-thread-id="{{.ThreadId}}">{{$text}}</a>
 {{- end}}
+
+{{/* Pagination controls - used on board, admin, and invites pages */}}
+{{/* Expects an int (page number) */}}
+{{- define "pagination"}}
+{{- $currentPage := .}}
+<div class="pagination">
+    {{- $prevPage := sub $currentPage 1}}
+    {{- $nextPage := add $currentPage 1}}
+    {{- if gt $currentPage 1}}
+    <a href="?page={{ $prevPage }}">&lt;&lt; prev</a>
+    {{- end}}
+    <form class="page-form" method="get" action=""><input type="number" class="page-input" name="page" value="{{ $currentPage }}" min="1"></form>
+    <a href="?page={{ $nextPage }}">next &gt;&gt;</a>
+</div>
+{{- end}}

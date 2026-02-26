@@ -63,6 +63,7 @@ business logic or data transformation.
 | `sub`, `add` | Arithmetic (Go templates have no operators) |
 | `dict` | Build map for UI widget partials |
 | `postData` | Construct typed `PostData` for the `post` partial |
+| `paginationData` | Construct typed `PaginationData` for the `pagination` partial |
 | `bytesToMB` | Format byte count for display |
 | `mimeTypeExtensions` | Format MIME types as extensions for display |
 | `formatAcceptMimeTypes` | Build HTML `accept` attribute string |
@@ -93,4 +94,5 @@ business logic or data transformation.
 - `popup-reply-form` — floating reply form
 - `delete-button` / `pin-toggle-button` / `blacklist-button` — admin action forms
 - `message-link` — `>>threadId#msgId` reply link
+- `pagination` — prev/next page controls with page number input
 - `agreement-notice` — registration legal notice
