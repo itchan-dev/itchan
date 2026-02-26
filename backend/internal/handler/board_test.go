@@ -186,14 +186,20 @@ func TestGetBoardHandler(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
-	t.Run("invalid page parameter", func(t *testing.T) {
-		_, router := setupBoardTestHandler(&MockBoardService{})
+	t.Run("invalid page parameter defaults to page 1", func(t *testing.T) {
+		mockService := &MockBoardService{
+			MockGet: func(shortName domain.BoardShortName, page int) (domain.Board, error) {
+				assert.Equal(t, 1, page)
+				return domain.Board{BoardMetadata: domain.BoardMetadata{ShortName: shortName}}, nil
+			},
+		}
+		_, router := setupBoardTestHandler(mockService)
 
 		req := createRequest(t, http.MethodGet, routePrefix+"?page=abc", nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
 	t.Run("service error", func(t *testing.T) {
@@ -282,7 +288,7 @@ func TestGetBoardsHandler(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, response.Boards, len(expectedBoards))
 		for i, boardMeta := range response.Boards {
-			assert.Equal(t, expectedBoards[i].BoardMetadata, boardMeta.BoardMetadata)
+			assert.Equal(t, expectedBoards[i].BoardMetadata, boardMeta)
 		}
 	})
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -72,6 +73,16 @@ func Decode(r io.ReadCloser, body any) error {
 		return &errors.ErrorWithStatusCode{Message: "Body is invalid json", StatusCode: 400}
 	}
 	return nil
+}
+
+// GetPage extracts the "page" query parameter from the request, defaulting to 1.
+func GetPage(r *http.Request) int {
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		if page, err := strconv.Atoi(pageStr); err == nil && page > 0 {
+			return page
+		}
+	}
+	return 1
 }
 
 // CalculatePage calculates the page number for a message given its ordinal and messages per page.

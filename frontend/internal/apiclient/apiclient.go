@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 )
 
 // APIClient struct handles all communication with the backend API.
@@ -38,4 +40,11 @@ func (c *APIClient) do(method, path string, body io.Reader, cookies ...*http.Coo
 		return nil, fmt.Errorf("backend unavailable: %w", err)
 	}
 	return resp, nil
+}
+
+func withPage(path string, page int) string {
+	if page <= 1 {
+		return path
+	}
+	return path + "?" + url.Values{"page": {strconv.Itoa(page)}}.Encode()
 }

@@ -3,24 +3,19 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
+	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 // InvitesGetHandler displays the invites page with user's invite codes
 func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 	user := mw.GetUserFromContext(r)
 
-	page := 1
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
+	page := utils.GetPage(r)
 
 	var templateData struct {
 		Invites          []domain.InviteCode

@@ -2,10 +2,8 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
@@ -15,12 +13,7 @@ import (
 func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 	shortName := chi.URLParam(r, "board")
 
-	page := 1
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if pageInt, err := strconv.Atoi(pageStr); err == nil && pageInt > 0 {
-			page = pageInt
-		}
-	}
+	page := utils.GetPage(r)
 
 	lastModified, err := h.APIClient.GetBoardLastModified(r, shortName)
 	if err != nil {
@@ -38,9 +31,7 @@ func (h *Handler) BoardGetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.renderTemplate(w, r, "board.html", frontend_domain.BoardPageData{
-		Board: renderBoard(board),
-	})
+	h.renderTemplate(w, r, "board.html", renderBoard(board))
 }
 
 func (h *Handler) BoardPostHandler(w http.ResponseWriter, r *http.Request) {

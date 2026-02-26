@@ -33,7 +33,5 @@ func (h *Handler) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 		activityMessages[i] = renderMessage(msg)
 	}
 
-	h.renderTemplateWithError(w, r, "account.html", frontend_domain.AccountPageData{
-		ActivityMessages: activityMessages,
-	}, errMsg)
+	h.renderTemplateWithError(w, r, "account.html", activityMessages, errMsg)
 }

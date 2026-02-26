@@ -18,18 +18,8 @@ type LoginRequest struct {
 }
 
 // Response DTOs
-// Note: Auth responses are currently plain messages, not domain types
-// If you add user data to login response, embed domain.User here
-
-type RegisterResponse struct {
-	Message string `json:"message"`
-}
 
 type LoginResponse struct {
 	Message     string `json:"message"`
 	AccessToken string `json:"access_token,omitempty"` // Token for non-cookie clients (mobile, API clients)
-}
-
-type LogoutResponse struct {
-	Message string `json:"message"`
 }

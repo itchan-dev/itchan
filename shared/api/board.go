@@ -14,20 +14,7 @@ type CreateBoardRequest struct {
 
 // Response DTOs
 
-// BoardMetadataResponse wraps board metadata
-// Embed domain.BoardMetadata to get all fields
-type BoardMetadataResponse struct {
-	domain.BoardMetadata
-	// Add extra API-specific fields here if needed in the future
-}
-
-// BoardResponse wraps a full board with threads
-type BoardResponse struct {
-	domain.Board
-	// Add extra API-specific fields here if needed in the future
-}
-
 // BoardListResponse wraps a list of boards
 type BoardListResponse struct {
-	Boards []BoardMetadataResponse `json:"boards"`
+	Boards []domain.BoardMetadata `json:"boards"`
 }

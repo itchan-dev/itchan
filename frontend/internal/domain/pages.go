@@ -6,15 +6,3 @@ type IndexPageData struct {
 	PublicBoards    []domain.Board
 	CorporateBoards []domain.Board
 }
-
-type BoardPageData struct {
-	Board *Board
-}
-
-type ThreadPageData struct {
-	Thread *Thread
-}
-
-type AccountPageData struct {
-	ActivityMessages []*Message
-}

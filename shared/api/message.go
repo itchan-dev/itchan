@@ -15,12 +15,6 @@ type CreateMessageRequest struct {
 
 // Response DTOs
 
-// MessageResponse wraps a full message
-type MessageResponse struct {
-	domain.Message
-	// Add extra API-specific fields here if needed in the future
-}
-
 // CreateMessageResponse returns the ID of the created message and its page
 type CreateMessageResponse struct {
 	Id   int64 `json:"id"`

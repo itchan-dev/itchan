@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -61,12 +60,7 @@ func (h *Handler) GenerateInvite(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetMyInvites(w http.ResponseWriter, r *http.Request) {
 	user := mw.GetUserFromContext(r)
 
-	page := 1
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
-	}
+	page := utils.GetPage(r)
 
 	invites, err := h.auth.GetUserInvites(user.Id, page)
 	if err != nil {

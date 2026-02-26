@@ -90,8 +90,7 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := api.MessageResponse{Message: msg}
-	writeJSON(w, response)
+	writeJSON(w, msg)
 }
 
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {

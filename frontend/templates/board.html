@@ -1,13 +1,13 @@
-{{define "title"}}/{{ .Data.Board.ShortName }}/ - {{ .Data.Board.Name }}{{end}}
+{{define "title"}}/{{ .Data.ShortName }}/ - {{ .Data.Name }}{{end}}
 {{- define "content"}}
     <div class="board-header">
-        <h1><a href="/{{ .Data.Board.ShortName }}">/{{ .Data.Board.ShortName }}/ - {{ .Data.Board.Name }}</a></h1>
+        <h1><a href="/{{ .Data.ShortName }}">/{{ .Data.ShortName }}/ - {{ .Data.Name }}</a></h1>
         <hr>
     </div>
 
     <!-- New Thread Form -->
     <div class="post-form-container">
-        <form action="/{{ .Data.Board.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
+        <form action="/{{ .Data.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
              {{- template "csrf-field" .Common}}
              <input type="hidden" name="form_action" value="new_thread">
              <table class="form-table">
@@ -39,7 +39,7 @@
     <hr class="section-separator">
 
     <div class="threads-container">
-        {{- range $threadIndex, $thread := .Data.Board.Threads}}
+        {{- range $threadIndex, $thread := .Data.Threads}}
             {{- if gt $threadIndex 0}}
                 <hr class="thread-separator">
             {{- end}}
@@ -69,7 +69,7 @@
         {{- end}}
     </div>
 
-    {{- template "pagination" .Data.Board.Page}}
+    {{- template "pagination" .Data.Page}}
 
     {{- template "popup-reply-form" .Common}}
 {{- end}}

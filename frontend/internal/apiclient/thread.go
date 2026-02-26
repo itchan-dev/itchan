@@ -24,10 +24,7 @@ func escapeQuotes(s string) string {
 
 func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page int) (domain.Thread, error) {
 	var thread domain.Thread
-	path := fmt.Sprintf("/v1/%s/%s", shortName, threadID)
-	if page > 1 {
-		path = fmt.Sprintf("%s?page=%d", path, page)
-	}
+	path := withPage(fmt.Sprintf("/v1/%s/%s", shortName, threadID), page)
 	resp, err := c.do("GET", path, nil, r.Cookies()...)
 	if err != nil {
 		return thread, err

@@ -11,8 +11,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
-const default_page int = 1
-
 func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	var body api.CreateBoardRequest
 	if err := utils.DecodeValidate(r.Body, &body); err != nil {
@@ -31,17 +29,7 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	shortName := chi.URLParam(r, "board")
-	pageQuery := r.URL.Query().Get("page")
-	var page int
-	var err error
-	if pageQuery == "" {
-		page = default_page
-	} else {
-		if page, err = parseIntParam(pageQuery, "page"); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
+	page := utils.GetPage(r)
 
 	board, err := h.board.Get(shortName, page)
 	if err != nil {
@@ -49,8 +37,7 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := api.BoardResponse{Board: board}
-	writeJSON(w, response)
+	writeJSON(w, board)
 }
 
 func (h *Handler) GetBoardLastModified(w http.ResponseWriter, r *http.Request) {
@@ -89,11 +76,10 @@ func (h *Handler) GetBoards(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boardMetadata := make([]api.BoardMetadataResponse, len(boards))
+	boardMetadata := make([]domain.BoardMetadata, len(boards))
 	for i, board := range boards {
-		boardMetadata[i] = api.BoardMetadataResponse{BoardMetadata: board.BoardMetadata}
+		boardMetadata[i] = board.BoardMetadata
 	}
 
-	response := api.BoardListResponse{Boards: boardMetadata}
-	writeJSON(w, response)
+	writeJSON(w, api.BoardListResponse{Boards: boardMetadata})
 }

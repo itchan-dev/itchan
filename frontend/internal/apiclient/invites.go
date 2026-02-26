@@ -12,10 +12,7 @@ import (
 
 // GetMyInvites fetches invite codes created by the authenticated user for the given page
 func (c *APIClient) GetMyInvites(r *http.Request, page int) (api.InviteListResponse, error) {
-	path := "/v1/invites"
-	if page > 1 {
-		path = fmt.Sprintf("%s?page=%d", path, page)
-	}
+	path := withPage("/v1/invites", page)
 	resp, err := c.do("GET", path, nil, r.Cookies()...)
 	if err != nil {
 		return api.InviteListResponse{}, err

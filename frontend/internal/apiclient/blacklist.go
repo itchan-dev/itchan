@@ -12,10 +12,7 @@ import (
 
 // GetBlacklistedUsers returns blacklisted users for the given page
 func (c *APIClient) GetBlacklistedUsers(r *http.Request, page int) (api.BlacklistResponse, error) {
-	path := "/v1/admin/blacklist"
-	if page > 1 {
-		path = fmt.Sprintf("%s?page=%d", path, page)
-	}
+	path := withPage("/v1/admin/blacklist", page)
 	resp, err := c.do("GET", path, nil, r.Cookies()...)
 	if err != nil {
 		return api.BlacklistResponse{}, err

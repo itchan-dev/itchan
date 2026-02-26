@@ -20,7 +20,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, api.RegisterResponse{Message: "The confirmation code has been sent by email"})
+	writeJSON(w, map[string]string{"message": "The confirmation code has been sent by email"})
 }
 
 func (h *Handler) CheckConfirmationCode(w http.ResponseWriter, r *http.Request) {
@@ -79,5 +79,5 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, cookie)
 
-	writeJSON(w, api.LogoutResponse{Message: "You logged out"})
+	writeJSON(w, map[string]string{"message": "You logged out"})
 }

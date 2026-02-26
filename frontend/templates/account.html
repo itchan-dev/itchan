@@ -14,9 +14,9 @@
 
 <!-- Recent activity feed -->
 <h2>My Recent Posts (Last {{.Common.Validation.UserMessagesPageLimit}})</h2>
-{{- if .Data.ActivityMessages}}
+{{- if .Data}}
 <div class="activity-feed">
-    {{- range .Data.ActivityMessages}}
+    {{- range .Data}}
         {{- template "post" (postData . $.Common)}}
     {{- end}}
 </div>

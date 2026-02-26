@@ -29,12 +29,10 @@ func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
 		return nil, fmt.Errorf("cannot decode boards response: %w", err)
 	}
 
-	// Convert BoardMetadataResponse to Board
 	boards := make([]domain.Board, len(response.Boards))
 	for i, boardMeta := range response.Boards {
 		boards[i] = domain.Board{
-			BoardMetadata: boardMeta.BoardMetadata,
-			Threads:       []*domain.Thread{}, // Empty threads for list view
+			BoardMetadata: boardMeta,
 		}
 	}
 
@@ -43,10 +41,7 @@ func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
 
 func (c *APIClient) GetBoard(r *http.Request, shortName string, page int) (domain.Board, error) {
 	var board domain.Board
-	path := fmt.Sprintf("/v1/%s", shortName)
-	if page > 1 {
-		path = fmt.Sprintf("%s?page=%d", path, page)
-	}
+	path := withPage(fmt.Sprintf("/v1/%s", shortName), page)
 
 	resp, err := c.do("GET", path, nil, r.Cookies()...)
 	if err != nil {
