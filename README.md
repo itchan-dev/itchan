@@ -2,7 +2,7 @@
 
 [![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![CI](https://github.com/itchan-dev/itchan/actions/workflows/deploy.yml/badge.svg)](https://github.com/itchan-dev/itchan/actions/workflows/deploy.yml)
+[![CI](https://github.com/itchan-dev/itchan/actions/workflows/ci.yml/badge.svg)](https://github.com/itchan-dev/itchan/actions/workflows/ci.yml)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17.6-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
 A modern, high-performance imageboard built with Go, featuring a clean three-layer architecture, advanced authentication, and comprehensive rate limiting. Designed for privacy-conscious communities with domain-based board access control.
