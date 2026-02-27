@@ -561,6 +561,14 @@ email:
   password: your-app-password
   sender_name: "Itchan Imageboard"
   timeout: 10
+
+# Referral source allowlist (optional)
+# Only ?ref= values in this list are tracked and saved to the database.
+# Empty or omitted = allow all sources (no filtering).
+allowed_refs:
+  - twitter
+  - reddit
+  - telegram
 ```
 
 ## API Endpoints

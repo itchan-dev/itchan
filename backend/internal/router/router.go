@@ -78,6 +78,9 @@ func New(deps *setup.Dependencies) *chi.Mux {
 			admin.Delete("/users/{userId}/blacklist", h.UnblacklistUser)
 			admin.Post("/blacklist/refresh", h.RefreshBlacklistCache)
 			admin.Get("/blacklist", h.GetBlacklistedUsers)
+
+			// Admin referral stats
+			admin.Get("/referral/stats", h.GetReferralStats)
 		})
 
 		// Auth routes
@@ -110,6 +113,13 @@ func New(deps *setup.Dependencies) *chi.Mux {
 				authRegisterInvite.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
 				authRegisterInvite.Use(mw.GlobalRateLimit(rl.Rps100()))
 				authRegisterInvite.Post("/register_with_invite", h.RegisterWithInvite)
+			})
+
+			// Referral visit recording (public, rate limited)
+			auth.Group(func(refVisit chi.Router) {
+				refVisit.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
+				refVisit.Use(mw.GlobalRateLimit(rl.Rps100()))
+				refVisit.Post("/referral/visit", h.RecordReferralVisit)
 			})
 
 			// Logout (no rate limits)

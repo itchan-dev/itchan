@@ -4,25 +4,36 @@ import (
 	"fmt"
 	"net/http"
 
+	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
-// AdminGetHandler displays the admin panel with blacklisted users
+// AdminGetHandler displays the admin panel with blacklisted users and referral stats.
 func (h *Handler) AdminGetHandler(w http.ResponseWriter, r *http.Request) {
 	page := utils.GetPage(r)
 
-	result, err := h.APIClient.GetBlacklistedUsers(r, page)
+	blacklist, err := h.APIClient.GetBlacklistedUsers(r, page)
 	var errMsg string
 	if err != nil {
 		logger.Log.Error("failed to get blacklisted users from API", "error", err)
 		errMsg = fmt.Sprintf("Failed to load blacklisted users: %v", err)
-		result = api.BlacklistResponse{Users: []domain.BlacklistEntry{}, Page: page}
+		blacklist = api.BlacklistResponse{Users: []domain.BlacklistEntry{}, Page: page}
 	}
 
-	h.renderTemplateWithError(w, r, "admin.html", result, errMsg)
+	stats, err := h.APIClient.GetReferralStats(r)
+	if err != nil {
+		logger.Log.Error("failed to get referral stats from API", "error", err)
+	}
+
+	data := frontend_domain.AdminPageData{
+		Blacklisted: frontend_domain.BlacklistedUsers{Users: blacklist.Users, Page: blacklist.Page},
+		RefStats:    stats.Stats,
+	}
+
+	h.renderTemplateWithError(w, r, "admin.html", data, errMsg)
 }
 
 // BlacklistUserHandler handles blacklist requests from the UI

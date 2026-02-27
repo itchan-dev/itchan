@@ -57,7 +57,7 @@ func TestRegisterWithInvite(t *testing.T) {
 
 	t.Run("successful registration with invite", func(t *testing.T) {
 		mockService := &MockAuthService{
-			MockRegisterWithInvite: func(inviteCode string, password domain.Password) (string, error) {
+			MockRegisterWithInvite: func(inviteCode string, password domain.Password, refSource string) (string, error) {
 				assert.Equal(t, expectedInviteCode, inviteCode)
 				assert.Equal(t, expectedPassword, password)
 				return generatedEmail, nil
@@ -107,7 +107,7 @@ func TestRegisterWithInvite(t *testing.T) {
 	t.Run("service error - invalid invite code", func(t *testing.T) {
 		mockErr := errors.New("invalid invite code")
 		mockService := &MockAuthService{
-			MockRegisterWithInvite: func(inviteCode string, password domain.Password) (string, error) {
+			MockRegisterWithInvite: func(inviteCode string, password domain.Password, refSource string) (string, error) {
 				return "", mockErr
 			},
 		}

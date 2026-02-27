@@ -2,9 +2,36 @@
 {{- define "content"}}
 <h1>Admin Panel</h1>
 
+<h2>Referral Stats</h2>
+{{- if .Data.RefStats}}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>Source</th>
+            <th>Visits</th>
+            <th>Registrations</th>
+            <th>Conversion</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{- range .Data.RefStats}}
+        <tr>
+            <td>{{.Source}}</td>
+            <td>{{.VisitCount}}</td>
+            <td>{{.RegisterCount}}</td>
+            <td>{{printf "%.1f%%" .ConversionRate}}</td>
+        </tr>
+        {{- end}}
+    </tbody>
+</table>
+{{- else}}
+<p>No referral data yet. Share links with <code>?ref=source</code> parameter to start tracking.</p>
+{{- end}}
+
 <h2>Blacklisted Users</h2>
-{{- if .Data.Users}}
-<table class="blacklist-table">
+<div class="admin-section">
+{{- if .Data.Blacklisted.Users}}
+<table class="admin-table">
     <thead>
         <tr>
             <th>User ID</th>
@@ -15,7 +42,7 @@
         </tr>
     </thead>
     <tbody>
-        {{- range .Data.Users}}
+        {{- range .Data.Blacklisted.Users}}
         <tr>
             <td>{{.UserId}}</td>
             <td>{{.BlacklistedAt.UTC.Format "2006-01-02 15:04:05"}} GMT</td>
@@ -32,6 +59,7 @@
         {{- end}}
     </tbody>
 </table>
+{{- template "pagination" .Data.Blacklisted.Page}}
 {{- end}}
-{{- template "pagination" .Data.Page}}
+</div>
 {{- end}}

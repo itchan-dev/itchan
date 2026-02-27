@@ -54,7 +54,9 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 	email := r.FormValue("email")
 	code := r.FormValue("confirmation_code")
 
-	err := h.APIClient.ConfirmEmail(email, code)
+	refSource := getRefCookie(r)
+
+	err := h.APIClient.ConfirmEmail(email, code, refSource)
 	if err != nil {
 		logger.Log.Error("confirming email via API", "error", err)
 		h.setFlash(w, flashCookieError, err.Error())
@@ -63,6 +65,7 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	clearRefCookie(w, h.Public.SecureCookies)
 	h.setFlash(w, flashCookieSuccess, "Success! You can now login.")
 	h.setFlash(w, emailPrefillCookie, email)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -126,13 +129,16 @@ func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Reque
 	inviteCode := r.FormValue("invite_code")
 	password := r.FormValue("password")
 
-	email, err := h.APIClient.RegisterWithInvite(inviteCode, password)
+	refSource := getRefCookie(r)
+
+	email, err := h.APIClient.RegisterWithInvite(inviteCode, password, refSource)
 	if err != nil {
 		logger.Log.Error("during invite registration API call", "error", err)
 		h.redirectWithFlash(w, r, targetURL, flashCookieError, err.Error())
 		return
 	}
 
+	clearRefCookie(w, h.Public.SecureCookies)
 	successMsg := fmt.Sprintf("Registration successful! Your email is: %s. Please save this - it cannot be recovered!", email)
 	h.setFlash(w, flashCookieSuccess, successMsg)
 	h.setFlash(w, emailPrefillCookie, email)

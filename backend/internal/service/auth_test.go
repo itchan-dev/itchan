@@ -11,6 +11,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	internal_errors "github.com/itchan-dev/itchan/shared/errors"
+	sharedutils "github.com/itchan-dev/itchan/shared/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -243,6 +244,12 @@ func (m *MockEmailCrypto) ExtractDomain(email string) (string, error) {
 	return parts[1], nil
 }
 
+type MockReferralStorage struct{}
+
+func (m *MockReferralStorage) SaveReferralVisit(source string) error              { return nil }
+func (m *MockReferralStorage) SaveReferralRegistration(_ domain.UserId, _ string) error { return nil }
+func (m *MockReferralStorage) GetReferralStats() ([]domain.ReferralStats, error)  { return nil, nil }
+
 type MockCredentialsValidator struct {
 	PasswordFunc func(password string) error
 }
@@ -264,7 +271,7 @@ func TestRegister(t *testing.T) {
 	service := NewAuth(storage, email, jwt, &config.Public{
 		ConfirmationCodeLen: 8,
 		ConfirmationCodeTTL: 10 * time.Minute,
-	}, nil, emailCrypto, &MockCredentialsValidator{})
+	}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 	lowerCaseEmail := strings.ToLower(creds.Email)
@@ -501,7 +508,7 @@ func TestRegisterWithDomainRestrictions(t *testing.T) {
 			ConfirmationCodeLen:        8,
 			ConfirmationCodeTTL:        10 * time.Minute,
 			AllowedRegistrationDomains: []string{}, // Empty = allow all
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		saveCalled := false
 		sendCalled := false
@@ -533,7 +540,7 @@ func TestRegisterWithDomainRestrictions(t *testing.T) {
 			ConfirmationCodeLen:        8,
 			ConfirmationCodeTTL:        10 * time.Minute,
 			AllowedRegistrationDomains: []string{"gmail.com"},
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		saveCalled := false
 		sendCalled := false
@@ -565,7 +572,7 @@ func TestRegisterWithDomainRestrictions(t *testing.T) {
 			ConfirmationCodeLen:        8,
 			ConfirmationCodeTTL:        10 * time.Minute,
 			AllowedRegistrationDomains: []string{"gmail.com"},
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		saveCalled := false
 		sendCalled := false
@@ -601,7 +608,7 @@ func TestRegisterWithDomainRestrictions(t *testing.T) {
 			ConfirmationCodeLen:        8,
 			ConfirmationCodeTTL:        10 * time.Minute,
 			AllowedRegistrationDomains: []string{"gmail.com", "company.com"},
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		storage.SaveConfirmationDataFunc = func(data domain.ConfirmationData) error {
 			return nil
@@ -636,7 +643,7 @@ func TestRegisterWithDomainRestrictions(t *testing.T) {
 			ConfirmationCodeLen:        8,
 			ConfirmationCodeTTL:        10 * time.Minute,
 			AllowedRegistrationDomains: []string{"gmail.com"}, // lowercase in config
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		saveCalled := false
 		sendCalled := false
@@ -672,7 +679,7 @@ func TestRegisterWithDomainRestrictions(t *testing.T) {
 			ConfirmationCodeLen:        8,
 			ConfirmationCodeTTL:        10 * time.Minute,
 			AllowedRegistrationDomains: []string{"gmail.com"},
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		// Act - Use valid email format so IsCorrect passes
 		err := service.Register(domain.Credentials{Email: "user@example.com", Password: "password"})
@@ -691,7 +698,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 	emailMock := &MockEmail{} // Renamed to avoid conflict with package name
 	jwt := &MockJwt{}         // Not used in CheckConfirmationCode, but needed for constructor
 	emailCrypto := &MockEmailCrypto{}
-	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil, emailCrypto, &MockCredentialsValidator{})
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 	testEmail := "test@example.com"
 	confirmationCode := "123456"
@@ -737,7 +744,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		}()
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -780,7 +787,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		}()
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -795,7 +802,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		defer func() { emailMock.IsCorrectFunc = nil }() // Restore default
 
 		// Act
-		err := service.CheckConfirmationCode("invalid-email", confirmationCode)
+		err := service.CheckConfirmationCode("invalid-email", confirmationCode, "")
 
 		// Assert
 		require.Error(t, err)
@@ -810,7 +817,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.Error(t, err)
@@ -829,7 +836,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.Error(t, err)
@@ -846,7 +853,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.Error(t, err)
@@ -864,7 +871,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		defer func() { storage.ConfirmationDataFunc = nil }() // Restore default
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, "wrong_code_654321") // Provide the WRONG code
+		err := service.CheckConfirmationCode(testEmail, "wrong_code_654321", "") // Provide the WRONG code
 
 		// Assert
 		require.Error(t, err)
@@ -889,7 +896,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		}()
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.Error(t, err)
@@ -915,7 +922,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		}()
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.Error(t, err)
@@ -941,7 +948,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		}()
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		require.Error(t, err)
@@ -971,7 +978,7 @@ func TestCheckConfirmationCode(t *testing.T) {
 		}()
 
 		// Act
-		err := service.CheckConfirmationCode(testEmail, confirmationCode)
+		err := service.CheckConfirmationCode(testEmail, confirmationCode, "")
 
 		// Assert
 		// The primary operation (update/create user) succeeded, but cleanup failed.
@@ -987,7 +994,7 @@ func TestLogin(t *testing.T) {
 	emailMock := &MockEmail{} // Renamed to avoid conflict
 	jwt := &MockJwt{}
 	emailCrypto := &MockEmailCrypto{}
-	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil, emailCrypto, &MockCredentialsValidator{})
+	service := NewAuth(storage, emailMock, jwt, &config.Public{ConfirmationCodeLen: 8}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 	creds := domain.Credentials{Email: "test@example.com", Password: "password"}
 
@@ -1178,7 +1185,7 @@ func TestRegisterWithInvite(t *testing.T) {
 		InviteEnabled:    true,
 		InviteCodeLength: 12,
 		InviteCodeTTL:    720 * time.Hour,
-	}, nil, emailCrypto, &MockCredentialsValidator{})
+	}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 	testInviteCode := "TESTCODE1234"
 	testPassword := domain.Password("password123")
@@ -1232,7 +1239,7 @@ func TestRegisterWithInvite(t *testing.T) {
 		}()
 
 		// Act
-		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -1253,7 +1260,7 @@ func TestRegisterWithInvite(t *testing.T) {
 		defer func() { storage.InviteCodeByHashFunc = nil }()
 
 		// Act
-		email, err := service.RegisterWithInvite("INVALIDCODE", testPassword)
+		email, err := service.RegisterWithInvite("INVALIDCODE", testPassword, "")
 
 		// Assert
 		require.Error(t, err)
@@ -1277,7 +1284,7 @@ func TestRegisterWithInvite(t *testing.T) {
 		defer func() { storage.InviteCodeByHashFunc = nil }()
 
 		// Act
-		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword, "")
 
 		// Assert
 		require.Error(t, err)
@@ -1299,7 +1306,7 @@ func TestRegisterWithInvite(t *testing.T) {
 		defer func() { storage.InviteCodeByHashFunc = nil }()
 
 		// Act
-		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword, "")
 
 		// Assert
 		require.Error(t, err)
@@ -1339,7 +1346,7 @@ func TestRegisterWithInvite(t *testing.T) {
 		}()
 
 		// Act
-		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword, "")
 
 		// Assert
 		require.NoError(t, err)
@@ -1366,7 +1373,7 @@ func TestRegisterWithInvite(t *testing.T) {
 		}()
 
 		// Act
-		email, err := service.RegisterWithInvite(testInviteCode, testPassword)
+		email, err := service.RegisterWithInvite(testInviteCode, testPassword, "")
 
 		// Assert
 		require.Error(t, err)
@@ -1394,7 +1401,7 @@ func TestGenerateInvite(t *testing.T) {
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 5,
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		saveInviteCalled := false
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
@@ -1434,7 +1441,7 @@ func TestGenerateInvite(t *testing.T) {
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 2, // Low limit
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		adminUser := testUser
 		adminUser.Admin = true
@@ -1468,7 +1475,7 @@ func TestGenerateInvite(t *testing.T) {
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 3,
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
 			return 3, nil // Already at limit
@@ -1495,7 +1502,7 @@ func TestGenerateInvite(t *testing.T) {
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 0, // Unlimited
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		// CountActiveInvites should not be called when limit is 0
 		countCalled := false
@@ -1525,7 +1532,7 @@ func TestGenerateInvite(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		service := NewAuth(storage, emailMock, jwt, &config.Public{
 			InviteEnabled: false,
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		// Act
 		invite, err := service.GenerateInvite(testUser)
@@ -1547,7 +1554,7 @@ func TestGenerateInvite(t *testing.T) {
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 0,
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		var savedHash1, savedHash2 string
 		callCount := 0
@@ -1585,7 +1592,7 @@ func TestGenerateInvite(t *testing.T) {
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 5,
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		mockError := errors.New("mock CountActiveInvites error")
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
@@ -1610,7 +1617,7 @@ func TestGenerateInvite(t *testing.T) {
 			InviteCodeLength:  12,
 			InviteCodeTTL:     720 * time.Hour,
 			MaxInvitesPerUser: 5,
-		}, nil, emailCrypto, &MockCredentialsValidator{})
+		}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		mockError := errors.New("mock SaveInviteCode error")
 		storage.CountActiveInvitesFunc = func(userId domain.UserId) (int, error) {
@@ -1639,7 +1646,7 @@ func TestGetUserInvites(t *testing.T) {
 	emailMock := &MockEmail{}
 	jwt := &MockJwt{}
 	emailCrypto := &MockEmailCrypto{}
-	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto, &MockCredentialsValidator{})
+	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 	userId := domain.UserId(42)
 
@@ -1686,7 +1693,7 @@ func TestRevokeInvite(t *testing.T) {
 	emailMock := &MockEmail{}
 	jwt := &MockJwt{}
 	emailCrypto := &MockEmailCrypto{}
-	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto, &MockCredentialsValidator{})
+	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 	userId := domain.UserId(42)
 	codeHash := "test_hash_123"
@@ -1772,7 +1779,7 @@ func TestBlacklistUser(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		blacklistCalled := false
 		deleteInvitesCalled := false
@@ -1813,7 +1820,7 @@ func TestBlacklistUser(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		mockError := errors.New("storage error")
 		storage.BlacklistUserFunc = func(userId domain.UserId, r string, blacklistedBy domain.UserId) error {
@@ -1836,7 +1843,7 @@ func TestBlacklistUser(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		storage.BlacklistUserFunc = func(userId domain.UserId, r string, blacklistedBy domain.UserId) error {
 			return nil
@@ -1863,7 +1870,7 @@ func TestBlacklistUser(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		storage.BlacklistUserFunc = func(userId domain.UserId, r string, blacklistedBy domain.UserId) error {
 			return nil
@@ -1894,7 +1901,7 @@ func TestUnblacklistUser(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		unblacklistCalled := false
 		cacheUpdateCalled := false
@@ -1926,7 +1933,7 @@ func TestUnblacklistUser(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		mockError := errors.New("storage error")
 		storage.UnblacklistUserFunc = func(id domain.UserId) error {
@@ -1949,7 +1956,7 @@ func TestUnblacklistUser(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		storage.UnblacklistUserFunc = func(id domain.UserId) error {
 			return nil
@@ -1971,7 +1978,7 @@ func TestGetBlacklistedUsersWithDetails(t *testing.T) {
 	emailMock := &MockEmail{}
 	jwt := &MockJwt{}
 	emailCrypto := &MockEmailCrypto{}
-	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto, &MockCredentialsValidator{})
+	service := NewAuth(storage, emailMock, jwt, &config.Public{}, nil, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 	t.Run("successfully get blacklisted users", func(t *testing.T) {
 		// Arrange
@@ -2019,7 +2026,7 @@ func TestRefreshBlacklistCache(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		updateCalled := false
 		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {
@@ -2043,7 +2050,7 @@ func TestRefreshBlacklistCache(t *testing.T) {
 		emailCrypto := &MockEmailCrypto{}
 		mockBlacklistStorage := &MockBlacklistCacheStorage{}
 		blacklistCache := blacklist.NewCache(mockBlacklistStorage, 24*time.Hour)
-		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{})
+		service := NewAuth(storage, emailMock, jwt, &config.Public{}, blacklistCache, emailCrypto, &MockCredentialsValidator{}, &MockReferralStorage{}, sharedutils.AllowedSources{})
 
 		mockError := errors.New("cache update error")
 		mockBlacklistStorage.GetRecentlyBlacklistedUsersFunc = func(since time.Time) ([]domain.UserId, error) {

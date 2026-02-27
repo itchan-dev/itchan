@@ -17,6 +17,7 @@ import (
 	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/middleware/board_access"
+	sharedutils "github.com/itchan-dev/itchan/shared/utils"
 )
 
 // Dependencies struct to hold all initialized dependencies.
@@ -83,13 +84,15 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 		return nil, err
 	}
 
-	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache, emailCrypto, &utils.PasswordValidator{Сfg: &cfg.Public})
+	referral := service.NewReferral(storage)
+	allowedRefs := sharedutils.NewAllowedSources(cfg.Private.AllowedRefs)
+	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache, emailCrypto, &utils.PasswordValidator{Сfg: &cfg.Public}, storage, allowedRefs)
 	board := service.NewBoard(storage, utils.New(&cfg.Public), mediaStorage)
 	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public}, mediaStorage, &cfg.Public)
 	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, message, mediaStorage, cfg.Public.MaxThreadCount)
 	userActivity := service.NewUserActivity(storage, &cfg.Public)
 
-	h := handler.New(auth, board, thread, message, userActivity, mediaStorage, cfg, storage)
+	h := handler.New(auth, board, thread, message, userActivity, referral, mediaStorage, cfg, storage)
 
 	return &Dependencies{
 		Storage:        storage,

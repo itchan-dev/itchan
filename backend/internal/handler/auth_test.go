@@ -17,13 +17,13 @@ import (
 
 type MockAuthService struct {
 	MockRegister                       func(creds domain.Credentials) error
-	MockCheckConfirmationCode          func(email domain.Email, confirmationCode string) error
+	MockCheckConfirmationCode          func(email domain.Email, confirmationCode string, refSource string) error
 	MockLogin                          func(creds domain.Credentials) (string, error)
 	MockBlacklistUser                  func(userId domain.UserId, reason string, blacklistedBy domain.UserId) error
 	MockUnblacklistUser                func(userId domain.UserId) error
 	MockGetBlacklistedUsersWithDetails func(page int) ([]domain.BlacklistEntry, error)
 	MockRefreshBlacklistCache          func() error
-	MockRegisterWithInvite             func(inviteCode string, password domain.Password) (string, error)
+	MockRegisterWithInvite             func(inviteCode string, password domain.Password, refSource string) (string, error)
 	MockGenerateInvite                 func(user domain.User) (*domain.InviteCodeWithPlaintext, error)
 	MockGetUserInvites                 func(userId domain.UserId, page int) ([]domain.InviteCode, error)
 	MockRevokeInvite                   func(userId domain.UserId, codeHash string) error
@@ -36,9 +36,9 @@ func (m *MockAuthService) Register(creds domain.Credentials) error {
 	return nil
 }
 
-func (m *MockAuthService) CheckConfirmationCode(email domain.Email, confirmationCode string) error {
+func (m *MockAuthService) CheckConfirmationCode(email domain.Email, confirmationCode string, refSource string) error {
 	if m.MockCheckConfirmationCode != nil {
-		return m.MockCheckConfirmationCode(email, confirmationCode)
+		return m.MockCheckConfirmationCode(email, confirmationCode, refSource)
 	}
 	return nil
 }
@@ -78,9 +78,9 @@ func (m *MockAuthService) RefreshBlacklistCache() error {
 	return nil
 }
 
-func (m *MockAuthService) RegisterWithInvite(inviteCode string, password domain.Password) (string, error) {
+func (m *MockAuthService) RegisterWithInvite(inviteCode string, password domain.Password, refSource string) (string, error) {
 	if m.MockRegisterWithInvite != nil {
-		return m.MockRegisterWithInvite(inviteCode, password)
+		return m.MockRegisterWithInvite(inviteCode, password, refSource)
 	}
 	return "generated@itchan.ru", nil
 }
@@ -190,7 +190,7 @@ func TestCheckConfirmationCodeHandler(t *testing.T) {
 
 	t.Run("successful confirmation", func(t *testing.T) {
 		mockService := &MockAuthService{
-			MockCheckConfirmationCode: func(email domain.Email, code string) error {
+			MockCheckConfirmationCode: func(email domain.Email, code string, refSource string) error {
 				assert.Equal(t, expectedEmail, email)
 				assert.Equal(t, expectedCode, code)
 				return nil
@@ -219,7 +219,7 @@ func TestCheckConfirmationCodeHandler(t *testing.T) {
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("invalid code")
 		mockService := &MockAuthService{
-			MockCheckConfirmationCode: func(email domain.Email, code string) error {
+			MockCheckConfirmationCode: func(email domain.Email, code string, refSource string) error {
 				return mockErr
 			},
 		}

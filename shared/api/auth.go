@@ -7,9 +7,16 @@ type RegisterRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
+type RegisterWithInviteRequest struct {
+	InviteCode string `json:"invite_code" validate:"required"`
+	Password   string `json:"password" validate:"required"`
+	RefSource  string `json:"ref_source"`
+}
+
 type CheckConfirmationCodeRequest struct {
 	Email            string `json:"email" validate:"required,email"`
 	ConfirmationCode string `json:"confirmation_code" validate:"required"`
+	RefSource        string `json:"ref_source"`
 }
 
 type LoginRequest struct {

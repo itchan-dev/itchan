@@ -14,18 +14,15 @@ import (
 // RegisterWithInvite handles POST /v1/auth/register_with_invite
 // Allows users to register using an invite code instead of email confirmation
 func (h *Handler) RegisterWithInvite(w http.ResponseWriter, r *http.Request) {
-	var reqBody struct {
-		InviteCode string `json:"invite_code" validate:"required"`
-		Password   string `json:"password" validate:"required"`
-	}
+	var req api.RegisterWithInviteRequest
 
-	if err := utils.DecodeValidate(r.Body, &reqBody); err != nil {
+	if err := utils.DecodeValidate(r.Body, &req); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
 	// Register and get generated email
-	email, err := h.auth.RegisterWithInvite(reqBody.InviteCode, domain.Password(reqBody.Password))
+	email, err := h.auth.RegisterWithInvite(req.InviteCode, domain.Password(req.Password), req.RefSource)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

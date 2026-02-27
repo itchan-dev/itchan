@@ -105,10 +105,11 @@ type Email struct {
 }
 
 type Private struct {
-	Pg            Pg     `yaml:"pg"`
-	Email         Email  `yaml:"email"`
-	JwtKey        string `yaml:"jwt_key" validate:"required"`
-	EncryptionKey string `yaml:"encryption_key" validate:"required"`
+	Pg            Pg       `yaml:"pg"`
+	Email         Email    `yaml:"email"`
+	JwtKey        string   `yaml:"jwt_key" validate:"required"`
+	EncryptionKey string   `yaml:"encryption_key" validate:"required"`
+	AllowedRefs   []string `yaml:"allowed_refs"` // Allowlist of ref= param values to track; empty = allow all
 }
 
 // implementing logic.Config interface

@@ -21,18 +21,20 @@ type Handler struct {
 	thread       service.ThreadService
 	message      service.MessageService
 	userActivity service.UserActivityService
+	referral     service.ReferralService
 	mediaStorage service.MediaStorage
 	cfg          *config.Config
 	health       HealthChecker
 }
 
-func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, userActivity service.UserActivityService, mediaStorage service.MediaStorage, cfg *config.Config, health HealthChecker) *Handler {
+func New(auth service.AuthService, board service.BoardService, thread service.ThreadService, message service.MessageService, userActivity service.UserActivityService, referral service.ReferralService, mediaStorage service.MediaStorage, cfg *config.Config, health HealthChecker) *Handler {
 	return &Handler{
 		auth:         auth,
 		board:        board,
 		thread:       thread,
 		message:      message,
 		userActivity: userActivity,
+		referral:     referral,
 		mediaStorage: mediaStorage,
 		cfg:          cfg,
 		health:       health,

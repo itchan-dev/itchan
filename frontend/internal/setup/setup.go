@@ -34,6 +34,7 @@ type Dependencies struct {
 	Handler        *handler.Handler
 	Jwt            jwt.JwtService
 	Public         config.Public
+	Private        config.Private
 	Storage        *storage.Storage
 	AccessData     *board_access.BoardAccess
 	BlacklistCache *blacklist.Cache
@@ -95,6 +96,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 		Handler:        h,
 		Jwt:            jwtService,
 		Public:         cfg.Public,
+		Private:        cfg.Private,
 		Storage:        store,
 		AccessData:     accessData,
 		BlacklistCache: blacklistCache,

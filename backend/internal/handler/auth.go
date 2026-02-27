@@ -30,7 +30,7 @@ func (h *Handler) CheckConfirmationCode(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := h.auth.CheckConfirmationCode(req.Email, req.ConfirmationCode); err != nil {
+	if err := h.auth.CheckConfirmationCode(req.Email, req.ConfirmationCode, req.RefSource); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}

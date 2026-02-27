@@ -14,6 +14,7 @@ import (
 	"github.com/itchan-dev/itchan/frontend/internal/setup"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	rl "github.com/itchan-dev/itchan/shared/middleware/ratelimiter"
+	sharedutils "github.com/itchan-dev/itchan/shared/utils"
 )
 
 func SetupRouter(deps *setup.Dependencies) *chi.Mux {
@@ -36,6 +37,11 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 			SecureCookies: deps.Public.SecureCookies,
 		}))
 	}
+
+	allowedRefs := sharedutils.NewAllowedSources(deps.Private.AllowedRefs)
+
+	// Referral tracking middleware: captures ?ref= param into cookie on first visit
+	r.Use(referralTracking(deps, allowedRefs))
 
 	// Health check endpoint (no auth required)
 	// Support both GET and HEAD for health checks (wget --spider uses HEAD)
@@ -186,6 +192,38 @@ func noDirectoryListing(h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+// referralTracking captures ?ref= param into a cookie on first visit and records the visit.
+// allowedRefs is a pre-built set; empty means allow all sources.
+func referralTracking(deps *setup.Dependencies, allowedRefs sharedutils.AllowedSources) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				ref := r.URL.Query().Get("ref")
+				if ref != "" {
+					if allowedRefs.IsAllowed(ref) {
+						// Only record if no existing ref cookie (first visit dedup)
+						if _, err := r.Cookie("ref"); err != nil {
+							http.SetCookie(w, &http.Cookie{
+								Name:     "ref",
+								Value:    ref,
+								Path:     "/",
+								MaxAge:   86400 * 30, // 30 days
+								HttpOnly: true,
+								Secure:   deps.Public.SecureCookies,
+								SameSite: http.SameSiteLaxMode,
+							})
+							go func(source string) {
+								_ = deps.Handler.APIClient.RecordReferralVisit(source)
+							}(ref)
+						}
+					}
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // cacheStaticFiles wraps an http.Handler to add Cache-Control headers for static files

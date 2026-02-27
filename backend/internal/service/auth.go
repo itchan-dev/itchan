@@ -17,11 +17,11 @@ import (
 
 type AuthService interface {
 	Register(creds domain.Credentials) error
-	CheckConfirmationCode(email domain.Email, confirmationCode string) error
+	CheckConfirmationCode(email domain.Email, confirmationCode string, refSource string) error
 	Login(creds domain.Credentials) (string, error)
 
 	// Invite system methods
-	RegisterWithInvite(inviteCode string, password domain.Password) (string, error)
+	RegisterWithInvite(inviteCode string, password domain.Password, refSource string) (string, error)
 	GenerateInvite(user domain.User) (*domain.InviteCodeWithPlaintext, error)
 	GetUserInvites(userId domain.UserId, page int) ([]domain.InviteCode, error)
 	RevokeInvite(userId domain.UserId, codeHash string) error
@@ -39,12 +39,14 @@ type CredentialsValidator interface {
 
 type Auth struct {
 	storage              AuthStorage
+	referralStorage      ReferralStorage
 	email                Email
 	jwt                  Jwt
 	cfg                  *config.Public
 	blacklistCache       *blacklist.Cache
 	emailCrypto          EmailCrypto
 	credentialsValidator CredentialsValidator
+	allowedRefs          sharedutils.AllowedSources
 }
 
 type EmailCrypto interface {
@@ -87,15 +89,17 @@ type Jwt interface {
 	NewToken(user domain.User) (string, error)
 }
 
-func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache, emailCrypto EmailCrypto, credentialsValidator CredentialsValidator) *Auth {
+func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache, emailCrypto EmailCrypto, credentialsValidator CredentialsValidator, referralStorage ReferralStorage, allowedRefs sharedutils.AllowedSources) *Auth {
 	return &Auth{
 		storage:              storage,
+		referralStorage:      referralStorage,
 		email:                email,
 		emailCrypto:          emailCrypto,
 		jwt:                  jwt,
 		cfg:                  cfg,
 		blacklistCache:       blacklistCache,
 		credentialsValidator: credentialsValidator,
+		allowedRefs:          allowedRefs,
 	}
 }
 
@@ -204,7 +208,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 	return nil
 }
 
-func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string) error {
+func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string, refSource string) error {
 	email = strings.ToLower(email)
 
 	if err := a.email.IsCorrect(email); err != nil {
@@ -246,6 +250,11 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 			})
 			if err != nil {
 				return err
+			}
+			if refSource != "" && a.allowedRefs.IsAllowed(refSource) {
+				if err := a.referralStorage.SaveReferralRegistration(userId, refSource); err != nil {
+					logger.Log.Warn("failed to record referral registration", "user_id", userId, "source", refSource, "error", err)
+				}
 			}
 			logger.Log.Info("new user registered", "user_id", userId, "domain", emailDomain)
 		} else {
@@ -370,7 +379,7 @@ func (a *Auth) RefreshBlacklistCache() error {
 
 // RegisterWithInvite creates a user account using an invite code
 // Returns the generated @itchan.ru email address
-func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (string, error) {
+func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password, refSource string) (string, error) {
 	// 1. Hash invite code for storage lookup
 	inviteCodeHash := sharedutils.HashSHA256(inviteCode)
 
@@ -457,6 +466,13 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password) (
 	if err := a.storage.MarkInviteUsed(inviteCodeHash, userId); err != nil {
 		logger.Log.Error("failed to mark invite used", "user_id", userId, "error", err)
 		// Don't fail - user is already created
+	}
+
+	// 9. Record referral attribution
+	if refSource != "" && a.allowedRefs.IsAllowed(refSource) {
+		if err := a.referralStorage.SaveReferralRegistration(userId, refSource); err != nil {
+			logger.Log.Warn("failed to record referral registration", "user_id", userId, "source", refSource, "error", err)
+		}
 	}
 
 	logger.Log.Info("user registered via invite",

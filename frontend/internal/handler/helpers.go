@@ -18,7 +18,29 @@ const (
 	flashCookieError   = "flash_error"
 	flashCookieSuccess = "flash_success"
 	emailPrefillCookie = "email_prefill"
+	refCookie          = "ref"
 )
+
+// getRefCookie reads the referral source cookie value.
+func getRefCookie(r *http.Request) string {
+	if c, err := r.Cookie(refCookie); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+// clearRefCookie expires the referral source cookie after successful registration.
+func clearRefCookie(w http.ResponseWriter, secureCookies bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     refCookie,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
 
 // setFlash sets a flash message cookie that will be displayed once and then deleted.
 // The message is stored as an HTTP-only cookie with a 5-minute expiration.

@@ -21,8 +21,11 @@ func (c *APIClient) Register(email, password string) (*http.Response, error) {
 }
 
 // ConfirmEmail sends an email confirmation code to the backend.
-func (c *APIClient) ConfirmEmail(email, code string) error {
+func (c *APIClient) ConfirmEmail(email, code, refSource string) error {
 	data := map[string]string{"email": email, "confirmation_code": code}
+	if refSource != "" {
+		data["ref_source"] = refSource
+	}
 	jsonBody, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal confirmation data: %w", err)
@@ -55,8 +58,11 @@ func (c *APIClient) Login(email, password string) (*http.Response, error) {
 
 // RegisterWithInvite sends an invite code registration request to the backend.
 // It returns the generated random email address on success.
-func (c *APIClient) RegisterWithInvite(inviteCode, password string) (string, error) {
+func (c *APIClient) RegisterWithInvite(inviteCode, password, refSource string) (string, error) {
 	data := map[string]string{"invite_code": inviteCode, "password": password}
+	if refSource != "" {
+		data["ref_source"] = refSource
+	}
 	jsonBody, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal invite registration data: %w", err)
