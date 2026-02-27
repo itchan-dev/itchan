@@ -173,8 +173,9 @@ For development without Docker:
 psql -U itchan -d itchan -f backend/internal/storage/pg/migrations/init.sql
 
 # 3. Configure your environment
-cp config/private.yaml.example config/private.yaml
-# Edit config/private.yaml with your database and email settings
+cp .env.example .env
+# Edit .env with your database and email settings
+make gen-configs
 
 # 4. Start the backend API
 cd backend
@@ -193,8 +194,6 @@ itchan/
 │   ├── cmd/
 │   │   ├── itchan-api/        # Main entry point
 │   │   │   └── main.go
-│   │   └── tools/             # CLI utilities
-│   │       └── generate-encryption-key/  # Generate AES-256 encryption key
 │   ├── internal/
 │   │   ├── handler/           # HTTP handlers (REST endpoints)
 │   │   │   ├── auth.go        # Register, login, logout
@@ -361,6 +360,10 @@ itchan/
 ├── config/                     # Configuration files
 │   ├── public.yaml            # Public configuration (shared with frontend)
 │   └── private.yaml           # Private configuration (backend only, generated)
+│
+├── tools/                      # CLI utilities (run from project root)
+│   ├── generate-encryption-key/ # Generate AES-256 encryption key
+│   └── render-template/       # Render Go templates from env vars
 │
 ├── docker-compose.yml         # Docker orchestration (production)
 ├── docker-compose.dev.yml     # Docker orchestration (development)
@@ -545,7 +548,7 @@ allowed_registration_domains: []       # Empty = allow all domains. Example: ["g
 ### `config/private.yaml` (Backend only - never commit to git!)
 ```yaml
 jwt_key: "<your-secret-key>"           # JWT signing key (generate random 512+ bit string)
-encryption_key: "<your-encryption-key>" # AES-256-GCM key for email encryption (use backend/cmd/tools/generate-encryption-key)
+encryption_key: "<your-encryption-key>" # AES-256-GCM key for email encryption (generate with: go run ./tools/generate-encryption-key/)
 
 pg:
   host: localhost

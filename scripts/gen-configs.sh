@@ -1,5 +1,5 @@
 #!/bin/bash
-# Generates config/private.yaml and nginx/nginx.conf from templates + .env
+# Generates config/private.yaml and nginx/nginx.conf from .env
 # Called automatically by make deploy / make deploy-monitoring
 set -e
 
@@ -10,25 +10,10 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# Export all variables from .env for envsubst
+# Export all variables from .env
 set -a
 source .env
 set +a
 
-# Generate config/private.yaml
-PRIVATE_VARS='${JWT_KEY} ${ENCRYPTION_KEY} ${POSTGRES_USER} ${POSTGRES_PASSWORD} ${POSTGRES_DB} ${SMTP_SERVER} ${SMTP_PORT} ${SMTP_USERNAME} ${SMTP_PASSWORD} ${SMTP_SENDER_NAME}'
-envsubst "$PRIVATE_VARS" < config/private.yaml.example > config/private.yaml
-
-if grep -q '${' config/private.yaml 2>/dev/null; then
-    echo "⚠ Warning: some variables were not substituted in config/private.yaml"
-    grep '${' config/private.yaml
-fi
-echo "✓ config/private.yaml"
-
-# Generate nginx/nginx.conf
-if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "yourdomain.com" ]; then
-    sed "s/DOMAIN_PLACEHOLDER/${DOMAIN}/g" nginx/nginx.conf.example > nginx/nginx.conf
-    echo "✓ nginx/nginx.conf (${DOMAIN})"
-else
-    echo "• nginx/nginx.conf skipped (DOMAIN not set in .env)"
-fi
+go run ./tools/render-template/ -t config/private.yaml.tmpl -o config/private.yaml
+go run ./tools/render-template/ -t nginx/nginx.conf.tmpl    -o nginx/nginx.conf
