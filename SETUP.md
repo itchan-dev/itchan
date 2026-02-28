@@ -6,7 +6,6 @@
 |---|---|---|
 | Docker 20.10+ | `docker --version` | `curl -fsSL https://get.docker.com \| sh` |
 | Docker Compose 2.0+ | `docker compose version` | Included with Docker |
-| Go 1.24+ | `go version` | `curl -fsSL https://go.dev/dl/go1.24.linux-amd64.tar.gz \| tar -C /usr/local -xz` |
 | OpenSSL | `openssl version` | `apt-get install -y openssl` |
 | Ports 80, 443 free | `ss -tlnp \| grep -E ':80\|:443'` | Stop conflicting services |
 | Domain → server IP | `dig +short yourdomain.com` | Set A record in DNS registrar |
@@ -85,6 +84,6 @@ crontab -l | grep renew-ssl
 ## Generated Files (do not commit)
 
 - `.env` — all secrets (DB, JWT, SMTP, domain); edit this to configure the app
-- `config/private.yaml` — generated from `config/private.yaml.tmpl` + `.env` by `make gen-configs`
-- `nginx/nginx.conf` — generated from `nginx/nginx.conf.tmpl` + `.env` by `make gen-configs`
+- `config/private.yaml` — generated from `templates/private.yaml.j2` + `.env` by `make gen-configs`
+- `nginx/nginx.conf` — generated from `templates/nginx.conf.j2` + `.env` by `make gen-configs`
 - `nginx/certs/` — SSL certificates

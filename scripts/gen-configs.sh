@@ -10,10 +10,20 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-# Export all variables from .env
-set -a
-source .env
-set +a
+docker build -q -t itchan-renderer tools/render-template/ >/dev/null
 
-go run ./tools/render-template/ -t config/private.yaml.tmpl -o config/private.yaml
-go run ./tools/render-template/ -t nginx/nginx.conf.tmpl    -o nginx/nginx.conf
+docker run --rm \
+    --env-file .env \
+    -v "$(pwd)/templates:/templates:ro" \
+    -v "$(pwd)/config:/config" \
+    itchan-renderer \
+    /templates/private.yaml.j2 /config/private.yaml
+
+docker run --rm \
+    --env-file .env \
+    -v "$(pwd)/templates:/templates:ro" \
+    -v "$(pwd)/nginx:/nginx" \
+    itchan-renderer \
+    /templates/nginx.conf.j2 /nginx/nginx.conf
+
+echo "✓ configs generated"

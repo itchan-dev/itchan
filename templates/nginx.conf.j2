@@ -99,8 +99,8 @@ http {
         server_name _;
 
         # SSL certificates (will be provided by certbot)
-        ssl_certificate /etc/letsencrypt/live/{{ .DOMAIN | required }}/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/{{ .DOMAIN | required }}/privkey.pem;
+        ssl_certificate /etc/letsencrypt/live/{{ DOMAIN }}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/{{ DOMAIN }}/privkey.pem;
 
         # SSL configuration (modern, secure)
         ssl_protocols TLSv1.2 TLSv1.3;

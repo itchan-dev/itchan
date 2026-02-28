@@ -363,7 +363,7 @@ itchan/
 │
 ├── tools/                      # CLI utilities (run from project root)
 │   ├── generate-encryption-key/ # Generate AES-256 encryption key
-│   └── render-template/       # Render Go templates from env vars
+│   └── render-template/       # Docker image for Jinja2 config rendering
 │
 ├── docker-compose.yml         # Docker orchestration (production)
 ├── docker-compose.dev.yml     # Docker orchestration (development)
@@ -545,7 +545,7 @@ media:
 allowed_registration_domains: []       # Empty = allow all domains. Example: ["gmail.com", "company.com"]
 ```
 
-### `config/private.yaml` (Generated from `config/private.yaml.tmpl` + `.env` — never commit!)
+### `config/private.yaml` (Generated from `templates/private.yaml.j2` + `.env` — never commit!)
 ```yaml
 jwt_key: "<your-secret-key>"           # JWT signing key (generate random 512+ bit string)
 encryption_key: "<your-encryption-key>" # AES-256-GCM key for email encryption (generate with: go run ./tools/generate-encryption-key/)

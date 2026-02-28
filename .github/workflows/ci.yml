@@ -43,6 +43,7 @@ jobs:
             cd ${{ secrets.VPS_PROJECT_PATH }}
             git fetch --tags
             git checkout ${{ github.ref_name }}
+            printf '%s' '${{ secrets.ENV_FILE }}' > .env
             make deploy-monitoring
 
   release:

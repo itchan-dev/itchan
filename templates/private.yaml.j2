@@ -1,0 +1,26 @@
+jwt_key: "{{ JWT_KEY }}"
+encryption_key: "{{ ENCRYPTION_KEY }}"
+
+pg:
+  host: "{{ POSTGRES_HOST | default('postgres') }}"
+  port: 5432
+  user: "{{ POSTGRES_USER }}"
+  password: "{{ POSTGRES_PASSWORD }}"
+  dbname: "{{ POSTGRES_DB }}"
+
+email:
+  smtp_server: "{{ SMTP_SERVER }}"
+  smtp_port: {{ SMTP_PORT }}
+  username: "{{ SMTP_USERNAME }}"
+  password: "{{ SMTP_PASSWORD }}"
+  sender_name: "{{ SMTP_SENDER_NAME | default('Itchan') }}"
+  timeout: 10
+
+{% set allowed_refs = ALLOWED_REFS | default('') %}
+{% if not allowed_refs %}
+allowed_refs: []
+{% else %}
+allowed_refs:
+{% for ref in allowed_refs.split(',') %}  - {{ ref | trim }}
+{% endfor %}
+{% endif %}
