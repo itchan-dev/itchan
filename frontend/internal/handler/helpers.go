@@ -180,5 +180,6 @@ func (h *Handler) initCommonTemplateData(w http.ResponseWriter, r *http.Request)
 	if c, err := r.Cookie("disable_media"); err == nil && c.Value == "1" {
 		common.DisableMedia = true
 	}
+	common.StaticVersion = fmt.Sprintf("%d", serverStart.Unix())
 	return common
 }
