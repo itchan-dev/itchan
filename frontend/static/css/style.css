@@ -698,6 +698,16 @@ button[type="submit"]:hover {
     position: absolute;
     z-index: 1000;
     box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    cursor: move;
+}
+
+.popup-reply-container textarea,
+.popup-reply-container button,
+.popup-reply-container input,
+.popup-reply-container select,
+.popup-reply-container label,
+.popup-reply-container a {
+    cursor: auto;
 }
 
 .popup-close-btn {
