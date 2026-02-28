@@ -1,19 +1,7 @@
 {{define "title"}}Home{{end}}
 {{- define "content"}}
 <div class="index-container">
-<div class="welcome-message">
-    <h2>Добро пожаловать на Itchan</h2>
-    <p>
-        <strong>Itchan</strong> — это анонимный имиджборд для IT-специалистов.
-        Здесь можно обсуждать офферы, компании, технологии, зарплаты и начальство, не опасаясь, что это увидит ваш HR.
-    </p>
-    <hr>
-    <p>
-        <strong>Важно:</strong> Мы понимаем важность свободы слова, но сайт работает в правовом поле РФ.
-        Пожалуйста, ознакомьтесь с <a href="/faq">FAQ и правилами</a> перед постингом.
-        Мы вынуждены удалять контент, нарушающий Уголовный кодекс, чтобы ресурс не заблокировали.
-    </p>
-</div>
+{{- template "welcome-message" .}}
 <h1>Доски</h1>
 {{- if or .Data.PublicBoards .Data.CorporateBoards}}
     {{- if .Data.PublicBoards}}

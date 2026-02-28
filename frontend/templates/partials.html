@@ -1,3 +1,20 @@
+{{/* Welcome message - shared between index and welcome pages */}}
+{{- define "welcome-message"}}
+<div class="welcome-message">
+    <h2><a href="/welcome">Добро пожаловать</a> на Itchan</h2>
+    <p>
+        <strong>Itchan</strong> — это анонимный имиджборд для IT-специалистов.
+        Здесь можно обсуждать офферы, компании, технологии, зарплаты и начальство, не опасаясь, что это увидит ваш HR.
+    </p>
+    <hr>
+    <p>
+        <strong>Важно:</strong> Мы понимаем важность свободы слова, но сайт работает в правовом поле РФ.
+        Пожалуйста, ознакомьтесь с <a href="/faq">FAQ и правилами</a> перед постингом.
+        Мы вынуждены удалять контент, нарушающий Уголовный кодекс, чтобы ресурс не заблокировали.
+    </p>
+</div>
+{{- end}}
+
 {{/* CSRF token hidden field - include in all state-changing forms */}}
 {{- define "csrf-field"}}
 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">

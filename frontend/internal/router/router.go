@@ -65,6 +65,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	// Public routes with optional auth (shows user info if logged in)
 	r.Group(func(optionalAuthRouter chi.Router) {
 		optionalAuthRouter.Use(authMw.OptionalAuth())
+		optionalAuthRouter.Get("/welcome", deps.Handler.WelcomeGetHandler)
 		optionalAuthRouter.Get("/faq", deps.Handler.FAQGetHandler)
 		optionalAuthRouter.Get("/about", deps.Handler.AboutGetHandler)
 		optionalAuthRouter.Get("/terms", deps.Handler.TermsGetHandler)
