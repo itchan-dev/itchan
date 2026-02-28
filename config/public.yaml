@@ -73,4 +73,3 @@ allowed_registration_domains:  # Empty = allow all domains
   - "ptsecurity.com"
   - "jetbrains.com"
   - "1c.ru"
-  - "gmail.com"
