@@ -1,4 +1,5 @@
 config/private.yaml
+nginx.conf
 # Build artifacts
 *.exe
 coverage.out
