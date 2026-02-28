@@ -342,10 +342,11 @@ function setupPopupReplySystem() {
             // 1. CONFIGURE: Update the form's action attribute for current board/thread
             formEl.action = `/${board}/${threadId}`;
 
-            // 2. POSITION: Place it near the clicked link
+            // 2. POSITION: Place it near the clicked link (fixed so it stays visible while scrolling)
             const linkRect = replyLink.getBoundingClientRect();
-            popup.style.top = `${window.scrollY + linkRect.bottom + 5}px`;
-            popup.style.left = `${window.scrollX + linkRect.left}px`;
+            popup.style.position = 'fixed';
+            popup.style.top = `${linkRect.bottom + 5}px`;
+            popup.style.left = `${linkRect.left}px`;
             popup.style.display = 'block';
 
             // 3. ACTIVATE: Add reply link to the textarea (accumulates)
@@ -366,10 +367,32 @@ function setupPopupReplySystem() {
             return;
         }
 
-        // If the click was anywhere on the body BUT not inside a popup...
-        if (!e.target.closest('.popup-reply-container')) {
-            popup.style.display = 'none';
-        }
+        // Popup only closes via the close button or when opening a new reply link
+    });
+
+    // Draggable popup: drag by clicking on the popup body (excluding interactive elements)
+    let isDragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    popup.addEventListener('mousedown', (e) => {
+        // Skip interactive elements
+        if (e.target.closest('textarea, button, input, select, label, a')) return;
+
+        isDragging = true;
+        dragOffsetX = e.clientX - popup.getBoundingClientRect().left;
+        dragOffsetY = e.clientY - popup.getBoundingClientRect().top;
+        e.preventDefault(); // Prevent text selection while dragging
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        popup.style.left = `${e.clientX - dragOffsetX}px`;
+        popup.style.top = `${e.clientY - dragOffsetY}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
     });
 }
 

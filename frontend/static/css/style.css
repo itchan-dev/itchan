@@ -1189,6 +1189,16 @@ button[type="submit"]:hover {
     .faq-examples-table td {
         padding: 6px;
     }
+
+    /* Popup reply: fixed to bottom, full-width, centered */
+    .popup-reply-container {
+        position: fixed !important;
+        bottom: 0;
+        left: 0 !important;
+        top: auto !important;
+        width: 100%;
+        box-shadow: 0 -2px 8px rgba(0,0,0,0.3);
+    }
 }
 
 /* Small phones */
