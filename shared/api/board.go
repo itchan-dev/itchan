@@ -11,10 +11,3 @@ type CreateBoardRequest struct {
 	ShortName     string         `json:"short_name" validate:"required"`
 	AllowedEmails *domain.Emails `json:"allowed_emails,omitempty"`
 }
-
-// Response DTOs
-
-// BoardListResponse wraps a list of boards
-type BoardListResponse struct {
-	Boards []domain.BoardMetadata `json:"boards"`
-}

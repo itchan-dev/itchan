@@ -15,7 +15,6 @@ import (
 )
 
 func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
-	var response api.BoardListResponse
 	resp, err := c.do("GET", "/v1/boards", nil, r.Cookies()...)
 	if err != nil {
 		return nil, err
@@ -25,15 +24,15 @@ func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("backend returned status %d", resp.StatusCode)
 	}
-	if err := utils.Decode(resp.Body, &response); err != nil {
+
+	var boardMetadata []domain.BoardMetadata
+	if err := utils.Decode(resp.Body, &boardMetadata); err != nil {
 		return nil, fmt.Errorf("cannot decode boards response: %w", err)
 	}
 
-	boards := make([]domain.Board, len(response.Boards))
-	for i, boardMeta := range response.Boards {
-		boards[i] = domain.Board{
-			BoardMetadata: boardMeta,
-		}
+	boards := make([]domain.Board, len(boardMetadata))
+	for i, bm := range boardMetadata {
+		boards[i] = domain.Board{BoardMetadata: bm}
 	}
 
 	return boards, nil
@@ -75,9 +74,7 @@ func (c *APIClient) GetBoardLastModified(r *http.Request, shortName string) (tim
 		return time.Time{}, fmt.Errorf("backend returned status %d", resp.StatusCode)
 	}
 
-	var result struct {
-		LastModifiedAt time.Time `json:"last_modified_at"`
-	}
+	var result api.LastModifiedResponse
 	if err := utils.Decode(resp.Body, &result); err != nil {
 		return time.Time{}, fmt.Errorf("cannot decode last_modified response: %w", err)
 	}

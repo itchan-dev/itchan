@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
-	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
@@ -283,11 +282,11 @@ func TestGetBoardsHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		var response api.BoardListResponse
+		var response []domain.BoardMetadata
 		err := json.Unmarshal(rr.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Len(t, response.Boards, len(expectedBoards))
-		for i, boardMeta := range response.Boards {
+		assert.Len(t, response, len(expectedBoards))
+		for i, boardMeta := range response {
 			assert.Equal(t, expectedBoards[i].BoardMetadata, boardMeta)
 		}
 	})

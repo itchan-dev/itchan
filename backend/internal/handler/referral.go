@@ -36,5 +36,5 @@ func (h *Handler) GetReferralStats(w http.ResponseWriter, r *http.Request) {
 		stats = []domain.ReferralStats{}
 	}
 
-	writeJSON(w, api.ReferralStatsResponse{Stats: stats})
+	writeJSON(w, stats)
 }

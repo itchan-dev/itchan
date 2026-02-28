@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,9 +56,7 @@ func (c *APIClient) GetThreadLastModified(r *http.Request, shortName, threadID s
 		return time.Time{}, fmt.Errorf("backend returned status %d", resp.StatusCode)
 	}
 
-	var result struct {
-		LastModifiedAt time.Time `json:"last_modified_at"`
-	}
+	var result api.LastModifiedResponse
 	if err := utils.Decode(resp.Body, &result); err != nil {
 		return time.Time{}, fmt.Errorf("cannot decode last_modified response: %w", err)
 	}
@@ -157,7 +156,11 @@ func (c *APIClient) CreateThread(r *http.Request, shortName string, data api.Cre
 	if statusCode != http.StatusCreated {
 		return "", fmt.Errorf("failed to create thread: %s", string(bodyBytes))
 	}
-	return string(bodyBytes), nil
+	var resp api.CreateThreadResponse
+	if err := json.Unmarshal(bodyBytes, &resp); err != nil {
+		return "", fmt.Errorf("failed to parse create thread response: %w", err)
+	}
+	return strconv.FormatInt(resp.ID, 10), nil
 }
 
 func (c *APIClient) CreateReply(r *http.Request, shortName, threadID string, data api.CreateMessageRequest, multipartForm *multipart.Form) (int, error) {
@@ -206,10 +209,8 @@ func (c *APIClient) TogglePinnedThread(r *http.Request, shortName, threadID stri
 		return false, fmt.Errorf("failed to toggle pin: %s", string(bodyBytes))
 	}
 
-	var result struct {
-		IsPinned bool `json:"is_pinned"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	var result api.TogglePinnedThreadResponse
+	if err := utils.Decode(resp.Body, &result); err != nil {
 		return false, fmt.Errorf("failed to decode pin response: %w", err)
 	}
 	return result.IsPinned, nil

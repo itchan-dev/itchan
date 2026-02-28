@@ -30,3 +30,8 @@ type LoginResponse struct {
 	Message     string `json:"message"`
 	AccessToken string `json:"access_token,omitempty"` // Token for non-cookie clients (mobile, API clients)
 }
+
+type RegisterWithInviteResponse struct {
+	Message string `json:"message"`
+	Email   string `json:"email"`
+}

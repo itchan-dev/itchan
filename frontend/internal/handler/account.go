@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	frontend_domain "github.com/itchan-dev/itchan/frontend/internal/domain"
-	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
 	mw "github.com/itchan-dev/itchan/shared/middleware"
@@ -23,13 +22,11 @@ func (h *Handler) AccountGetHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Log.Error("failed to get user activity from API", "error", err)
 		errMsg = "Failed to load activity"
-		activity = &api.UserActivityResponse{
-			Messages: []domain.Message{},
-		}
+		activity = []domain.Message{}
 	}
 
-	activityMessages := make([]*frontend_domain.Message, len(activity.Messages))
-	for i, msg := range activity.Messages {
+	activityMessages := make([]*frontend_domain.Message, len(activity))
+	for i, msg := range activity {
 		activityMessages[i] = renderMessage(msg)
 	}
 

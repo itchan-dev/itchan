@@ -55,7 +55,6 @@ func TestBlacklistUser(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "User blacklisted successfully", rr.Body.String())
 	})
 
 	t.Run("invalid user ID", func(t *testing.T) {
@@ -123,7 +122,6 @@ func TestUnblacklistUser(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "User unblacklisted successfully", rr.Body.String())
 	})
 
 	t.Run("invalid user ID", func(t *testing.T) {
@@ -171,7 +169,6 @@ func TestRefreshBlacklistCache(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, "Blacklist cache refreshed successfully", rr.Body.String())
 	})
 
 	t.Run("cache update failure", func(t *testing.T) {

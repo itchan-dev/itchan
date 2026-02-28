@@ -75,9 +75,8 @@ func TestGetUserActivity(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		require.NotNil(t, response)
-		assert.Equal(t, expectedMessages, response.Messages)
-		assert.Len(t, response.Messages, 2)
+		assert.Equal(t, expectedMessages, response)
+		assert.Len(t, response, 2)
 	})
 
 	t.Run("returns empty messages when user has no activity", func(t *testing.T) {
@@ -99,8 +98,7 @@ func TestGetUserActivity(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		require.NotNil(t, response)
-		assert.Empty(t, response.Messages)
+		assert.Empty(t, response)
 	})
 
 	t.Run("storage error", func(t *testing.T) {
@@ -123,7 +121,7 @@ func TestGetUserActivity(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.Nil(t, response)
+		assert.Nil(t, response) // nil slice on error
 		assert.Contains(t, err.Error(), "failed to get user messages")
 		assert.True(t, errors.Is(err, mockError))
 	})

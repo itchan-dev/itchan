@@ -269,7 +269,6 @@ func TestRevokeInvite(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "Invite revoked successfully")
 	})
 
 	t.Run("service error - invite not found", func(t *testing.T) {

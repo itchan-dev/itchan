@@ -3,14 +3,13 @@ package service
 import (
 	"fmt"
 
-	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 )
 
 // UserActivityService provides methods for fetching user activity data
 type UserActivityService interface {
-	GetUserActivity(userId domain.UserId) (*api.UserActivityResponse, error)
+	GetUserActivity(userId domain.UserId) ([]domain.Message, error)
 }
 
 // UserActivity implements UserActivityService
@@ -33,16 +32,13 @@ func NewUserActivity(storage UserActivityStorage, cfg *config.Public) UserActivi
 }
 
 // GetUserActivity fetches user's recent messages
-func (s *UserActivity) GetUserActivity(userId domain.UserId) (*api.UserActivityResponse, error) {
+func (s *UserActivity) GetUserActivity(userId domain.UserId) ([]domain.Message, error) {
 	limit := s.cfg.UserMessagesPageLimit
 
-	// Fetch user's messages
 	messages, err := s.storage.GetUserMessages(userId, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user messages: %w", err)
 	}
 
-	return &api.UserActivityResponse{
-		Messages: messages,
-	}, nil
+	return messages, nil
 }

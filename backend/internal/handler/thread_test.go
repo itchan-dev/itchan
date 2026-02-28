@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
@@ -112,7 +113,9 @@ func TestCreateThreadHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusCreated, rr.Code)
-		assert.Equal(t, fmt.Sprintf("%d", expectedThreadID), rr.Body.String())
+		var resp api.CreateThreadResponse
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.Equal(t, expectedThreadID, resp.ID)
 	})
 
 	t.Run("successful request with replies", func(t *testing.T) {

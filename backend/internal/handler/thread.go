@@ -2,9 +2,7 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
@@ -53,7 +51,7 @@ func (h *Handler) CreateThread(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "%d", threadId)
+	writeJSON(w, api.CreateThreadResponse{ID: threadId})
 }
 
 func (h *Handler) GetThread(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +89,7 @@ func (h *Handler) GetThreadLastModified(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeJSON(w, map[string]time.Time{"last_modified_at": lastModified})
+	writeJSON(w, api.LastModifiedResponse{LastModifiedAt: lastModified})
 }
 
 func (h *Handler) DeleteThread(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +124,5 @@ func (h *Handler) TogglePinnedThread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"is_pinned": %t}`, newStatus)
+	writeJSON(w, api.TogglePinnedThreadResponse{IsPinned: newStatus})
 }

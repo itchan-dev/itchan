@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
@@ -29,9 +28,9 @@ func (h *Handler) RegisterWithInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	writeJSON(w, map[string]string{
-		"message": "Registration successful. You can now log in.",
-		"email":   email,
+	writeJSON(w, api.RegisterWithInviteResponse{
+		Message: "Registration successful. You can now log in.",
+		Email:   email,
 	})
 }
 
@@ -46,9 +45,9 @@ func (h *Handler) GenerateInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, map[string]any{
-		"invite_code": invite.PlainCode,
-		"expires_at":  invite.ExpiresAt.Format(time.RFC3339),
+	writeJSON(w, api.GenerateInviteResponse{
+		InviteCode: invite.PlainCode,
+		ExpiresAt:  invite.ExpiresAt,
 	})
 }
 
@@ -85,5 +84,4 @@ func (h *Handler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Invite revoked successfully"))
 }

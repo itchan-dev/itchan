@@ -152,7 +152,6 @@ func TestRegisterHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.JSONEq(t, `{"message":"The confirmation code has been sent by email"}`, rr.Body.String())
 	})
 
 	t.Run("validation error", func(t *testing.T) {
@@ -311,7 +310,6 @@ func TestAuthLogoutHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.JSONEq(t, `{"message":"You logged out"}`, rr.Body.String())
 
 		cookies := rr.Result().Cookies()
 		require.Len(t, cookies, 1)

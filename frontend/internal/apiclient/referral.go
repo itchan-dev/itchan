@@ -8,6 +8,8 @@ import (
 	"net/http"
 
 	"github.com/itchan-dev/itchan/shared/api"
+	"github.com/itchan-dev/itchan/shared/domain"
+	"github.com/itchan-dev/itchan/shared/utils"
 )
 
 // RecordReferralVisit records a visit with a referral source.
@@ -27,21 +29,21 @@ func (c *APIClient) RecordReferralVisit(source string) error {
 }
 
 // GetReferralStats returns referral stats from the admin API.
-func (c *APIClient) GetReferralStats(r *http.Request) (api.ReferralStatsResponse, error) {
+func (c *APIClient) GetReferralStats(r *http.Request) ([]domain.ReferralStats, error) {
 	resp, err := c.do("GET", "/v1/admin/referral/stats", nil, r.Cookies()...)
 	if err != nil {
-		return api.ReferralStatsResponse{}, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return api.ReferralStatsResponse{}, fmt.Errorf("failed to get referral stats: %s", string(bodyBytes))
+		return nil, fmt.Errorf("failed to get referral stats: %s", string(bodyBytes))
 	}
 
-	var result api.ReferralStatsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return api.ReferralStatsResponse{}, fmt.Errorf("failed to decode referral stats response: %w", err)
+	var result []domain.ReferralStats
+	if err := utils.Decode(resp.Body, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode referral stats response: %w", err)
 	}
 
 	return result, nil

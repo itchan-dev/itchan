@@ -50,25 +50,15 @@ func (c *APIClient) GenerateInvite(r *http.Request) (*domain.InviteCodeWithPlain
 		return nil, fmt.Errorf("failed to generate invite: %s", string(bodyBytes))
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
+	var response api.GenerateInviteResponse
 
-	// Response format: {"invite_code": "...", "expires_at": "..."}
-	var response struct {
-		InviteCode string `json:"invite_code"`
-		ExpiresAt  string `json:"expires_at"`
-	}
-
-	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("failed to parse invite response: %w", err)
 	}
 
-	// For now, return a simplified structure with just the plain code
-	// The full InviteCode will be fetched when refreshing the list
 	return &domain.InviteCodeWithPlaintext{
-		PlainCode: response.InviteCode,
+		PlainCode:  response.InviteCode,
+		InviteCode: domain.InviteCode{ExpiresAt: response.ExpiresAt},
 	}, nil
 }
 

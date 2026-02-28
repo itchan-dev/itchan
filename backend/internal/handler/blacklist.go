@@ -38,7 +38,6 @@ func (h *Handler) BlacklistUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("User blacklisted successfully"))
 }
 
 // UnblacklistUser handles DELETE /v1/admin/users/:userId/blacklist
@@ -58,7 +57,6 @@ func (h *Handler) UnblacklistUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("User unblacklisted successfully"))
 }
 
 // RefreshBlacklistCache handles POST /v1/admin/blacklist/refresh
@@ -69,7 +67,6 @@ func (h *Handler) RefreshBlacklistCache(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Blacklist cache refreshed successfully"))
 }
 
 // GetBlacklistedUsers handles GET /v1/admin/blacklist
