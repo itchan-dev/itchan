@@ -50,34 +50,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
-	cookie := &http.Cookie{
-		Path:     "/",
-		Name:     "access_token",
-		Value:    accessToken,
-		MaxAge:   int(h.cfg.JwtTTL().Seconds()),
-		HttpOnly: true,
-		Secure:   h.cfg.Public.SecureCookies,
-		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, cookie)
 
 	writeJSON(w, api.LoginResponse{
 		Message:     "You logged in",
 		AccessToken: accessToken,
 	})
-}
-
-func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	cookie := &http.Cookie{
-		Path:     "/",
-		Name:     "access_token",
-		Value:    "",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   h.cfg.Public.SecureCookies,
-		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, cookie)
-
-	w.WriteHeader(http.StatusOK)
 }

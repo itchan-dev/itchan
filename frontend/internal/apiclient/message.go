@@ -11,7 +11,7 @@ import (
 
 func (c *APIClient) GetMessage(r *http.Request, board, threadID, messageID string) (*http.Response, error) {
 	path := fmt.Sprintf("/v1/%s/%s/%s", board, threadID, messageID)
-	resp, err := c.do("GET", path, nil, r.Cookies()...)
+	resp, err := c.do("GET", path, nil, getToken(r))
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (c *APIClient) GetMessageParsed(r *http.Request, board, threadID, messageID
 
 func (c *APIClient) DeleteMessage(r *http.Request, shortName, threadID, messageID string) error {
 	path := fmt.Sprintf("/v1/admin/%s/%s/%s", shortName, threadID, messageID)
-	resp, err := c.do("DELETE", path, nil, r.Cookies()...)
+	resp, err := c.do("DELETE", path, nil, getToken(r))
 	if err != nil {
 		return err
 	}

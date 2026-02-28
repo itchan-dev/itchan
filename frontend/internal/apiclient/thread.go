@@ -26,7 +26,7 @@ func escapeQuotes(s string) string {
 func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page int) (domain.Thread, error) {
 	var thread domain.Thread
 	path := withPage(fmt.Sprintf("/v1/%s/%s", shortName, threadID), page)
-	resp, err := c.do("GET", path, nil, r.Cookies()...)
+	resp, err := c.do("GET", path, nil, getToken(r))
 	if err != nil {
 		return thread, err
 	}
@@ -46,7 +46,7 @@ func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page 
 
 func (c *APIClient) GetThreadLastModified(r *http.Request, shortName, threadID string) (time.Time, error) {
 	path := fmt.Sprintf("/v1/%s/%s/last_modified", shortName, threadID)
-	resp, err := c.do("GET", path, nil, r.Cookies()...)
+	resp, err := c.do("GET", path, nil, getToken(r))
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -64,7 +64,7 @@ func (c *APIClient) GetThreadLastModified(r *http.Request, shortName, threadID s
 }
 
 // postMultipartRequest sends a multipart/form-data POST request with JSON payload and optional file attachments
-func (c *APIClient) postMultipartRequest(path string, data any, multipartForm *multipart.Form, cookies []*http.Cookie) ([]byte, int, error) {
+func (c *APIClient) postMultipartRequest(path string, data any, multipartForm *multipart.Form, token string) ([]byte, int, error) {
 	// Create multipart writer
 	pipeReader, pipeWriter := io.Pipe()
 	writer := multipart.NewWriter(pipeWriter)
@@ -133,8 +133,8 @@ func (c *APIClient) postMultipartRequest(path string, data any, multipartForm *m
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	for _, cookie := range cookies {
-		req.AddCookie(cookie)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resp, err := c.HttpClient.Do(req)
@@ -149,7 +149,7 @@ func (c *APIClient) postMultipartRequest(path string, data any, multipartForm *m
 
 func (c *APIClient) CreateThread(r *http.Request, shortName string, data api.CreateThreadRequest, multipartForm *multipart.Form) (string, error) {
 	path := fmt.Sprintf("/v1/%s", shortName)
-	bodyBytes, statusCode, err := c.postMultipartRequest(path, data, multipartForm, r.Cookies())
+	bodyBytes, statusCode, err := c.postMultipartRequest(path, data, multipartForm, getToken(r))
 	if err != nil {
 		return "", err
 	}
@@ -165,7 +165,7 @@ func (c *APIClient) CreateThread(r *http.Request, shortName string, data api.Cre
 
 func (c *APIClient) CreateReply(r *http.Request, shortName, threadID string, data api.CreateMessageRequest, multipartForm *multipart.Form) (int, error) {
 	path := fmt.Sprintf("/v1/%s/%s", shortName, threadID)
-	bodyBytes, statusCode, err := c.postMultipartRequest(path, data, multipartForm, r.Cookies())
+	bodyBytes, statusCode, err := c.postMultipartRequest(path, data, multipartForm, getToken(r))
 	if err != nil {
 		return 0, err
 	}
@@ -183,7 +183,7 @@ func (c *APIClient) CreateReply(r *http.Request, shortName, threadID string, dat
 
 func (c *APIClient) DeleteThread(r *http.Request, shortName, threadID string) error {
 	path := fmt.Sprintf("/v1/admin/%s/%s", shortName, threadID)
-	resp, err := c.do("DELETE", path, nil, r.Cookies()...)
+	resp, err := c.do("DELETE", path, nil, getToken(r))
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (c *APIClient) DeleteThread(r *http.Request, shortName, threadID string) er
 
 func (c *APIClient) TogglePinnedThread(r *http.Request, shortName, threadID string) (bool, error) {
 	path := fmt.Sprintf("/v1/admin/%s/%s/pin", shortName, threadID)
-	resp, err := c.do("POST", path, nil, r.Cookies()...)
+	resp, err := c.do("POST", path, nil, getToken(r))
 	if err != nil {
 		return false, err
 	}

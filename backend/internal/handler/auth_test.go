@@ -12,7 +12,6 @@ import (
 	"github.com/itchan-dev/itchan/shared/config"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type MockAuthService struct {
@@ -126,7 +125,6 @@ func setupAuthTestHandler(authService service.AuthService, cfg *config.Config) (
 	router.Post("/v1/auth/register", h.Register)
 	router.Post("/v1/auth/check-confirmation-code", h.CheckConfirmationCode)
 	router.Post("/v1/auth/login", h.Login)
-	router.Post("/v1/auth/logout", h.Logout)
 
 	return h, router
 }
@@ -256,15 +254,7 @@ func TestAuthLoginHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.JSONEq(t, `{"message":"You logged in","access_token":"test_access_token"}`, rr.Body.String())
-
-		cookies := rr.Result().Cookies()
-		require.Len(t, cookies, 1)
-		cookie := cookies[0]
-		assert.Equal(t, "access_token", cookie.Name)
-		assert.Equal(t, expectedToken, cookie.Value)
-		assert.True(t, cookie.HttpOnly)
-		assert.Equal(t, "/", cookie.Path)
-		assert.InDelta(t, int(cfg.Public.JwtTTL.Seconds()), cookie.MaxAge, 1)
+		assert.Empty(t, rr.Result().Cookies())
 	})
 
 	t.Run("validation error", func(t *testing.T) {
@@ -291,47 +281,5 @@ func TestAuthLoginHandler(t *testing.T) {
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
-	})
-}
-
-func TestAuthLogoutHandler(t *testing.T) {
-	route := "/v1/auth/logout"
-	_, router := setupAuthTestHandler(nil, nil)
-
-	t.Run("successful logout", func(t *testing.T) {
-		existingCookie := &http.Cookie{
-			Name:  "access_token",
-			Value: "some_valid_token",
-			Path:  "/",
-		}
-		req := createRequest(t, http.MethodPost, route, nil, existingCookie)
-		rr := httptest.NewRecorder()
-
-		router.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusOK, rr.Code)
-
-		cookies := rr.Result().Cookies()
-		require.Len(t, cookies, 1)
-		clearedCookie := cookies[0]
-
-		assert.Equal(t, "access_token", clearedCookie.Name)
-		assert.Equal(t, "", clearedCookie.Value)
-		assert.Equal(t, -1, clearedCookie.MaxAge)
-		assert.True(t, clearedCookie.HttpOnly)
-		assert.Equal(t, "/", clearedCookie.Path)
-	})
-
-	t.Run("logout without existing cookie", func(t *testing.T) {
-		req := createRequest(t, http.MethodPost, route, nil)
-		rr := httptest.NewRecorder()
-
-		router.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusOK, rr.Code)
-
-		cookies := rr.Result().Cookies()
-		require.Len(t, cookies, 1)
-		assert.Equal(t, -1, cookies[0].MaxAge)
 	})
 }

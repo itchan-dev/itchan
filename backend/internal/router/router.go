@@ -122,9 +122,7 @@ func New(deps *setup.Dependencies) *chi.Mux {
 				refVisit.Post("/referral/visit", h.RecordReferralVisit)
 			})
 
-			// Logout (no rate limits)
-			auth.Post("/logout", h.Logout)
-		})
+			})
 
 		// Logged-in user routes
 		v1.Group(func(loggedIn chi.Router) {

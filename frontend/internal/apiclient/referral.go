@@ -20,7 +20,7 @@ func (c *APIClient) RecordReferralVisit(source string) error {
 		return fmt.Errorf("failed to marshal referral visit data: %w", err)
 	}
 
-	resp, err := c.do("POST", "/v1/auth/referral/visit", bytes.NewBuffer(jsonBody))
+	resp, err := c.do("POST", "/v1/auth/referral/visit", bytes.NewBuffer(jsonBody), "")
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func (c *APIClient) RecordReferralVisit(source string) error {
 
 // GetReferralStats returns referral stats from the admin API.
 func (c *APIClient) GetReferralStats(r *http.Request) ([]domain.ReferralStats, error) {
-	resp, err := c.do("GET", "/v1/admin/referral/stats", nil, r.Cookies()...)
+	resp, err := c.do("GET", "/v1/admin/referral/stats", nil, getToken(r))
 	if err != nil {
 		return nil, err
 	}

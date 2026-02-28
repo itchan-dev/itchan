@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/logger"
 	"github.com/itchan-dev/itchan/shared/middleware"
 )
@@ -97,15 +99,29 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, cookie := range resp.Cookies() {
-		http.SetCookie(w, cookie)
+	var loginResp api.LoginResponse
+	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil || loginResp.AccessToken == "" {
+		logger.Log.Error("parsing login response", "error", err)
+		h.setFlash(w, flashCookieError, "Internal error: invalid login response.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
 	}
+
+	http.SetCookie(w, &http.Cookie{
+		Path:     "/",
+		Name:     middleware.CookieName,
+		Value:    loginResp.AccessToken,
+		MaxAge:   int(h.Public.JwtTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   h.Public.SecureCookies,
+		SameSite: http.SameSiteLaxMode,
+	})
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
-	cookie := &http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Path:     "/",
 		Name:     middleware.CookieName,
 		Value:    "",
@@ -113,8 +129,7 @@ func (h *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Secure:   h.Public.SecureCookies,
 		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, cookie)
+	})
 
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

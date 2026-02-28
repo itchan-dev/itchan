@@ -13,7 +13,7 @@ import (
 // GetBlacklistedUsers returns blacklisted users for the given page
 func (c *APIClient) GetBlacklistedUsers(r *http.Request, page int) (api.BlacklistResponse, error) {
 	path := withPage("/v1/admin/blacklist", page)
-	resp, err := c.do("GET", path, nil, r.Cookies()...)
+	resp, err := c.do("GET", path, nil, getToken(r))
 	if err != nil {
 		return api.BlacklistResponse{}, err
 	}
@@ -35,7 +35,7 @@ func (c *APIClient) GetBlacklistedUsers(r *http.Request, page int) (api.Blacklis
 // UnblacklistUser removes a user from the blacklist
 func (c *APIClient) UnblacklistUser(r *http.Request, userID string) error {
 	path := fmt.Sprintf("/v1/admin/users/%s/blacklist", userID)
-	resp, err := c.do("DELETE", path, nil, r.Cookies()...)
+	resp, err := c.do("DELETE", path, nil, getToken(r))
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (c *APIClient) BlacklistUser(r *http.Request, userID string, reason string)
 	}
 
 	path := fmt.Sprintf("/v1/admin/users/%s/blacklist", userID)
-	resp, err := c.do("POST", path, bytes.NewBuffer(jsonBody), r.Cookies()...)
+	resp, err := c.do("POST", path, bytes.NewBuffer(jsonBody), getToken(r))
 	if err != nil {
 		return err
 	}

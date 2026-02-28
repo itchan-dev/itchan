@@ -18,7 +18,7 @@ func (c *APIClient) Register(email, password string) (*http.Response, error) {
 		return nil, fmt.Errorf("failed to marshal register data: %w", err)
 	}
 
-	return c.do("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody))
+	return c.do("POST", "/v1/auth/register", bytes.NewBuffer(jsonBody), "")
 }
 
 // ConfirmEmail sends an email confirmation code to the backend.
@@ -28,7 +28,7 @@ func (c *APIClient) ConfirmEmail(email, code, refSource string) error {
 		return fmt.Errorf("failed to marshal confirmation data: %w", err)
 	}
 
-	resp, err := c.do("POST", "/v1/auth/check_confirmation_code", bytes.NewBuffer(jsonBody))
+	resp, err := c.do("POST", "/v1/auth/check_confirmation_code", bytes.NewBuffer(jsonBody), "")
 	if err != nil {
 		return err
 	}
@@ -41,15 +41,15 @@ func (c *APIClient) ConfirmEmail(email, code, refSource string) error {
 	return nil
 }
 
-// Login sends login credentials. It returns the raw response because the
-// handler needs to extract cookies from it.
+// Login sends login credentials. It returns the raw response so the handler
+// can parse the access token from the JSON body.
 func (c *APIClient) Login(email, password string) (*http.Response, error) {
 	jsonBody, err := json.Marshal(api.LoginRequest{Email: email, Password: password})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal login data: %w", err)
 	}
 
-	return c.do("POST", "/v1/auth/login", bytes.NewBuffer(jsonBody))
+	return c.do("POST", "/v1/auth/login", bytes.NewBuffer(jsonBody), "")
 }
 
 // RegisterWithInvite sends an invite code registration request to the backend.
@@ -60,7 +60,7 @@ func (c *APIClient) RegisterWithInvite(inviteCode, password, refSource string) (
 		return "", fmt.Errorf("failed to marshal invite registration data: %w", err)
 	}
 
-	resp, err := c.do("POST", "/v1/auth/register_with_invite", bytes.NewBuffer(jsonBody))
+	resp, err := c.do("POST", "/v1/auth/register_with_invite", bytes.NewBuffer(jsonBody), "")
 	if err != nil {
 		return "", err
 	}
