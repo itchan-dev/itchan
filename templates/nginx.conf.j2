@@ -130,14 +130,11 @@ http {
             proxy_set_header Connection "";
         }
 
-        # All backend API endpoints are read-only (GET/HEAD) from the outside.
+        # Backend API endpoints are read-only (GET/HEAD) from the outside.
+        # Only exception is /api/v1/auth/
         # State changes (POST/PUT/DELETE) go through the frontend which handles sanitization.
         location ~ ^/api/v1/auth/ {
             limit_req zone=auth burst=3 nodelay;
-
-            limit_except GET HEAD OPTIONS {
-                deny all;
-            }
 
             rewrite ^/api(/.*)$ $1 break;
             proxy_pass http://backend;
