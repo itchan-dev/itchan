@@ -33,7 +33,7 @@ if [ ! -f ".env" ]; then
     echo "✓ .env created"
     echo ""
     echo "⚠ Configure email settings in .env before deploying!"
-    echo "  SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD"
+    echo "  SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_SENDER_NAME"
     echo ""
 else
     echo "• .env already exists, skipping"
@@ -68,6 +68,6 @@ echo "✓ SSL auto-renewal cron installed (daily 3 AM)"
 
 echo ""
 echo "=== Setup complete ==="
-echo "1. Configure email in .env"
-echo "2. Run: make deploy"
+echo "1. Set SMTP_* variables in .env"
+echo "2. Run: make deploy  (regenerates configs from .env, then starts services)"
 echo "3. Visit: https://${DOMAIN}"

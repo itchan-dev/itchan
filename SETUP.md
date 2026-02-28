@@ -6,8 +6,8 @@
 |---|---|---|
 | Docker 20.10+ | `docker --version` | `curl -fsSL https://get.docker.com \| sh` |
 | Docker Compose 2.0+ | `docker compose version` | Included with Docker |
+| Go 1.24+ | `go version` | `curl -fsSL https://go.dev/dl/go1.24.linux-amd64.tar.gz \| tar -C /usr/local -xz` |
 | OpenSSL | `openssl version` | `apt-get install -y openssl` |
-| gettext (envsubst) | `envsubst --version` | `apt-get install -y gettext-base` |
 | Ports 80, 443 free | `ss -tlnp \| grep -E ':80\|:443'` | Stop conflicting services |
 | Domain → server IP | `dig +short yourdomain.com` | Set A record in DNS registrar |
 
@@ -20,7 +20,7 @@ chmod +x scripts/*.sh
 ./scripts/setup.sh yourdomain.com your-email@example.com
 ```
 
-This script generates `.env` with random secrets, configs from templates, obtains SSL certificate, and sets up auto-renewal.
+This script generates `.env` with random secrets, renders `config/private.yaml` and `nginx/nginx.conf` from templates, obtains an SSL certificate, and sets up auto-renewal.
 
 **Configure email** (required for registration):
 
@@ -28,12 +28,12 @@ This script generates `.env` with random secrets, configs from templates, obtain
 nano .env
 ```
 
-Update the SMTP settings:
+Update the SMTP settings (configs are regenerated on `make deploy`):
 
 ```env
-SMTP_SERVER=smtp.yandex.ru    # or smtp.gmail.com
-SMTP_PORT=465                  # 465 for Yandex, 587 for Gmail
-SMTP_USERNAME=your-email
+SMTP_SERVER=smtp.yandex.ru     # or smtp.gmail.com
+SMTP_PORT=465                   # 465 for Yandex, 587 for Gmail
+SMTP_USERNAME=your-email@example.com
 SMTP_PASSWORD=your-app-password
 SMTP_SENDER_NAME=Itchan
 ```
@@ -84,7 +84,7 @@ crontab -l | grep renew-ssl
 
 ## Generated Files (do not commit)
 
-- `.env` — all secrets (DB, JWT, SMTP, domain)
-- `config/private.yaml` — generated from template + `.env`
-- `nginx/nginx.conf` — generated from template + `.env`
+- `.env` — all secrets (DB, JWT, SMTP, domain); edit this to configure the app
+- `config/private.yaml` — generated from `config/private.yaml.tmpl` + `.env` by `make gen-configs`
+- `nginx/nginx.conf` — generated from `nginx/nginx.conf.tmpl` + `.env` by `make gen-configs`
 - `nginx/certs/` — SSL certificates

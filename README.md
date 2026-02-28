@@ -142,7 +142,7 @@ git clone https://github.com/itchan-dev/itchan.git
 cd itchan
 chmod +x scripts/*.sh
 ./scripts/setup.sh yourdomain.com your-email@example.com
-# Configure email in config/private.yaml
+# Configure email in .env (SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)
 make deploy
 ```
 
@@ -545,7 +545,7 @@ media:
 allowed_registration_domains: []       # Empty = allow all domains. Example: ["gmail.com", "company.com"]
 ```
 
-### `config/private.yaml` (Backend only - never commit to git!)
+### `config/private.yaml` (Generated from `config/private.yaml.tmpl` + `.env` — never commit!)
 ```yaml
 jwt_key: "<your-secret-key>"           # JWT signing key (generate random 512+ bit string)
 encryption_key: "<your-encryption-key>" # AES-256-GCM key for email encryption (generate with: go run ./tools/generate-encryption-key/)
