@@ -22,7 +22,7 @@ CREATE MATERIALIZED VIEW %[1]s AS
 			AND t.board = m.board
 		JOIN users u ON m.author_id = u.id
 		WHERE
-		(m.id = 1 OR ((t.message_count - m.id) < %[2]d)) -- op msg (id=1) and last messages should be presented
+		(m.id = 1 OR ((t.next_message_id - 1 - m.id) < %[2]d)) -- op msg (id=1) and last messages should be presented
 		AND t.board = %[3]s
 	)
 	SELECT
