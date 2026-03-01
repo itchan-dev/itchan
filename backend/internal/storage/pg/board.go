@@ -81,11 +81,13 @@ func (s *Storage) GetActiveBoards(interval time.Duration) ([]domain.Board, error
 	return s.getActiveBoards(s.db, interval)
 }
 
-// GetBoardLastModified returns only the last_activity_at timestamp for a board.
+// GetBoardLastModified returns the view_last_modified_at timestamp for a board.
+// This reflects the last_activity_at value snapshotted after each materialized view refresh,
+// ensuring the returned timestamp only covers changes the view has actually incorporated.
 func (s *Storage) GetBoardLastModified(shortName domain.BoardShortName) (time.Time, error) {
 	var lastModified time.Time
 	err := s.db.QueryRow(
-		`SELECT last_activity_at FROM boards WHERE short_name = $1`, shortName,
+		`SELECT view_last_modified_at FROM boards WHERE short_name = $1`, shortName,
 	).Scan(&lastModified)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

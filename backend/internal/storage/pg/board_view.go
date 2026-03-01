@@ -75,6 +75,16 @@ func (s *Storage) refreshMaterializedViewConcurrent(board domain.BoardShortName,
 	if err != nil {
 		return fmt.Errorf("concurrent refresh failed: %w", err)
 	}
+
+	// Snapshot last_activity_at so GetBoardLastModified only reports
+	// changes the materialized view has actually incorporated.
+	_, err = s.db.ExecContext(ctx,
+		`UPDATE boards SET view_last_modified_at = last_activity_at WHERE short_name = $1`,
+		board,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update view_last_modified_at: %w", err)
+	}
 	return nil
 }
 

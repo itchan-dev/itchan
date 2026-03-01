@@ -37,10 +37,11 @@ CREATE TABLE IF NOT EXISTS confirmation_data (
 
 -- Represents a message board
 CREATE TABLE IF NOT EXISTS boards (
-    short_name        varchar(10) PRIMARY KEY,
-    name              varchar(254) NOT NULL,
-    created_at        timestamp default (now() at time zone 'utc'),
-    last_activity_at  timestamp default (now() at time zone 'utc')
+    short_name             varchar(10) PRIMARY KEY,
+    name                   varchar(254) NOT NULL,
+    created_at             timestamp default (now() at time zone 'utc'),
+    last_activity_at       timestamp default (now() at time zone 'utc'),
+    view_last_modified_at  timestamp default (now() at time zone 'utc')
 );
 
 CREATE TABLE IF NOT EXISTS board_permissions (
