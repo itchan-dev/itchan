@@ -124,7 +124,21 @@ func New(deps *setup.Dependencies) *chi.Mux {
 
 			})
 
-		// Logged-in user routes
+		// Public board reading routes (no auth required, optional auth for richer experience)
+		v1.Group(func(publicRead chi.Router) {
+			publicRead.Use(authMw.OptionalAuth())
+			publicRead.Use(mw.RestrictBoardAccess(deps.AccessData))
+			publicRead.Use(mw.RateLimit(rl.Rps10(), mw.GetIP))
+
+			publicRead.Get("/boards", h.GetBoards)
+			publicRead.Get("/{board}", h.GetBoard)
+			publicRead.Get("/{board}/last_modified", h.GetBoardLastModified)
+			publicRead.Get("/{board}/{thread}", h.GetThread)
+			publicRead.Get("/{board}/{thread}/last_modified", h.GetThreadLastModified)
+			publicRead.Get("/{board}/{thread}/{message}", h.GetMessage)
+		})
+
+		// Logged-in user routes (write operations and user-specific endpoints)
 		v1.Group(func(loggedIn chi.Router) {
 			loggedIn.Use(authMw.NeedAuth()) // Enforce JWT authentication with blacklist check
 			loggedIn.Use(mw.RateLimit(rl.Rps100(), mw.GetUserIDFromContext))
@@ -143,17 +157,9 @@ func New(deps *setup.Dependencies) *chi.Mux {
 			loggedIn.Group(func(boards chi.Router) {
 				boards.Use(mw.RestrictBoardAccess(deps.AccessData)) // Restrict access based on board and email domain
 
-				boards.Get("/boards", h.GetBoards)
-				// GetBoard: 10 RPS per user
-				boards.With(mw.RateLimit(rl.Rps10(), mw.GetUserIDFromContext)).Get("/{board}", h.GetBoard)
-				boards.Get("/{board}/last_modified", h.GetBoardLastModified)
 				// CreateThread: 1 per minute per user
 				boards.With(mw.RateLimit(rl.OncePerMinute(), mw.GetUserIDFromContext)).Post("/{board}", h.CreateThread)
-
-				boards.Get("/{board}/{thread}", h.GetThread)
-				boards.Get("/{board}/{thread}/last_modified", h.GetThreadLastModified)
 				boards.With(mw.RateLimit(rl.OncePerSecond(), mw.GetUserIDFromContext)).Post("/{board}/{thread}", h.CreateMessage)
-				boards.Get("/{board}/{thread}/{message}", h.GetMessage)
 			})
 		})
 	})

@@ -34,6 +34,7 @@
 
     <hr class="post-separator">
 
+    {{- if .Common.User}}
     <!-- Reply Form (Bottom) -->
      <div class="post-form-container" id="reply-form-bottom">
         <form action="/{{ .Data.Board }}/{{ .Data.Id }}" method="post" enctype="multipart/form-data">
@@ -63,10 +64,13 @@
              </table>
         </form>
     </div>
+    {{- else}}
+    <p><a href="/login">Log in</a> to reply.</p>
+    {{- end}}
 
     <div id="bottom"></div>
     <hr>
     <span class="nav-links">[<a href="/{{ .Data.Board }}/">Return</a>] [<a href="#">Top</a>] [<a href="#bottom">Bottom</a>]</span>
 
-    {{- template "popup-reply-form" .Common}}
+    {{- if .Common.User}}{{- template "popup-reply-form" .Common}}{{- end}}
 {{- end}}

@@ -10,7 +10,7 @@
         {{- range .Data.PublicBoards}}
         <li>
             <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
-            {{- if $.Common.User.Admin}}
+            {{- if and $.Common.User $.Common.User.Admin}}
             {{- template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
             {{- end}}
         </li>
@@ -25,7 +25,7 @@
         <li>
             <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
             <span class="corporate-badge" title="Доступ только для: {{join .AllowedEmailDomains ", "}}">🏢</span>
-            {{- if $.Common.User.Admin}}
+            {{- if and $.Common.User $.Common.User.Admin}}
             {{- template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}
             {{- end}}
         </li>
@@ -36,7 +36,7 @@
 <p>No boards found.</p>
 {{- end}}
 
-{{- if .Common.User.Admin}}
+{{- if and .Common.User .Common.User.Admin}}
 <hr class="section-separator">
 <div class="admin-panel">
     <h2>Create New Board</h2>

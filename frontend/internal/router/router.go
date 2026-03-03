@@ -73,6 +73,24 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		optionalAuthRouter.Get("/contacts", deps.Handler.ContactsGetHandler)
 	})
 
+	// Public board reading routes (optional auth, board access restricted to public boards for anon users)
+	r.Group(func(publicBoard chi.Router) {
+		publicBoard.Use(authMw.OptionalAuth())
+		publicBoard.Use(mw.RestrictBoardAccess(deps.AccessData))
+		publicBoard.Use(mw.RateLimit(rl.Rps10(), mw.GetIP))
+
+		mediaPath := deps.Handler.MediaPath
+		publicBoard.Handle("/media/{board}/*", http.StripPrefix("/media/", noDirectoryListing(http.FileServer(http.Dir(mediaPath)))))
+
+		publicBoard.Get("/", deps.Handler.IndexGetHandler)
+		publicBoard.Get("/{board}", deps.Handler.BoardGetHandler)
+		publicBoard.Get("/{board}/{thread}", deps.Handler.ThreadGetHandler)
+
+		// API proxy for message preview (JSON and HTML)
+		publicBoard.Get("/api-proxy/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler)
+		publicBoard.Get("/api-proxy/v1/{board}/{thread}/{message}/html", deps.Handler.MessagePreviewHTMLHandler)
+	})
+
 	// Flash redirect handler for rate-limited POST routes
 	onRateLimitExceeded := rateLimitExceededRedirect(deps.Public.SecureCookies)
 
@@ -116,7 +134,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		adminRouter.Post("/{board}/{thread}/{message}/delete", deps.Handler.MessageDeleteHandler)
 	})
 
-	// Authenticated routes
+	// Authenticated routes (write operations and user-specific pages)
 	r.Group(func(authRouter chi.Router) {
 		authRouter.Use(authMw.NeedAuth())
 		authRouter.Use(mw.RestrictBoardAccess(deps.AccessData)) // Enforce board access restrictions
@@ -126,12 +144,8 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 			authRouter.Use(frontend_mw.ValidateCSRFToken())
 		}
 
-		mediaPath := deps.Handler.MediaPath
-		authRouter.Handle("/media/{board}/*", http.StripPrefix("/media/", noDirectoryListing(cacheStaticFiles(http.FileServer(http.Dir(mediaPath)), deps.Public.MediaCacheMaxAge))))
-
 		authRouter.Get("/settings/disable-media", deps.Handler.ToggleDisableMedia)
 
-		authRouter.Get("/", deps.Handler.IndexGetHandler)
 		authRouter.Post("/", deps.Handler.IndexPostHandler)
 		authRouter.HandleFunc("/logout", deps.Handler.LogoutHandler)
 
@@ -144,19 +158,9 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 		// Account page
 		authRouter.Get("/account", deps.Handler.AccountGetHandler)
 
-		// Board routes with specific rate limits
-		// GetBoard: 10 RPS per user
-		authRouter.With(mw.RateLimit(rl.Rps10(), mw.GetUserIDFromContext)).Get("/{board}", deps.Handler.BoardGetHandler)
+		// Board write routes
 		authRouter.With(mw.RateLimitWithHandler(rl.OncePerMinute(), mw.GetUserIDFromContext, onRateLimitExceeded)).Post("/{board}", deps.Handler.BoardPostHandler)
-
-		// Thread routes
-		authRouter.Get("/{board}/{thread}", deps.Handler.ThreadGetHandler)
 		authRouter.With(mw.RateLimitWithHandler(rl.OncePerSecond(), mw.GetUserIDFromContext, onRateLimitExceeded)).Post("/{board}/{thread}", deps.Handler.ThreadPostHandler)
-
-		// API proxy for message preview (JSON)
-		authRouter.Get("/api-proxy/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler)
-		// API endpoint for message preview (HTML)
-		authRouter.Get("/api-proxy/v1/{board}/{thread}/{message}/html", deps.Handler.MessagePreviewHTMLHandler)
 	})
 
 	return r

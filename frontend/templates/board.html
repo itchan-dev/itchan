@@ -5,6 +5,7 @@
         <hr>
     </div>
 
+    {{- if .Common.User}}
     <!-- New Thread Form -->
     <div class="post-form-container">
         <form action="/{{ .Data.ShortName }}" method="post" id="new-thread-form" enctype="multipart/form-data">
@@ -35,6 +36,9 @@
              </table>
         </form>
     </div>
+    {{- else}}
+    <p><a href="/login">Log in</a> to post.</p>
+    {{- end}}
 
     <hr class="section-separator">
 
@@ -71,5 +75,5 @@
 
     {{- template "pagination" .Data.Page}}
 
-    {{- template "popup-reply-form" .Common}}
+    {{- if .Common.User}}{{- template "popup-reply-form" .Common}}{{- end}}
 {{- end}}

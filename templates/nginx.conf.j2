@@ -190,7 +190,9 @@ http {
             # add_header Cache-Control "public, immutable";
         }
 
-        # Media files (uploaded images/videos) - requires authentication, served by frontend
+        # Media files (uploaded images/videos) - served by frontend
+        # private: browser-only caching (safe for mixed public/private boards, CDN-proof)
+        # max-age=604800: 1 week — uploads are immutable once written
         location /media/ {
             limit_req zone=general burst=20 nodelay;
 
@@ -200,8 +202,7 @@ http {
             # Pass cookies for authentication
             proxy_pass_header Set-Cookie;
 
-            # Cache authenticated media (short duration)
-            add_header Cache-Control "private, max-age=3600";
+            add_header Cache-Control "private, max-age=604800";
         }
 
         # All other requests go to frontend (HTML pages)

@@ -56,6 +56,10 @@ func (m *MockBoardService) GetAll(user domain.User) ([]domain.Board, error) {
 	return []domain.Board{}, nil
 }
 
+func (m *MockBoardService) GetAllPublic() ([]domain.Board, error) {
+	return []domain.Board{}, nil
+}
+
 func setupBoardTestHandler(boardService service.BoardService) (*Handler, *chi.Mux) {
 	h := &Handler{
 		board: boardService,
@@ -291,14 +295,18 @@ func TestGetBoardsHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("unauthorized access", func(t *testing.T) {
+	t.Run("unauthenticated access returns public boards", func(t *testing.T) {
 		_, router := setupBoardTestHandler(&MockBoardService{})
 
 		req := createRequest(t, http.MethodGet, route, nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		var response []domain.BoardMetadata
+		err := json.Unmarshal(rr.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Empty(t, response)
 	})
 
 	t.Run("service error", func(t *testing.T) {

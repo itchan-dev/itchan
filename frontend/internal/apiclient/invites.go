@@ -13,7 +13,7 @@ import (
 // GetMyInvites fetches invite codes created by the authenticated user for the given page
 func (c *APIClient) GetMyInvites(r *http.Request, page int) (api.InviteListResponse, error) {
 	path := withPage("/v1/invites", page)
-	resp, err := c.do("GET", path, nil, getToken(r))
+	resp, err := c.do("GET", path, nil, getToken(r), getIP(r))
 	if err != nil {
 		return api.InviteListResponse{}, err
 	}
@@ -39,7 +39,7 @@ func (c *APIClient) GetMyInvites(r *http.Request, page int) (api.InviteListRespo
 // GenerateInvite creates a new invite code for the authenticated user
 func (c *APIClient) GenerateInvite(r *http.Request) (*domain.InviteCodeWithPlaintext, error) {
 	// Make API call (no request body needed)
-	resp, err := c.do("POST", "/v1/invites", nil, getToken(r))
+	resp, err := c.do("POST", "/v1/invites", nil, getToken(r), getIP(r))
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (c *APIClient) GenerateInvite(r *http.Request) (*domain.InviteCodeWithPlain
 // RevokeInvite deletes an unused invite code owned by the authenticated user
 func (c *APIClient) RevokeInvite(r *http.Request, codeHash string) error {
 	path := fmt.Sprintf("/v1/invites/%s", codeHash)
-	resp, err := c.do("DELETE", path, nil, getToken(r))
+	resp, err := c.do("DELETE", path, nil, getToken(r), getIP(r))
 	if err != nil {
 		return err
 	}

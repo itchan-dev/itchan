@@ -26,8 +26,15 @@ func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 				return
 			}
 
+			allowedDomains := access.AllowedDomains(board)
+
 			user := GetUserFromContext(r)
 			if user == nil {
+				// Unauthenticated: only allow public boards (no domain restrictions)
+				if allowedDomains != nil {
+					http.Error(w, "Please sign-in", http.StatusUnauthorized)
+					return
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -36,7 +43,6 @@ func RestrictBoardAccess(access BoardAccess) func(http.Handler) http.Handler {
 				return
 			}
 
-			allowedDomains := access.AllowedDomains(board)
 			if allowedDomains == nil {
 				next.ServeHTTP(w, r) // No restrictions
 				return

@@ -56,7 +56,17 @@ func TestRestrictBoardAccess(t *testing.T) {
 			nextCalled:     true,
 		},
 		{
-			name: "unauthenticated user",
+			name: "unauthenticated user on public board",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest("GET", "/board/public", nil)
+				return withChiURLParams(req, map[string]string{"board": "public"})
+			},
+			boardAccess:    &mockBoardAccess{allowedDomains: map[string][]string{}},
+			expectedStatus: http.StatusOK,
+			nextCalled:     true,
+		},
+		{
+			name: "unauthenticated user on restricted board",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequest("GET", "/board/restricted", nil)
 				return withChiURLParams(req, map[string]string{"board": "restricted"})
@@ -64,8 +74,8 @@ func TestRestrictBoardAccess(t *testing.T) {
 			boardAccess: &mockBoardAccess{allowedDomains: map[string][]string{
 				"restricted": {"example.com"},
 			}},
-			expectedStatus: http.StatusOK,
-			nextCalled:     true,
+			expectedStatus: http.StatusUnauthorized,
+			nextCalled:     false,
 		},
 		{
 			name: "admin user bypass",

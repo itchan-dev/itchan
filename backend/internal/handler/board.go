@@ -65,11 +65,14 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetBoards(w http.ResponseWriter, r *http.Request) {
 	user := mw.GetUserFromContext(r)
+
+	var boards []domain.Board
+	var err error
 	if user == nil {
-		http.Error(w, "Not authorized", http.StatusUnauthorized)
-		return
+		boards, err = h.board.GetAllPublic()
+	} else {
+		boards, err = h.board.GetAll(*user)
 	}
-	boards, err := h.board.GetAll(*user)
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return

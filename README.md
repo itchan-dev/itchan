@@ -50,12 +50,15 @@ A modern, high-performance imageboard built with Go, featuring a clean three-lay
 - **Dual Auth Methods**: Cookie-based (browsers) and Bearer token (API/mobile clients) support
 - **Admin Roles**: Special privileges for board and content moderation
 - **User Blacklist**: Admin-managed user blacklist with cached validation for banned users
-- **Board Permissions**: Domain-based access control (restrict boards to specific email domains)
+- **Board Permissions**: Domain-based access control — boards without restrictions are publicly readable without login; boards with email domain restrictions require authentication
+- **Public Read Access**: Unauthenticated users can browse public boards and threads; posting always requires authentication
 - **CSRF Protection**: Token-based CSRF protection for state-changing requests
 
 ### Performance & Security
 - **Nginx Reverse Proxy**: TLS termination, HTTP/2, connection limits, slowloris protection
-- **Two-Layer Rate Limiting**: Nginx (per-IP, connection limits) + Go (per-user, token bucket)
+- **Three-Layer Rate Limiting**: Nginx (per-IP, connection limits) + Go per-IP (public reads) + Go per-user (authenticated writes)
+- **Media Cache**: Browser-side caching (`private, max-age=604800`) for immutable uploaded files — safe for mixed public/private boards
+- **Real-IP Forwarding**: Frontend forwards `X-Real-IP` to backend so per-IP rate limits apply to end users, not the internal proxy
 - **Media Sanitization**: Automatic EXIF/metadata stripping from images and videos using ffmpeg
 - **Email Encryption**: AES-256-GCM encryption of email addresses at the application level
 - **Database Partitioning**: Automatic table partitioning by board for optimal performance
@@ -607,30 +610,36 @@ POST   /v1/auth/logout                   - Logout (clear cookies)
 }
 ```
 
-### Boards (Authenticated)
+### Boards
 ```
-GET    /v1/boards                        - List all accessible boards
-GET    /v1/{board}                       - Get board with threads (paginated)
+GET    /v1/boards                        - List boards (public boards without auth; all accessible boards when authenticated)
+GET    /v1/{board}                       - Get board with threads — public boards: no auth required; private boards: auth + domain check
 GET    /v1/{board}/last_modified         - Get board's last modification timestamp
 ```
 
-**Example with Bearer Token:**
+**Unauthenticated (public boards only):**
+```bash
+curl http://localhost:8080/v1/boards
+curl http://localhost:8080/v1/g
+```
+
+**Authenticated (all accessible boards):**
 ```bash
 curl -H "Authorization: Bearer <your_token>" \
   http://localhost:8080/v1/boards
 ```
 
-### Threads (Authenticated)
+### Threads
 ```
-POST   /v1/{board}                       - Create new thread (rate limited: 1/minute per user)
-GET    /v1/{board}/{thread}              - Get thread with all messages
+POST   /v1/{board}                       - Create new thread (auth required; rate limited: 1/minute per user)
+GET    /v1/{board}/{thread}              - Get thread with all messages (public boards: no auth required)
 GET    /v1/{board}/{thread}/last_modified - Get thread's last modification timestamp
 ```
 
-### Messages (Authenticated)
+### Messages
 ```
-POST   /v1/{board}/{thread}              - Post message to thread (rate limited: 1/second per user)
-GET    /v1/{board}/{thread}/{message}    - Get single message
+POST   /v1/{board}/{thread}              - Post message to thread (auth required; rate limited: 1/second per user)
+GET    /v1/{board}/{thread}/{message}    - Get single message (public boards: no auth required)
 ```
 
 ### Invites (Authenticated)
@@ -672,10 +681,10 @@ GET    /metrics                          - Prometheus metrics
 - **Confirmation Code**: 5 attempts per 10 minutes per email, 1/s per IP, 100 global RPS
 - **Login**: 1/s per IP, 1000 global RPS
 - **Invite Registration**: 1/s per IP, 100 global RPS
+- **Public board reads (unauthenticated)**: 10 RPS per IP (applied at both frontend and backend; frontend forwards `X-Real-IP` to backend)
 - **Create Thread**: 1 per minute per user
 - **Post Message**: 1 per second per user
 - **Generate Invite**: 1 per minute per user
-- **Get Board**: 10 RPS per user
 - **General authenticated**: 100 RPS per user
 - **Admin**: No rate limits
 
@@ -821,9 +830,11 @@ Integration tests use a separate test database and clean up after execution.
 - **Fingerprinting fallback**: Uses request fingerprint if IP unavailable
 
 ### Board Access Control
-- **Domain-based permissions**: Restrict boards to specific email domains
-- **Middleware enforcement**: Board access checked on every request
-- **Automatic filtering**: Users only see boards they can access
+- **Public boards**: Boards with no `board_permissions` entries are readable by anyone without authentication
+- **Private boards**: Boards with `board_permissions` entries restrict read access to users with matching email domains; unauthenticated requests get 401
+- **Write always requires auth**: Posting threads or messages always requires a valid JWT regardless of board visibility
+- **Middleware enforcement**: Board access checked on every request via `RestrictBoardAccess` middleware
+- **Automatic filtering**: Authenticated users only see boards they can access; unauthenticated users see only public boards
 
 ### Input Validation & Media Processing
 - **File type validation**: Strict MIME type checking for uploads

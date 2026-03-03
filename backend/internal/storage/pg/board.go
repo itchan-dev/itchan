@@ -498,6 +498,40 @@ func (s *Storage) getBoardsByUser(q Querier, user domain.User) ([]domain.Board, 
 	return boards, nil
 }
 
+// GetPublicBoards returns metadata for all public boards (those without permission restrictions).
+func (s *Storage) GetPublicBoards() ([]domain.Board, error) {
+	return s.getPublicBoards(s.db)
+}
+
+func (s *Storage) getPublicBoards(q Querier) ([]domain.Board, error) {
+	rows, err := q.Query(`
+		SELECT b.name, b.short_name, b.created_at, b.last_activity_at
+		FROM boards b
+		WHERE NOT EXISTS (
+			SELECT 1 FROM board_permissions
+			WHERE board_short_name = b.short_name
+		)
+		ORDER BY short_name`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query public boards: %w", err)
+	}
+	defer rows.Close()
+
+	var boards []domain.Board
+	for rows.Next() {
+		var boardMeta domain.BoardMetadata
+		if err = rows.Scan(&boardMeta.Name, &boardMeta.ShortName, &boardMeta.CreatedAt, &boardMeta.LastActivityAt); err != nil {
+			return nil, fmt.Errorf("failed to scan public board: %w", err)
+		}
+		boards = append(boards, domain.Board{BoardMetadata: boardMeta})
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating public board rows: %w", err)
+	}
+
+	return boards, nil
+}
+
 // getActiveBoards contains the core logic for finding boards with recent activity.
 func (s *Storage) getActiveBoards(q Querier, interval time.Duration) ([]domain.Board, error) {
 	rows, err := q.Query(`

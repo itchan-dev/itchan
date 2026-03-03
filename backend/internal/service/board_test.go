@@ -54,6 +54,10 @@ func (m *MockBoardStorage) GetBoardsByUser(user domain.User) ([]domain.Board, er
 	return []domain.Board{}, nil
 }
 
+func (m *MockBoardStorage) GetPublicBoards() ([]domain.Board, error) {
+	return []domain.Board{}, nil
+}
+
 // MockBoardValidator mocks the BoardValidator interface.
 type MockBoardValidator struct {
 	nameFunc      func(name domain.BoardName) error
