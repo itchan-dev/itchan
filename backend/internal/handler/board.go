@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
@@ -64,24 +63,11 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetBoards(w http.ResponseWriter, r *http.Request) {
-	user := mw.GetUserFromContext(r)
-
-	var boards []domain.Board
-	var err error
-	if user == nil {
-		boards, err = h.board.GetAllPublic()
-	} else {
-		boards, err = h.board.GetAll(*user)
-	}
+	boards, err := h.board.GetAllBoards()
 	if err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	boardMetadata := make([]domain.BoardMetadata, len(boards))
-	for i, board := range boards {
-		boardMetadata[i] = board.BoardMetadata
-	}
-
-	writeJSON(w, boardMetadata)
+	writeJSON(w, boards)
 }

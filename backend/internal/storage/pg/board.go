@@ -65,14 +65,8 @@ func (s *Storage) GetBoard(shortName domain.BoardShortName, page int) (domain.Bo
 }
 
 // GetBoards is a public, read-only method to fetch metadata for all boards.
-func (s *Storage) GetBoards() ([]domain.Board, error) {
+func (s *Storage) GetBoards() ([]domain.BoardMetadata, error) {
 	return s.getBoards(s.db)
-}
-
-// GetBoardsByUser is a public, read-only method to fetch metadata for all
-// boards a specific user is permitted to see.
-func (s *Storage) GetBoardsByUser(user domain.User) ([]domain.Board, error) {
-	return s.getBoardsByUser(s.db, user)
 }
 
 // GetActiveBoards is a public, read-only method used by the view refresh
@@ -398,8 +392,8 @@ func (s *Storage) getBoard(q Querier, shortName domain.BoardShortName, page int)
 }
 
 // getBoards contains the core logic for fetching all board metadata.
-func (s *Storage) getBoards(q Querier) ([]domain.Board, error) {
-	var boards []domain.Board
+func (s *Storage) getBoards(q Querier) ([]domain.BoardMetadata, error) {
+	var boards []domain.BoardMetadata
 	rows, err := q.Query(`
 	SELECT
 		name, short_name, created_at, last_activity_at
@@ -422,7 +416,7 @@ func (s *Storage) getBoards(q Querier) ([]domain.Board, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan board metadata: %w", err)
 		}
-		boards = append(boards, domain.Board{BoardMetadata: boardMeta, Threads: nil}) // Threads are not fetched here
+		boards = append(boards, boardMeta)
 	}
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating board rows: %w", err)
@@ -431,102 +425,6 @@ func (s *Storage) getBoards(q Querier) ([]domain.Board, error) {
 	// Enrich boards with permissions (corporate vs public board distinction)
 	if err := enrichBoardsWithPermissions(q, boards); err != nil {
 		return nil, err
-	}
-
-	return boards, nil
-}
-
-// getBoardsByUser contains the core logic for fetching board metadata visible to a user.
-func (s *Storage) getBoardsByUser(q Querier, user domain.User) ([]domain.Board, error) {
-	if user.Admin {
-		return s.getBoards(q)
-	}
-
-	var boards []domain.Board
-	var err error
-	// restrict boards for non-admins
-	userEmailDomain, domainErr := user.GetEmailDomain()
-	if domainErr != nil {
-		return nil, fmt.Errorf("could not determine user email domain for user %d: %w", user.Id, domainErr)
-	}
-	// Use UNION ALL pattern for better query performance:
-	// 1. Public boards (no permissions set)
-	// 2. User's permitted boards (email domain matches)
-	rows, err := q.Query(`
-		SELECT
-			b.name, b.short_name, b.created_at, b.last_activity_at
-		FROM boards b
-		WHERE NOT EXISTS (
-			SELECT 1 FROM board_permissions
-			WHERE board_short_name = b.short_name
-		)
-		UNION ALL
-		SELECT
-			b.name, b.short_name, b.created_at, b.last_activity_at
-		FROM boards b
-		INNER JOIN board_permissions bp ON b.short_name = bp.board_short_name
-		WHERE bp.allowed_email_domain = $1
-		ORDER BY short_name
-		`, userEmailDomain)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query boards for user: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var boardMeta domain.BoardMetadata
-		err = rows.Scan(
-			&boardMeta.Name,
-			&boardMeta.ShortName,
-			&boardMeta.CreatedAt,
-			&boardMeta.LastActivityAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan board data for user: %w", err)
-		}
-		boards = append(boards, domain.Board{BoardMetadata: boardMeta, Threads: nil}) // Threads are not fetched here
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating board rows for user: %w", err)
-	}
-
-	// Enrich boards with permissions (corporate vs public board distinction)
-	if err := enrichBoardsWithPermissions(q, boards); err != nil {
-		return nil, err
-	}
-
-	return boards, nil
-}
-
-// GetPublicBoards returns metadata for all public boards (those without permission restrictions).
-func (s *Storage) GetPublicBoards() ([]domain.Board, error) {
-	return s.getPublicBoards(s.db)
-}
-
-func (s *Storage) getPublicBoards(q Querier) ([]domain.Board, error) {
-	rows, err := q.Query(`
-		SELECT b.name, b.short_name, b.created_at, b.last_activity_at
-		FROM boards b
-		WHERE NOT EXISTS (
-			SELECT 1 FROM board_permissions
-			WHERE board_short_name = b.short_name
-		)
-		ORDER BY short_name`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query public boards: %w", err)
-	}
-	defer rows.Close()
-
-	var boards []domain.Board
-	for rows.Next() {
-		var boardMeta domain.BoardMetadata
-		if err = rows.Scan(&boardMeta.Name, &boardMeta.ShortName, &boardMeta.CreatedAt, &boardMeta.LastActivityAt); err != nil {
-			return nil, fmt.Errorf("failed to scan public board: %w", err)
-		}
-		boards = append(boards, domain.Board{BoardMetadata: boardMeta})
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating public board rows: %w", err)
 	}
 
 	return boards, nil

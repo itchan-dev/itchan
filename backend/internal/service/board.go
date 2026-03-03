@@ -11,8 +11,7 @@ type BoardService interface {
 	Get(shortName domain.BoardShortName, page int) (domain.Board, error)
 	GetLastModified(shortName domain.BoardShortName) (time.Time, error)
 	Delete(shortName domain.BoardShortName) error
-	GetAll(user domain.User) ([]domain.Board, error)
-	GetAllPublic() ([]domain.Board, error)
+	GetAllBoards() ([]domain.BoardMetadata, error)
 }
 
 type Board struct {
@@ -26,8 +25,7 @@ type BoardStorage interface {
 	GetBoard(shortName domain.BoardShortName, page int) (domain.Board, error)
 	GetBoardLastModified(shortName domain.BoardShortName) (time.Time, error)
 	DeleteBoard(shortName domain.BoardShortName) error
-	GetBoardsByUser(user domain.User) ([]domain.Board, error)
-	GetPublicBoards() ([]domain.Board, error)
+	GetBoards() ([]domain.BoardMetadata, error)
 }
 
 type BoardValidator interface {
@@ -79,12 +77,8 @@ func (b *Board) GetLastModified(shortName domain.BoardShortName) (time.Time, err
 	return b.storage.GetBoardLastModified(shortName)
 }
 
-func (b *Board) GetAll(user domain.User) ([]domain.Board, error) {
-	return b.storage.GetBoardsByUser(user)
-}
-
-func (b *Board) GetAllPublic() ([]domain.Board, error) {
-	return b.storage.GetPublicBoards()
+func (b *Board) GetAllBoards() ([]domain.BoardMetadata, error) {
+	return b.storage.GetBoards()
 }
 
 func (b *Board) Delete(shortName domain.BoardShortName) error {

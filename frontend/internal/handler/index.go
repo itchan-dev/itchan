@@ -7,7 +7,17 @@ import (
 	"github.com/itchan-dev/itchan/shared/api"
 	"github.com/itchan-dev/itchan/shared/domain"
 	"github.com/itchan-dev/itchan/shared/logger"
+	mw "github.com/itchan-dev/itchan/shared/middleware"
 )
+
+func domainAllowed(emailDomain string, allowedDomains []string) bool {
+	for _, d := range allowedDomains {
+		if d == emailDomain {
+			return true
+		}
+	}
+	return false
+}
 
 func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 	boards, err := h.APIClient.GetBoards(r)
@@ -16,10 +26,13 @@ func (h *Handler) IndexGetHandler(w http.ResponseWriter, r *http.Request) {
 		errMsg = err.Error()
 	}
 
+	user := mw.GetUserFromContext(r)
+
 	var pageData frontend_domain.IndexPageData
 	for _, b := range boards {
 		if len(b.AllowedEmailDomains) > 0 {
-			pageData.CorporateBoards = append(pageData.CorporateBoards, b)
+			accessible := user != nil && (user.Admin || domainAllowed(user.EmailDomain, b.AllowedEmailDomains))
+			pageData.CorporateBoards = append(pageData.CorporateBoards, frontend_domain.BoardWithAccess{Board: b, Accessible: accessible})
 		} else {
 			pageData.PublicBoards = append(pageData.PublicBoards, b)
 		}

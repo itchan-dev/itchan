@@ -12,7 +12,7 @@ import (
 //
 // Boards without permissions (public boards) will have nil AllowedEmailDomains.
 // Boards with permissions (corporate boards) will have a non-empty slice.
-func enrichBoardsWithPermissions(q Querier, boards []domain.Board) error {
+func enrichBoardsWithPermissions(q Querier, boards []domain.BoardMetadata) error {
 	if len(boards) == 0 {
 		return nil // No boards to enrich
 	}

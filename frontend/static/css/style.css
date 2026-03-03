@@ -222,6 +222,12 @@ code {
     vertical-align: middle;
 }
 
+.board-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    user-select: none;
+}
+
 .boards-list .delete-form {
     margin-left: 4px;
 }

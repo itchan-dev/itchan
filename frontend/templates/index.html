@@ -23,7 +23,11 @@
     <ul class="boards-list corporate">
         {{- range .Data.CorporateBoards}}
         <li>
+            {{- if .Accessible}}
             <a href="/{{.ShortName}}">/{{.ShortName}}/ - {{.Name}}</a>
+            {{- else}}
+            <span class="board-locked" title="Доступ только для: {{join .AllowedEmailDomains ", "}}">🔒 /{{.ShortName}}/ - {{.Name}}</span>
+            {{- end}}
             <span class="corporate-badge" title="Доступ только для: {{join .AllowedEmailDomains ", "}}">🏢</span>
             {{- if and $.Common.User $.Common.User.Admin}}
             {{- template "delete-button" dict "Action" (printf "/%s/delete" .ShortName) "ConfirmMessage" (printf "Are you sure you want to delete /%s/?" .ShortName) "ButtonText" "Delete" "CSRFToken" $.Common.CSRFToken}}

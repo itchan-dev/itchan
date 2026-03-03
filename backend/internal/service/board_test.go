@@ -17,7 +17,7 @@ type MockBoardStorage struct {
 	createBoardFunc func(creationData domain.BoardCreationData) error
 	getBoardFunc    func(shortName domain.BoardShortName, page int) (domain.Board, error)
 	deleteBoardFunc func(shortName domain.BoardShortName) error
-	getBoardsFunc   func(user domain.User) ([]domain.Board, error)
+	getBoardsFunc   func() ([]domain.BoardMetadata, error)
 }
 
 func (m *MockBoardStorage) CreateBoard(creationData domain.BoardCreationData) error {
@@ -46,16 +46,11 @@ func (m *MockBoardStorage) GetBoardLastModified(shortName domain.BoardShortName)
 	return time.Now().UTC(), nil
 }
 
-func (m *MockBoardStorage) GetBoardsByUser(user domain.User) ([]domain.Board, error) {
+func (m *MockBoardStorage) GetBoards() ([]domain.BoardMetadata, error) {
 	if m.getBoardsFunc != nil {
-		return m.getBoardsFunc(user)
+		return m.getBoardsFunc()
 	}
-	// Default success returns an empty list
-	return []domain.Board{}, nil
-}
-
-func (m *MockBoardStorage) GetPublicBoards() ([]domain.Board, error) {
-	return []domain.Board{}, nil
+	return []domain.BoardMetadata{}, nil
 }
 
 // MockBoardValidator mocks the BoardValidator interface.
@@ -330,63 +325,6 @@ func TestBoardGet(t *testing.T) {
 		assert.Equal(t, expectedBoard.BoardMetadata, board.BoardMetadata)
 		assert.Equal(t, 1, board.Page, "Page should be corrected to 1")
 		assert.True(t, storageCalled, "Storage GetBoard should be called")
-	})
-}
-
-func TestBoardGetAll(t *testing.T) {
-	testUser := domain.User{Id: 1}
-	expectedBoards := []domain.Board{
-		{BoardMetadata: domain.BoardMetadata{ShortName: "b", Name: "Board B"}},
-		{BoardMetadata: domain.BoardMetadata{ShortName: "a", Name: "Board A"}},
-	}
-
-	t.Run("Successful GetAll", func(t *testing.T) {
-		// Arrange
-		mockStorage := &MockBoardStorage{}
-		mockMediaStorage := &SharedMockMediaStorage{}
-		mockValidator := &MockBoardValidator{} // Validator not used in GetAll
-		storageCalled := false
-
-		mockStorage.getBoardsFunc = func(user domain.User) ([]domain.Board, error) {
-			storageCalled = true
-			assert.Equal(t, testUser, user)
-			return expectedBoards, nil
-		}
-
-		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
-
-		// Act
-		boards, err := service.GetAll(testUser)
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, expectedBoards, boards)
-		assert.True(t, storageCalled, "Storage GetBoards should be called")
-	})
-
-	t.Run("Storage Error on GetAll", func(t *testing.T) {
-		// Arrange
-		mockStorage := &MockBoardStorage{}
-		mockMediaStorage := &SharedMockMediaStorage{}
-		mockValidator := &MockBoardValidator{}
-		storageError := errors.New("failed to retrieve boards")
-		storageCalled := false
-
-		mockStorage.getBoardsFunc = func(user domain.User) ([]domain.Board, error) {
-			storageCalled = true
-			assert.Equal(t, testUser, user)
-			return nil, storageError
-		}
-
-		service := NewBoard(mockStorage, mockValidator, mockMediaStorage)
-
-		// Act
-		_, err := service.GetAll(testUser)
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, errors.Is(err, storageError))
-		assert.True(t, storageCalled, "Storage GetBoards should be called")
 	})
 }
 

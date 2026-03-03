@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,16 +11,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/itchan-dev/itchan/backend/internal/service"
 	"github.com/itchan-dev/itchan/shared/domain"
-	mw "github.com/itchan-dev/itchan/shared/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type MockBoardService struct {
-	MockCreate func(creationData domain.BoardCreationData) error
-	MockGet    func(shortName domain.BoardShortName, page int) (domain.Board, error)
-	MockDelete func(shortName domain.BoardShortName) error
-	MockGetAll func(user domain.User) ([]domain.Board, error)
+	MockCreate       func(creationData domain.BoardCreationData) error
+	MockGet          func(shortName domain.BoardShortName, page int) (domain.Board, error)
+	MockDelete       func(shortName domain.BoardShortName) error
+	MockGetAllBoards func() ([]domain.BoardMetadata, error)
 }
 
 func (m *MockBoardService) Create(creationData domain.BoardCreationData) error {
@@ -49,15 +47,11 @@ func (m *MockBoardService) GetLastModified(shortName domain.BoardShortName) (tim
 	return time.Now().UTC(), nil
 }
 
-func (m *MockBoardService) GetAll(user domain.User) ([]domain.Board, error) {
-	if m.MockGetAll != nil {
-		return m.MockGetAll(user)
+func (m *MockBoardService) GetAllBoards() ([]domain.BoardMetadata, error) {
+	if m.MockGetAllBoards != nil {
+		return m.MockGetAllBoards()
 	}
-	return []domain.Board{}, nil
-}
-
-func (m *MockBoardService) GetAllPublic() ([]domain.Board, error) {
-	return []domain.Board{}, nil
+	return []domain.BoardMetadata{}, nil
 }
 
 func setupBoardTestHandler(boardService service.BoardService) (*Handler, *chi.Mux) {
@@ -262,25 +256,20 @@ func TestDeleteBoardHandler(t *testing.T) {
 
 func TestGetBoardsHandler(t *testing.T) {
 	route := "/v1/boards"
-	testUser := domain.User{Id: 1}
-	expectedBoards := []domain.Board{
-		{BoardMetadata: domain.BoardMetadata{Name: "Board 1", ShortName: "b1"}},
-		{BoardMetadata: domain.BoardMetadata{Name: "Board 2", ShortName: "b2"}},
+	expectedBoards := []domain.BoardMetadata{
+		{Name: "Board 1", ShortName: "b1"},
+		{Name: "Board 2", ShortName: "b2"},
 	}
 
 	t.Run("successful retrieval", func(t *testing.T) {
 		mockService := &MockBoardService{
-			MockGetAll: func(user domain.User) ([]domain.Board, error) {
-				assert.Equal(t, testUser, user)
+			MockGetAllBoards: func() ([]domain.BoardMetadata, error) {
 				return expectedBoards, nil
 			},
 		}
 		_, router := setupBoardTestHandler(mockService)
 
 		req := createRequest(t, http.MethodGet, route, nil)
-		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &testUser)
-		req = req.WithContext(ctx)
-
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -289,13 +278,10 @@ func TestGetBoardsHandler(t *testing.T) {
 		var response []domain.BoardMetadata
 		err := json.Unmarshal(rr.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Len(t, response, len(expectedBoards))
-		for i, boardMeta := range response {
-			assert.Equal(t, expectedBoards[i].BoardMetadata, boardMeta)
-		}
+		assert.Equal(t, expectedBoards, response)
 	})
 
-	t.Run("unauthenticated access returns public boards", func(t *testing.T) {
+	t.Run("unauthenticated access returns all boards", func(t *testing.T) {
 		_, router := setupBoardTestHandler(&MockBoardService{})
 
 		req := createRequest(t, http.MethodGet, route, nil)
@@ -312,16 +298,13 @@ func TestGetBoardsHandler(t *testing.T) {
 	t.Run("service error", func(t *testing.T) {
 		mockErr := errors.New("failed to query boards")
 		mockService := &MockBoardService{
-			MockGetAll: func(user domain.User) ([]domain.Board, error) {
+			MockGetAllBoards: func() ([]domain.BoardMetadata, error) {
 				return nil, mockErr
 			},
 		}
 		_, router := setupBoardTestHandler(mockService)
 
 		req := createRequest(t, http.MethodGet, route, nil)
-		ctx := context.WithValue(req.Context(), mw.UserClaimsKey, &testUser)
-		req = req.WithContext(ctx)
-
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
