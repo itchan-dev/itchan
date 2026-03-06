@@ -8,16 +8,17 @@ import (
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
-// RecordReferralVisit handles POST /v1/referral/visit
-func (h *Handler) RecordReferralVisit(w http.ResponseWriter, r *http.Request) {
-	var req api.RecordReferralVisitRequest
+// RecordReferralAction handles POST /v1/auth/referral/action
+func (h *Handler) RecordReferralAction(w http.ResponseWriter, r *http.Request) {
+	var req api.RecordReferralActionRequest
 	if err := utils.DecodeValidate(r.Body, &req); err != nil {
 		utils.WriteErrorAndStatusCode(w, err)
 		return
 	}
 
-	if err := h.referral.RecordVisit(req.Source); err != nil {
-		http.Error(w, "Failed to record visit", http.StatusInternalServerError)
+	ip, _ := utils.GetIP(r)
+	if err := h.referral.RecordAction(req.Source, req.Action, ip); err != nil {
+		http.Error(w, "Failed to record action", http.StatusInternalServerError)
 		return
 	}
 
@@ -33,7 +34,7 @@ func (h *Handler) GetReferralStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if stats == nil {
-		stats = []domain.ReferralStats{}
+		stats = []domain.ReferralActionStats{}
 	}
 
 	writeJSON(w, stats)

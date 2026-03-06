@@ -10,11 +10,10 @@ import (
 type ReferralConfig struct {
 	SecureCookies bool
 	AllowedRefs   sharedutils.AllowedSources
-	RecordVisit   func(source string) error
+	RecordAction  func(source, action string) error
 }
 
-// ReferralTracking captures ?ref= param into a cookie on first visit and records the visit.
-// AllowedRefs is a pre-built set; empty means allow all sources.
+// ReferralTracking captures ?ref= param into a cookie on first visit and records a "visit" action.
 func ReferralTracking(cfg ReferralConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,10 +33,27 @@ func ReferralTracking(cfg ReferralConfig) func(http.Handler) http.Handler {
 								SameSite: http.SameSiteLaxMode,
 							})
 							go func(source string) {
-								_ = cfg.RecordVisit(source)
+								_ = cfg.RecordAction(source, "visit")
 							}(ref)
 						}
 					}
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// TrackReferralAction returns middleware that records a referral action when the ref cookie is present.
+// Used to wrap routes like registration to track "registration" actions based on the cookie.
+func TrackReferralAction(action string, cfg ReferralConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if cookie, err := r.Cookie("ref"); err == nil && cookie.Value != "" {
+				if cfg.AllowedRefs.IsAllowed(cookie.Value) {
+					go func(source string) {
+						_ = cfg.RecordAction(source, action)
+					}(cookie.Value)
 				}
 			}
 			next.ServeHTTP(w, r)

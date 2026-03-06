@@ -7,15 +7,13 @@ import (
 )
 
 type ReferralService interface {
-	RecordVisit(source string) error
-	RecordRegistration(userId domain.UserId, source string) error
-	GetStats() ([]domain.ReferralStats, error)
+	RecordAction(source, action, ip string) error
+	GetStats() ([]domain.ReferralActionStats, error)
 }
 
 type ReferralStorage interface {
-	SaveReferralVisit(source string) error
-	SaveReferralRegistration(userId domain.UserId, source string) error
-	GetReferralStats() ([]domain.ReferralStats, error)
+	SaveReferralAction(source, action, ip string) error
+	GetReferralActionStats() ([]domain.ReferralActionStats, error)
 }
 
 type Referral struct {
@@ -26,18 +24,13 @@ func NewReferral(storage ReferralStorage) *Referral {
 	return &Referral{storage: storage}
 }
 
-func (s *Referral) RecordVisit(source string) error {
+func (s *Referral) RecordAction(source, action, ip string) error {
 	source = sanitizeSource(source)
-	return s.storage.SaveReferralVisit(source)
+	return s.storage.SaveReferralAction(source, action, ip)
 }
 
-func (s *Referral) RecordRegistration(userId domain.UserId, source string) error {
-	source = sanitizeSource(source)
-	return s.storage.SaveReferralRegistration(userId, source)
-}
-
-func (s *Referral) GetStats() ([]domain.ReferralStats, error) {
-	return s.storage.GetReferralStats()
+func (s *Referral) GetStats() ([]domain.ReferralActionStats, error) {
+	return s.storage.GetReferralActionStats()
 }
 
 func sanitizeSource(source string) string {

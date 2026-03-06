@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     email_hash             bytea NOT NULL UNIQUE,
     password_hash          text NOT NULL,
     is_admin               boolean default false,
-    created_at             timestamp default (now() at time zone 'utc')
+    created_at             timestamp default (now() at time zone 'utc'),
+    referral_source        varchar(100)
 );
 
 -- Index on email_hash for fast lookups (unique constraint already creates an index)
@@ -173,18 +174,13 @@ CREATE INDEX IF NOT EXISTS idx_invite_codes_expires
 CREATE INDEX IF NOT EXISTS idx_invite_codes_used_by
     ON invite_codes (used_by) WHERE used_by IS NOT NULL;
 
--- Tracks each visit with a ref parameter (one row per first-visit per browser)
-CREATE TABLE IF NOT EXISTS referral_visits (
+-- Tracks referral actions (visit, registration, etc.) deduplicated by IP
+CREATE TABLE IF NOT EXISTS referral_actions (
     id         bigserial PRIMARY KEY,
     source     varchar(100) NOT NULL,
-    visited_at timestamp NOT NULL DEFAULT (now() at time zone 'utc')
+    action     varchar(50) NOT NULL,
+    ip         inet NOT NULL,
+    created_at timestamp NOT NULL DEFAULT (now() at time zone 'utc'),
+    UNIQUE(ip, source, action)
 );
-CREATE INDEX IF NOT EXISTS idx_referral_visits_source ON referral_visits (source);
-
--- Tracks which ref source a user registered from (1:1 with users)
-CREATE TABLE IF NOT EXISTS referral_registrations (
-    user_id    int PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    source     varchar(100) NOT NULL,
-    created_at timestamp NOT NULL DEFAULT (now() at time zone 'utc')
-);
-CREATE INDEX IF NOT EXISTS idx_referral_registrations_source ON referral_registrations (source);
+CREATE INDEX IF NOT EXISTS idx_referral_actions_source ON referral_actions (source);

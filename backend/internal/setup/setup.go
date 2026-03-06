@@ -86,7 +86,7 @@ func SetupDependencies(cfg *config.Config) (*Dependencies, error) {
 
 	referral := service.NewReferral(storage)
 	allowedRefs := sharedutils.NewAllowedSources(cfg.Private.AllowedRefs)
-	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache, emailCrypto, &utils.PasswordValidator{Сfg: &cfg.Public}, storage, allowedRefs)
+	auth := service.NewAuth(storage, email, jwtService, &cfg.Public, blacklistCache, emailCrypto, &utils.PasswordValidator{Сfg: &cfg.Public}, allowedRefs)
 	board := service.NewBoard(storage, utils.New(&cfg.Public), mediaStorage)
 	message := service.NewMessage(storage, &utils.MessageValidator{Сfg: &cfg.Public}, mediaStorage, &cfg.Public)
 	thread := service.NewThread(storage, &utils.ThreadTitleValidator{Сfg: &cfg.Public}, message, mediaStorage, cfg.Public.MaxThreadCount)

@@ -12,15 +12,15 @@ import (
 	"github.com/itchan-dev/itchan/shared/utils"
 )
 
-// RecordReferralVisit records a visit with a referral source.
-func (c *APIClient) RecordReferralVisit(source string) error {
-	data := api.RecordReferralVisitRequest{Source: source}
+// RecordReferralAction records a referral action (visit, registration, etc.).
+func (c *APIClient) RecordReferralAction(source, action string) error {
+	data := api.RecordReferralActionRequest{Source: source, Action: action}
 	jsonBody, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("failed to marshal referral visit data: %w", err)
+		return fmt.Errorf("failed to marshal referral action data: %w", err)
 	}
 
-	resp, err := c.do("POST", "/v1/auth/referral/visit", bytes.NewBuffer(jsonBody), "", "")
+	resp, err := c.do("POST", "/v1/auth/referral/action", bytes.NewBuffer(jsonBody), "", "")
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func (c *APIClient) RecordReferralVisit(source string) error {
 }
 
 // GetReferralStats returns referral stats from the admin API.
-func (c *APIClient) GetReferralStats(r *http.Request) ([]domain.ReferralStats, error) {
+func (c *APIClient) GetReferralStats(r *http.Request) ([]domain.ReferralActionStats, error) {
 	resp, err := c.do("GET", "/v1/admin/referral/stats", nil, getToken(r), getIP(r))
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (c *APIClient) GetReferralStats(r *http.Request) ([]domain.ReferralStats, e
 		return nil, fmt.Errorf("failed to get referral stats: %s", string(bodyBytes))
 	}
 
-	var result []domain.ReferralStats
+	var result []domain.ReferralActionStats
 	if err := utils.Decode(resp.Body, &result); err != nil {
 		return nil, fmt.Errorf("failed to decode referral stats response: %w", err)
 	}

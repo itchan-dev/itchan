@@ -16,6 +16,7 @@ type User struct {
 	PassHash       Password
 	Admin          bool
 	CreatedAt      time.Time
+	ReferralSource string
 }
 
 // SaveUserData contains the data needed to create a new user

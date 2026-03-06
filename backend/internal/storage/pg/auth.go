@@ -98,8 +98,8 @@ func (s *Storage) DeleteConfirmationData(emailHash []byte) error {
 func (s *Storage) saveUser(q Querier, user domain.User) (domain.UserId, error) {
 	var id int64
 	err := q.QueryRow(
-		"INSERT INTO users(email_encrypted, email_domain, email_hash, password_hash, is_admin) VALUES($1, $2, $3, $4, $5) RETURNING id",
-		user.EmailEncrypted, user.EmailDomain, user.EmailHash, user.PassHash, user.Admin,
+		"INSERT INTO users(email_encrypted, email_domain, email_hash, password_hash, is_admin, referral_source) VALUES($1, $2, $3, $4, $5, NULLIF($6, '')) RETURNING id",
+		user.EmailEncrypted, user.EmailDomain, user.EmailHash, user.PassHash, user.Admin, user.ReferralSource,
 	).Scan(&id)
 	if err != nil {
 		return -1, fmt.Errorf("failed to insert user: %w", err)

@@ -19,5 +19,5 @@ type BlacklistedUsers struct {
 
 type AdminPageData struct {
 	Blacklisted BlacklistedUsers
-	RefStats    []domain.ReferralStats
+	RefStats    []domain.ReferralActionStats
 }

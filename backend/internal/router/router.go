@@ -115,11 +115,11 @@ func New(deps *setup.Dependencies) *chi.Mux {
 				authRegisterInvite.Post("/register_with_invite", h.RegisterWithInvite)
 			})
 
-			// Referral visit recording (public, rate limited)
-			auth.Group(func(refVisit chi.Router) {
-				refVisit.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
-				refVisit.Use(mw.GlobalRateLimit(rl.Rps100()))
-				refVisit.Post("/referral/visit", h.RecordReferralVisit)
+			// Referral action recording (public, rate limited)
+			auth.Group(func(refAction chi.Router) {
+				refAction.Use(mw.RateLimit(rl.OncePerSecond(), mw.GetIP))
+				refAction.Use(mw.GlobalRateLimit(rl.Rps100()))
+				refAction.Post("/referral/action", h.RecordReferralAction)
 			})
 
 			})

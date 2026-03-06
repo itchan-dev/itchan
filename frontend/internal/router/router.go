@@ -40,12 +40,15 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 
 	allowedRefs := sharedutils.NewAllowedSources(deps.Private.AllowedRefs)
 
-	// Referral tracking middleware: captures ?ref= param into cookie on first visit
-	r.Use(frontend_mw.ReferralTracking(frontend_mw.ReferralConfig{
+	// Referral tracking config (shared between visit and action middleware)
+	referralCfg := frontend_mw.ReferralConfig{
 		SecureCookies: deps.Public.SecureCookies,
 		AllowedRefs:   allowedRefs,
-		RecordVisit:   deps.Handler.APIClient.RecordReferralVisit,
-	}))
+		RecordAction:  deps.Handler.APIClient.RecordReferralAction,
+	}
+
+	// Referral tracking middleware: captures ?ref= param into cookie on first visit
+	r.Use(frontend_mw.ReferralTracking(referralCfg))
 
 	// Health check endpoint (no auth required)
 	// Support both GET and HEAD for health checks (wget --spider uses HEAD)
@@ -58,10 +61,10 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 
 	// Public routes (GET endpoints - no rate limiting needed)
 	r.Get("/favicon.ico", handler.FaviconHandler)
-	r.Get("/login", deps.Handler.LoginGetHandler)
-	r.Get("/register", deps.Handler.RegisterGetHandler)
-	r.Get("/register_invite", deps.Handler.RegisterInviteGetHandler)
-	r.Get("/check_confirmation_code", deps.Handler.ConfirmEmailGetHandler)
+	r.With(frontend_mw.TrackReferralAction("get_login", referralCfg)).Get("/login", deps.Handler.LoginGetHandler)
+	r.With(frontend_mw.TrackReferralAction("get_register", referralCfg)).Get("/register", deps.Handler.RegisterGetHandler)
+	r.With(frontend_mw.TrackReferralAction("get_register_invite", referralCfg)).Get("/register_invite", deps.Handler.RegisterInviteGetHandler)
+	r.With(frontend_mw.TrackReferralAction("get_check_confirmation_code", referralCfg)).Get("/check_confirmation_code", deps.Handler.ConfirmEmailGetHandler)
 
 	// Create frontend auth middleware wrapper (needed for optional auth routes below)
 	authMw := frontend_mw.NewAuth(deps.AuthMiddleware, deps.Public.SecureCookies)
@@ -70,7 +73,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 	r.Group(func(optionalAuthRouter chi.Router) {
 		optionalAuthRouter.Use(authMw.OptionalAuth())
 		optionalAuthRouter.Get("/welcome", deps.Handler.WelcomeGetHandler)
-		optionalAuthRouter.Get("/faq", deps.Handler.FAQGetHandler)
+		optionalAuthRouter.With(frontend_mw.TrackReferralAction("get_faq", referralCfg)).Get("/faq", deps.Handler.FAQGetHandler)
 		optionalAuthRouter.Get("/about", deps.Handler.AboutGetHandler)
 		optionalAuthRouter.Get("/terms", deps.Handler.TermsGetHandler)
 		optionalAuthRouter.Get("/privacy", deps.Handler.PrivacyGetHandler)
@@ -88,7 +91,7 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 
 		publicBoard.Get("/", deps.Handler.IndexGetHandler)
 		publicBoard.Get("/{board}", deps.Handler.BoardGetHandler)
-		publicBoard.Get("/{board}/{thread}", deps.Handler.ThreadGetHandler)
+		publicBoard.With(frontend_mw.TrackReferralAction("get_thread", referralCfg)).Get("/{board}/{thread}", deps.Handler.ThreadGetHandler)
 
 		// API proxy for message preview (JSON and HTML)
 		publicBoard.Get("/api-proxy/v1/{board}/{thread}/{message}", deps.Handler.MessagePreviewHandler)
@@ -108,13 +111,13 @@ func SetupRouter(deps *setup.Dependencies) *chi.Mux {
 			publicPostsEmail.Use(mw.RateLimitWithHandler(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetEmailFromForm, onRateLimitExceeded)) // 5 attempts per minute by email
 			publicPostsEmail.Post("/login", deps.Handler.LoginPostHandler)
 			publicPostsEmail.Post("/register", deps.Handler.RegisterPostHandler)
-			publicPostsEmail.Post("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler)
+			publicPostsEmail.With(frontend_mw.TrackReferralAction("registration", referralCfg)).Post("/check_confirmation_code", deps.Handler.ConfirmEmailPostHandler)
 		})
 
 		// Using invite_code field
 		publicPosts.Group(func(publicPostsInvite chi.Router) {
 			publicPostsInvite.Use(mw.RateLimitWithHandler(rl.New(5.0/60.0, 5, 1*time.Hour), mw.GetFieldFromForm("invite_code"), onRateLimitExceeded)) // 5 attempts per minute by each invite code
-			publicPostsInvite.Post("/register_invite", deps.Handler.RegisterInvitePostHandler)
+			publicPostsInvite.With(frontend_mw.TrackReferralAction("registration", referralCfg)).Post("/register_invite", deps.Handler.RegisterInvitePostHandler)
 		})
 	})
 

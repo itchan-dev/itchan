@@ -39,7 +39,6 @@ type CredentialsValidator interface {
 
 type Auth struct {
 	storage              AuthStorage
-	referralStorage      ReferralStorage
 	email                Email
 	jwt                  Jwt
 	cfg                  *config.Public
@@ -89,10 +88,9 @@ type Jwt interface {
 	NewToken(user domain.User) (string, error)
 }
 
-func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache, emailCrypto EmailCrypto, credentialsValidator CredentialsValidator, referralStorage ReferralStorage, allowedRefs sharedutils.AllowedSources) *Auth {
+func NewAuth(storage AuthStorage, email Email, jwt Jwt, cfg *config.Public, blacklistCache *blacklist.Cache, emailCrypto EmailCrypto, credentialsValidator CredentialsValidator, allowedRefs sharedutils.AllowedSources) *Auth {
 	return &Auth{
 		storage:              storage,
-		referralStorage:      referralStorage,
 		email:                email,
 		emailCrypto:          emailCrypto,
 		jwt:                  jwt,
@@ -241,20 +239,20 @@ func (a *Auth) CheckConfirmationCode(email domain.Email, confirmationCode string
 				return fmt.Errorf("failed to extract email domain: %w", err)
 			}
 
+			var referralSource string
+			if refSource != "" && a.allowedRefs.IsAllowed(refSource) {
+				referralSource = refSource
+			}
 			userId, err := a.storage.SaveUser(domain.User{
 				EmailEncrypted: emailEncrypted,
 				EmailDomain:    emailDomain,
 				EmailHash:      emailHash,
 				PassHash:       data.PasswordHash,
 				Admin:          false,
+				ReferralSource: referralSource,
 			})
 			if err != nil {
 				return err
-			}
-			if refSource != "" && a.allowedRefs.IsAllowed(refSource) {
-				if err := a.referralStorage.SaveReferralRegistration(userId, refSource); err != nil {
-					logger.Log.Warn("failed to record referral registration", "user_id", userId, "source", refSource, "error", err)
-				}
 			}
 			logger.Log.Info("new user registered", "user_id", userId, "domain", emailDomain)
 		} else {
@@ -451,12 +449,17 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password, r
 	}
 	// emailHash already set from the collision check loop above
 
+	var referralSource string
+	if refSource != "" && a.allowedRefs.IsAllowed(refSource) {
+		referralSource = refSource
+	}
 	userId, err := a.storage.SaveUser(domain.User{
 		EmailEncrypted: emailEncrypted,
 		EmailDomain:    emailDomain,
 		EmailHash:      emailHash,
 		PassHash:       domain.Password(passHash),
 		Admin:          false,
+		ReferralSource: referralSource,
 	})
 	if err != nil {
 		return "", err
@@ -466,13 +469,6 @@ func (a *Auth) RegisterWithInvite(inviteCode string, password domain.Password, r
 	if err := a.storage.MarkInviteUsed(inviteCodeHash, userId); err != nil {
 		logger.Log.Error("failed to mark invite used", "user_id", userId, "error", err)
 		// Don't fail - user is already created
-	}
-
-	// 9. Record referral attribution
-	if refSource != "" && a.allowedRefs.IsAllowed(refSource) {
-		if err := a.referralStorage.SaveReferralRegistration(userId, refSource); err != nil {
-			logger.Log.Warn("failed to record referral registration", "user_id", userId, "source", refSource, "error", err)
-		}
 	}
 
 	logger.Log.Info("user registered via invite",

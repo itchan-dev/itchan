@@ -8,18 +8,16 @@
     <thead>
         <tr>
             <th>Source</th>
-            <th>Visits</th>
-            <th>Registrations</th>
-            <th>Conversion</th>
+            <th>Action</th>
+            <th>Count</th>
         </tr>
     </thead>
     <tbody>
         {{- range .Data.RefStats}}
         <tr>
             <td>{{.Source}}</td>
-            <td>{{.VisitCount}}</td>
-            <td>{{.RegisterCount}}</td>
-            <td>{{printf "%.1f%%" .ConversionRate}}</td>
+            <td>{{.Action}}</td>
+            <td>{{.Count}}</td>
         </tr>
         {{- end}}
     </tbody>
