@@ -30,7 +30,7 @@ func (h *Handler) AdminGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := frontend_domain.AdminPageData{
 		Blacklisted: frontend_domain.BlacklistedUsers{Users: blacklist.Users, Page: blacklist.Page},
-		RefStats:    stats,
+		RefStats:    frontend_domain.PivotRefStats(stats),
 	}
 
 	h.renderTemplateWithError(w, r, "admin.html", data, errMsg)

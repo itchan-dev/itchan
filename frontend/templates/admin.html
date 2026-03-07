@@ -8,16 +8,18 @@
     <thead>
         <tr>
             <th>Source</th>
-            <th>Action</th>
-            <th>Count</th>
+            {{- range .Data.RefStats.Actions}}
+            <th>{{.}}</th>
+            {{- end}}
         </tr>
     </thead>
     <tbody>
-        {{- range .Data.RefStats}}
+        {{- range .Data.RefStats.Rows}}
         <tr>
             <td>{{.Source}}</td>
-            <td>{{.Action}}</td>
-            <td>{{.Count}}</td>
+            {{- range .Counts}}
+            <td>{{.}}</td>
+            {{- end}}
         </tr>
         {{- end}}
     </tbody>
