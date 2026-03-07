@@ -30,5 +30,8 @@
     </table>
 </form>
 <p style="margin-top: 1em; font-size: 0.9em;">Already have a code? <a href="/check_confirmation_code">Confirm here</a>.</p>
-<p style="font-size: 0.9em;">Want to register via invite code? <a href="/register_invite">Click here</a>.</p>
+<div style="margin-top: 1em; padding: 0.75em 1em; border: 1px solid; border-radius: 4px; background: var(--invite-bg, #fffbe6); border-color: var(--invite-border, #e6c300);">
+    <strong>Don't want to use email?</strong><br>
+    <span style="font-size: 0.9em;">Free invite codes are available at <a href="/static/invites.txt">/invites.txt</a> — <a href="/register_invite">register with invite</a> and skip email confirmation entirely.</span>
+</div>
 {{- end}}

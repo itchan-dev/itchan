@@ -25,7 +25,9 @@
         </tbody>
     </table>
 </form>
-<p style="margin-top: 1em; font-size: 0.9em;">Don't have an account? <a href="/register">Register here</a>.</p>
-<p style="margin-top: 1em; font-size: 0.9em;">You have an invite? <a href="/register_invite">Register with invite here</a>.</p>
-<p style="font-size: 0.9em;">Dont have an invite? <a href="/static/invites.txt">Try your luck</a>!</p>
+<p style="margin-top: 1em; font-size: 0.9em;">Don't have an account? <a href="/register">Register here</a> or <a href="/register_invite">register with invite code</a>.</p>
+<div style="margin-top: 1em; padding: 0.75em 1em; border: 1px solid; border-radius: 4px; background: var(--invite-bg, #fffbe6); border-color: var(--invite-border, #e6c300);">
+    <strong>Free invite codes available!</strong><br>
+    <span style="font-size: 0.9em;">Grab one at <a href="/static/invites.txt">/invites.txt</a> and <a href="/register_invite">register instantly</a> — no email required.</span>
+</div>
 {{- end}}
