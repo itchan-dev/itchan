@@ -22,7 +22,7 @@ func (h *Handler) RegisterPostHandler(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("password")
 
-	resp, err := h.APIClient.Register(email, password)
+	resp, err := h.APIClient.Register(r, email, password)
 	if err != nil {
 		logger.Log.Error("during registration API call", "error", err)
 		h.redirectWithFlash(w, r, targetURL, flashCookieError, "Internal error: backend unavailable.")
@@ -58,7 +58,7 @@ func (h *Handler) ConfirmEmailPostHandler(w http.ResponseWriter, r *http.Request
 
 	refSource := getRefCookie(r)
 
-	err := h.APIClient.ConfirmEmail(email, code, refSource)
+	err := h.APIClient.ConfirmEmail(r, email, code, refSource)
 	if err != nil {
 		logger.Log.Error("confirming email via API", "error", err)
 		h.setFlash(w, flashCookieError, err.Error())
@@ -81,7 +81,7 @@ func (h *Handler) LoginPostHandler(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	password := r.FormValue("password")
 
-	resp, err := h.APIClient.Login(email, password)
+	resp, err := h.APIClient.Login(r, email, password)
 	if err != nil {
 		logger.Log.Error("during login API call", "error", err)
 		h.setFlash(w, flashCookieError, "Internal error: backend unavailable.")
@@ -146,7 +146,7 @@ func (h *Handler) RegisterInvitePostHandler(w http.ResponseWriter, r *http.Reque
 
 	refSource := getRefCookie(r)
 
-	email, err := h.APIClient.RegisterWithInvite(inviteCode, password, refSource)
+	email, err := h.APIClient.RegisterWithInvite(r, inviteCode, password, refSource)
 	if err != nil {
 		logger.Log.Error("during invite registration API call", "error", err)
 		h.redirectWithFlash(w, r, targetURL, flashCookieError, err.Error())

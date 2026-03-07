@@ -15,7 +15,7 @@ import (
 )
 
 func (c *APIClient) GetBoards(r *http.Request) ([]domain.Board, error) {
-	resp, err := c.do("GET", "/v1/boards", nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "GET", "/v1/boards", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (c *APIClient) GetBoard(r *http.Request, shortName string, page int) (domai
 	var board domain.Board
 	path := withPage(fmt.Sprintf("/v1/%s", shortName), page)
 
-	resp, err := c.do("GET", path, nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "GET", path, nil)
 	if err != nil {
 		return board, err
 	}
@@ -64,7 +64,7 @@ func (c *APIClient) GetBoard(r *http.Request, shortName string, page int) (domai
 
 func (c *APIClient) GetBoardLastModified(r *http.Request, shortName string) (time.Time, error) {
 	path := fmt.Sprintf("/v1/%s/last_modified", shortName)
-	resp, err := c.do("GET", path, nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "GET", path, nil)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -87,7 +87,7 @@ func (c *APIClient) CreateBoard(r *http.Request, data api.CreateBoardRequest) er
 		return fmt.Errorf("failed to marshal board data: %w", err)
 	}
 
-	resp, err := c.do("POST", "/v1/admin/boards", bytes.NewBuffer(jsonBody), getToken(r), getIP(r))
+	resp, err := c.do(r, "POST", "/v1/admin/boards", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (c *APIClient) CreateBoard(r *http.Request, data api.CreateBoardRequest) er
 
 func (c *APIClient) DeleteBoard(r *http.Request, shortName string) error {
 	path := fmt.Sprintf("/v1/admin/%s", shortName)
-	resp, err := c.do("DELETE", path, nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}

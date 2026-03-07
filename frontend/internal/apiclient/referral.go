@@ -13,14 +13,14 @@ import (
 )
 
 // RecordReferralAction records a referral action (visit, registration, etc.).
-func (c *APIClient) RecordReferralAction(source, action string) error {
+func (c *APIClient) RecordReferralAction(r *http.Request, source, action string) error {
 	data := api.RecordReferralActionRequest{Source: source, Action: action}
 	jsonBody, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal referral action data: %w", err)
 	}
 
-	resp, err := c.do("POST", "/v1/auth/referral/action", bytes.NewBuffer(jsonBody), "", "")
+	resp, err := c.do(r, "POST", "/v1/auth/referral/action", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func (c *APIClient) RecordReferralAction(source, action string) error {
 
 // GetReferralStats returns referral stats from the admin API.
 func (c *APIClient) GetReferralStats(r *http.Request) ([]domain.ReferralActionStats, error) {
-	resp, err := c.do("GET", "/v1/admin/referral/stats", nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "GET", "/v1/admin/referral/stats", nil)
 	if err != nil {
 		return nil, err
 	}

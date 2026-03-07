@@ -25,7 +25,9 @@ func New(baseURL string) *APIClient {
 // do is the single, unified helper for making API requests.
 // Pass the JWT token for authenticated endpoints; empty string for public endpoints.
 // Pass the real client IP (from X-Real-IP) to forward rate limiting to the backend; empty string to skip.
-func (c *APIClient) do(method, path string, body io.Reader, token, ip string) (*http.Response, error) {
+func (c *APIClient) do(r *http.Request, method, path string, body io.Reader) (*http.Response, error) {
+	token := getToken(r)
+	ip := getIP(r)
 	req, err := http.NewRequest(method, c.BaseURL+path, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create API request: %w", err)

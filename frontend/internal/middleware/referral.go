@@ -10,7 +10,7 @@ import (
 type ReferralConfig struct {
 	SecureCookies bool
 	AllowedRefs   sharedutils.AllowedSources
-	RecordAction  func(source, action string) error
+	RecordAction  func(r *http.Request, source, action string) error
 }
 
 // ReferralTracking captures ?ref= param into a cookie on first visit and records a "visit" action.
@@ -33,7 +33,7 @@ func ReferralTracking(cfg ReferralConfig) func(http.Handler) http.Handler {
 								SameSite: http.SameSiteLaxMode,
 							})
 							go func(source string) {
-								_ = cfg.RecordAction(source, "visit")
+								_ = cfg.RecordAction(r, source, "visit")
 							}(ref)
 						}
 					}
@@ -52,7 +52,7 @@ func TrackReferralAction(action string, cfg ReferralConfig) func(http.Handler) h
 			if cookie, err := r.Cookie("ref"); err == nil && cookie.Value != "" {
 				if cfg.AllowedRefs.IsAllowed(cookie.Value) {
 					go func(source string) {
-						_ = cfg.RecordAction(source, action)
+						_ = cfg.RecordAction(r, source, action)
 					}(cookie.Value)
 				}
 			}

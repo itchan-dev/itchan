@@ -26,7 +26,7 @@ func escapeQuotes(s string) string {
 func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page int) (domain.Thread, error) {
 	var thread domain.Thread
 	path := withPage(fmt.Sprintf("/v1/%s/%s", shortName, threadID), page)
-	resp, err := c.do("GET", path, nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "GET", path, nil)
 	if err != nil {
 		return thread, err
 	}
@@ -46,7 +46,7 @@ func (c *APIClient) GetThread(r *http.Request, shortName, threadID string, page 
 
 func (c *APIClient) GetThreadLastModified(r *http.Request, shortName, threadID string) (time.Time, error) {
 	path := fmt.Sprintf("/v1/%s/%s/last_modified", shortName, threadID)
-	resp, err := c.do("GET", path, nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "GET", path, nil)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -183,7 +183,7 @@ func (c *APIClient) CreateReply(r *http.Request, shortName, threadID string, dat
 
 func (c *APIClient) DeleteThread(r *http.Request, shortName, threadID string) error {
 	path := fmt.Sprintf("/v1/admin/%s/%s", shortName, threadID)
-	resp, err := c.do("DELETE", path, nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "DELETE", path, nil)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (c *APIClient) DeleteThread(r *http.Request, shortName, threadID string) er
 
 func (c *APIClient) TogglePinnedThread(r *http.Request, shortName, threadID string) (bool, error) {
 	path := fmt.Sprintf("/v1/admin/%s/%s/pin", shortName, threadID)
-	resp, err := c.do("POST", path, nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "POST", path, nil)
 	if err != nil {
 		return false, err
 	}

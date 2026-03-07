@@ -11,7 +11,7 @@ import (
 
 // GetUserActivity fetches the authenticated user's activity
 func (c *APIClient) GetUserActivity(r *http.Request) ([]domain.Message, error) {
-	resp, err := c.do("GET", "/v1/users/me/activity", nil, getToken(r), getIP(r))
+	resp, err := c.do(r, "GET", "/v1/users/me/activity", nil)
 	if err != nil {
 		return nil, err
 	}
