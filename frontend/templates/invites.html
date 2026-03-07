@@ -51,12 +51,14 @@
             <td>
                 {{- if .UsedBy}}
                 Used (User: {{.UsedBy}})
+                {{- else if .IsExpired}}
+                <span style="color: gray;">Expired</span>
                 {{- else}}
                 Active
                 {{- end}}
             </td>
             <td>
-                {{- if not .UsedBy}}
+                {{- if and (not .UsedBy) (not .IsExpired)}}
                 <form method="POST" action="/invites/revoke" style="display:inline;">
                     {{- template "csrf-field" $.Common}}
                     <input type="hidden" name="codeHash" value="{{.CodeHash}}">

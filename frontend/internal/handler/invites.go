@@ -17,8 +17,12 @@ func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 
 	page := utils.GetPage(r)
 
+	type inviteView struct {
+		domain.InviteCode
+		IsExpired bool
+	}
 	var templateData struct {
-		Invites          []domain.InviteCode
+		Invites          []inviteView
 		Page             int
 		RemainingInvites int
 		AccountAgeDays   int
@@ -34,20 +38,23 @@ func (h *Handler) InvitesGetHandler(w http.ResponseWriter, r *http.Request) {
 		result.Invites = []domain.InviteCode{}
 		result.Page = page
 	}
-	templateData.Invites = result.Invites
+	now := time.Now()
+	templateData.Invites = make([]inviteView, len(result.Invites))
+	unusedActiveCount := 0
+	for i, invite := range result.Invites {
+		expired := invite.ExpiresAt.Before(now)
+		templateData.Invites[i] = inviteView{InviteCode: invite, IsExpired: expired}
+		if invite.UsedBy == nil && !expired {
+			unusedActiveCount++
+		}
+	}
 	templateData.Page = result.Page
 
 	if user.Admin {
 		templateData.RemainingInvites = -1
 	} else {
-		unusedCount := 0
-		for _, invite := range result.Invites {
-			if invite.UsedBy == nil {
-				unusedCount++
-			}
-		}
 		maxInvites := h.Public.MaxInvitesPerUser
-		templateData.RemainingInvites = max(maxInvites-unusedCount, 0)
+		templateData.RemainingInvites = max(maxInvites-unusedActiveCount, 0)
 	}
 
 	accountAge := time.Since(user.CreatedAt)
