@@ -807,6 +807,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.uploadPreviewManager = new UploadPreviewManager();
     console.log('Upload preview manager initialized');
 
+    // Setup formatting toolbar
+    setupFormattingToolbar();
+
     // Setup form confirmation handlers
     setupFormHandlers();
 
@@ -856,6 +859,60 @@ function setupFormHandlers() {
             if (reasonInput) {
                 reasonInput.value = reason || '';
             }
+        }
+    });
+}
+
+// Formatting toolbar - wraps selected text in textarea with markers
+function setupFormattingToolbar() {
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.fmt-btn');
+        if (!btn) return;
+
+        const form = btn.closest('form');
+        if (!form) return;
+        const textarea = form.querySelector('textarea[name="text"]');
+        if (!textarea) return;
+
+        const fmt = btn.dataset.fmt;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        const selected = text.substring(start, end);
+
+        let replacement;
+        if (btn.classList.contains('fmt-btn-block')) {
+            // Code block: wrap in ```\n...\n```
+            if (selected) {
+                replacement = '```\n' + selected + '\n```';
+            } else {
+                replacement = '```\n\n```';
+            }
+        } else if (btn.classList.contains('fmt-btn-line')) {
+            // Greentext: prefix each line with >
+            if (selected) {
+                replacement = selected.split('\n').map(l => '>' + l).join('\n');
+            } else {
+                replacement = '>';
+            }
+        } else {
+            // Inline: wrap with marker
+            replacement = fmt + selected + fmt;
+        }
+
+        textarea.value = text.substring(0, start) + replacement + text.substring(end);
+        textarea.focus();
+
+        // Place cursor after the inserted text, or inside markers if no selection
+        if (selected || btn.classList.contains('fmt-btn-line')) {
+            const newPos = start + replacement.length;
+            textarea.setSelectionRange(newPos, newPos);
+        } else if (btn.classList.contains('fmt-btn-block')) {
+            const cursorPos = start + 4; // after ```\n
+            textarea.setSelectionRange(cursorPos, cursorPos);
+        } else {
+            const cursorPos = start + fmt.length;
+            textarea.setSelectionRange(cursorPos, cursorPos);
         }
     });
 }

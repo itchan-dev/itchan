@@ -34,6 +34,19 @@
 {{- end}}
 {{- end}}
 
+{{/* Formatting toolbar - clickable buttons that wrap selected text in textarea */}}
+{{- define "formatting-toolbar"}}
+<div class="formatting-toolbar">
+    <button type="button" class="fmt-btn" data-fmt="**" title="Bold">B</button>
+    <button type="button" class="fmt-btn" data-fmt="*" title="Italic"><i>I</i></button>
+    <button type="button" class="fmt-btn" data-fmt="~~" title="Strikethrough"><s>S</s></button>
+    <button type="button" class="fmt-btn" data-fmt="||" title="Spoiler">%</button>
+    <button type="button" class="fmt-btn" data-fmt="`" title="Inline code">&lt;/&gt;</button>
+    <button type="button" class="fmt-btn fmt-btn-block" data-fmt="```" title="Code block">[]</button>
+    <button type="button" class="fmt-btn fmt-btn-line" data-fmt=">" title="Greentext">&gt;</button>
+</div>
+{{- end}}
+
 {{/* File input with preview - used in forms */}}
 {{/* Expects: InputID (string), InputClass (string, optional), MaxCount (int, optional), MaxTotalSize (int64, optional), MaxFileSize (int64, optional), AllowedImages ([]string, optional), AllowedVideos ([]string, optional) */}}
 {{- define "file-input"}}
@@ -81,6 +94,7 @@
                 <tr>
                     <td>
                         <textarea name="text" cols="48" rows="4" maxlength="{{.Validation.MessageTextMaxLen}}"></textarea>
+                        {{template "formatting-toolbar" .}}
                     </td>
                 </tr>
                 <tr>

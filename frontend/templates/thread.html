@@ -46,6 +46,7 @@
                          <td class="form-label"><label for="text-reply-bottom">Comment:</label></td>
                          <td>
                              <textarea id="text-reply-bottom" name="text" cols="48" rows="4" maxlength="{{.Common.Validation.MessageTextMaxLen}}"></textarea>
+                             {{template "formatting-toolbar" .}}
                          </td>
                      </tr>
                      <tr>
