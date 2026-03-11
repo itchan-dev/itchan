@@ -518,6 +518,12 @@ button[type="submit"]:hover {
     max-width: 150px;
 }
 
+video.attachment-thumbnail:playing {
+    max-width: min(800px, 90vw) !important;
+    width: auto !important;
+    height: auto !important;
+}
+
 .attachment-info {
     font-size: 11px;
     word-break: break-word;
