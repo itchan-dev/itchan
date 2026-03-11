@@ -38,9 +38,9 @@ static_cache_max_age: 720h            # 30 days
 
 # Media processing settings
 media:
-  thumbnail_max_size: 225        # Max dimension (px) for generated thumbnails (backend)
-  thumbnail_display_op: 225      # Display size (px) for OP post thumbnails (frontend)
-  thumbnail_display_reply: 150   # Display size (px) for reply post thumbnails (frontend)
+  thumbnail_max_size: 250        # Max dimension (px) for generated thumbnails (backend)
+  thumbnail_display_op: 250      # Display size (px) for OP post thumbnails (frontend)
+  thumbnail_display_reply: 225   # Display size (px) for reply post thumbnails (frontend)
   jpeg_quality_main: 85          # JPEG quality for main images (0-100)
   jpeg_quality_thumbnail: 75     # JPEG quality for thumbnails (0-100)
 

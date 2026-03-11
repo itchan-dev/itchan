@@ -510,12 +510,12 @@ button[type="submit"]:hover {
 }
 
 .op-post .attachment-thumbnail {
-    max-width: 225px;
+    max-width: 250px;
 }
 
 .reply-post .attachment-thumbnail,
 .message-preview .attachment-thumbnail {
-    max-width: 150px;
+    max-width: 225px;
 }
 
 video.attachment-thumbnail:playing {
