@@ -702,7 +702,7 @@ button[type="submit"]:hover {
    ========================================== */
 .popup-reply-container {
     position: absolute;
-    z-index: 1000;
+    z-index: 1001;
     box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     cursor: move;
 }
