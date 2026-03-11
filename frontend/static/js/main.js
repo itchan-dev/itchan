@@ -8,6 +8,15 @@ function addReplyLink(textarea, threadId, messageId) {
     }
 }
 
+function populateReply(textarea, threadId, messageId) {
+    addReplyLink(textarea, threadId, messageId);
+    if (_pendingQuote) {
+        textarea.value += formatQuote(_pendingQuote);
+        _pendingQuote = '';
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
+}
+
 // Message Preview System
 class MessagePreview {
     constructor() {
@@ -317,6 +326,27 @@ class MessagePreview {
     }
 }
 
+let _pendingQuote = '';
+
+function formatQuote(text) {
+    return text.split('\n').map(line => '>' + line).join('\n') + '\n';
+}
+
+function captureSelectionFromPost(linkElement) {
+    const sel = window.getSelection();
+    const selectedText = sel ? sel.toString().trim() : '';
+    const postBody = linkElement.closest('.post')?.querySelector('.post-body');
+    _pendingQuote = (selectedText && postBody && postBody.contains(sel.anchorNode))
+        ? selectedText
+        : '';
+}
+
+// Capture selection for both reply link types before click/navigation clears it
+document.addEventListener('mousedown', (e) => {
+    const replyLink = e.target.closest('.post-reply-link, .post-reply-popup-link');
+    if (replyLink) captureSelectionFromPost(replyLink);
+});
+
 function setupPopupReplySystem() {
     const popup = document.querySelector('.popup-reply-container');
     if (!popup) return; // Do nothing if the popup isn't on the page
@@ -349,8 +379,8 @@ function setupPopupReplySystem() {
             popup.style.left = `${linkRect.left}px`;
             popup.style.display = 'block';
 
-            // 3. ACTIVATE: Add reply link to the textarea (accumulates)
-            addReplyLink(textareaEl, threadId, messageId);
+            // 3. ACTIVATE: Add reply link + any pending quote to the textarea
+            populateReply(textareaEl, threadId, messageId);
 
             // Note: File preview works automatically via event delegation - no setup needed!
 
@@ -753,7 +783,7 @@ function handleReplyHash() {
             const firstPost = document.querySelector('.post');
             if (firstPost) {
                 const threadId = firstPost.dataset.threadId;
-                addReplyLink(textarea, threadId, messageId);
+                populateReply(textarea, threadId, messageId);
 
                 // Clean up URL: replace hash with textarea anchor
                 history.replaceState(null, '', `${window.location.pathname}#text-reply-bottom`);
