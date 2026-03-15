@@ -465,16 +465,19 @@ button[type="submit"]:hover {
 }
 
 .post-reply,
-.post-reply-popup {
+.post-reply-popup,
+.thread-button {
     margin-right: 5px;
 }
 .post-reply a,
-.post-reply-popup a {
+.post-reply-popup a,
+.thread-button a {
     color: var(--text-dark);
     text-decoration: none;
 }
 .post-reply a:hover,
-.post-reply-popup a:hover {
+.post-reply-popup a:hover,
+.thread-button a:hover {
     color: var(--text-dim);
     text-decoration: underline;
 }
