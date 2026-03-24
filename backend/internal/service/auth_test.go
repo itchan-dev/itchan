@@ -587,7 +587,7 @@ func TestRegisterWithDomainRestrictions(t *testing.T) {
 		var errWithStatus *internal_errors.ErrorWithStatusCode
 		require.True(t, errors.As(err, &errWithStatus))
 		assert.Equal(t, http.StatusForbidden, errWithStatus.StatusCode)
-		assert.Contains(t, err.Error(), "Registration is restricted to specific email domains")
+		assert.Contains(t, err.Error(), "Registration is restricted to specific email domains. Try to use /invites.txt")
 		assert.False(t, saveCalled, "SaveConfirmationData should NOT be called for blocked domains")
 		assert.False(t, sendCalled, "Send should NOT be called for blocked domains")
 	})

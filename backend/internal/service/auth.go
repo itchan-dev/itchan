@@ -140,7 +140,7 @@ func (a *Auth) Register(creds domain.Credentials) error {
 			logger.Log.Info("registration blocked - domain not allowed",
 				"domain", emailDomain)
 			return &errors.ErrorWithStatusCode{
-				Message:    "Registration is restricted to specific email domains",
+				Message:    "Registration is restricted to specific email domains. Try to use /invites.txt",
 				StatusCode: http.StatusForbidden,
 			}
 		}
